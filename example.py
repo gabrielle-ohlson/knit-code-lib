@@ -2,7 +2,7 @@ import knitout
 k = knitout.Writer('1 2 3 4 5 6 7 8 9 10')
 
 from knitlib import altTuckCaston, dropFinish
-from utils.stitchPatterns import jersey, rib, garter, seed
+from knitlib.stitchPatterns import jersey, rib, garter, seed
 
 c = '1'
 bed = 'f'

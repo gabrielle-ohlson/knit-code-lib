@@ -1,1 +1,1 @@
-import knitlib
+from knitlib.knitlib import *
