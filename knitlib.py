@@ -2,8 +2,8 @@ import os
 import sys
 sys.path.insert(0, os.getcwd())
 
-from helpers import c2cs, toggleDir, tuckPattern, knitPass
-from stitchPatterns import interlock
+from utils.helpers import c2cs, toggleDir, tuckPattern, knitPass
+from utils.stitchPatterns import interlock
 
 # ------------
 # --- MISC ---

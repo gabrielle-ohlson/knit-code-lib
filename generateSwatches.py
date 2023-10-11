@@ -5,8 +5,8 @@ import knitout
 k = knitout.Writer('1 2 3 4 5 6 7 8 9 10')
 k.addHeader('Machine','swgn2')
 
-import lib
-from lib import jersey, rib, garter, altKnitTuck, tuckGarter, seed, tuckStitch # need these for globals()[pat]
+import knitlib
+from knitlib import jersey, rib, garter, altKnitTuck, tuckGarter, seed, tuckStitch # need these for globals()[pat]
 
 mainC = '1'
 wasteC = '2'
@@ -74,13 +74,13 @@ def generate(swatches, out_fp, sort_by_width=True):
 
         if i == 0:
             rightN = dims[0]-1
-            lib.altTuckCaston(k, rightN, leftN, wasteC, default_bed, gauge, inhook=True, releasehook=True)
+            knitlib.altTuckCaston(k, rightN, leftN, wasteC, default_bed, gauge, inhook=True, releasehook=True)
         elif dims[0] > rightN:
             if mainC_dir == '+': k.miss('-', f'f{leftN}', mainC)
             else: k.miss('+', f'f{dims[0]}', mainC)
         elif not sort_by_width and dims[0] < rightN:
-            lib.wasteSection(k, leftN, rightN, closedCaston=(not tube), wasteC=wasteC, drawC=None, inCs=[], gauge=gauge, endOnRight=endOnRight, initial=False, drawMiddle=False, interlockLength=10)
-            lib.interlock(k, startN=rightN, endN=dims[0]+1, length=1, c=wasteC, gauge=gauge) # position carrier by new right needle
+            knitlib.wasteSection(k, leftN, rightN, closedCaston=(not tube), wasteC=wasteC, drawC=None, inCs=[], gauge=gauge, endOnRight=endOnRight, initial=False, drawMiddle=False, interlockLength=10)
+            knitlib.interlock(k, startN=rightN, endN=dims[0]+1, length=1, c=wasteC, gauge=gauge) # position carrier by new right needle
             for n in range(dims[0]+1, rightN+1):
                 k.drop(f'f{n}')
             for n in range(rightN, dims[0], -1):
@@ -108,7 +108,7 @@ def generate(swatches, out_fp, sort_by_width=True):
             else: drawC_dir = '+'
 
 
-        lib.wasteSection(k, leftN, rightN, closedCaston=(not tube), wasteC=wasteC, drawC=drawC, inCs=([drawC] if i == 0 else []), gauge=gauge, endOnRight=endOnRight, initial=(i==0), drawMiddle=False, interlockLength=20)
+        knitlib.wasteSection(k, leftN, rightN, closedCaston=(not tube), wasteC=wasteC, drawC=drawC, inCs=([drawC] if i == 0 else []), gauge=gauge, endOnRight=endOnRight, initial=(i==0), drawMiddle=False, interlockLength=20)
 
         if not tube and bed == 'b':
             for n in range(leftN, rightN+1):
@@ -123,7 +123,7 @@ def generate(swatches, out_fp, sort_by_width=True):
                 k.inhook(mainC)
                 if endN > startN: init_dir = '+'
                 else: init_dir = '-'
-                lib.tuckPattern(k, firstN=startN, direction=init_dir, c=mainC)
+                knitlib.tuckPattern(k, firstN=startN, direction=init_dir, c=mainC)
 
         if tube:
             bedLoops = {
@@ -219,16 +219,16 @@ def generate(swatches, out_fp, sort_by_width=True):
         else:
             drawC_finalDir = drawC_dir
             drawC_dir = ('+' if drawC_dir == '-' else '-')
-        lib.drawThread(k, leftN, rightN, drawC, finalDir=drawC_finalDir, circular=tube, missDraw=missDraw, gauge=gauge)
+        knitlib.drawThread(k, leftN, rightN, drawC, finalDir=drawC_finalDir, circular=tube, missDraw=missDraw, gauge=gauge)
 
         if i < len(pat_info)-1:
             if tube:
-                lib.circular(k, startN=leftN, endN=rightN, length=6, c=wasteC, gauge=gauge)
-            else: lib.jersey(k, leftN, rightN, 6, wasteC, bed='f', gauge=gauge)
+                knitlib.circular(k, startN=leftN, endN=rightN, length=6, c=wasteC, gauge=gauge)
+            else: knitlib.jersey(k, leftN, rightN, 6, wasteC, bed='f', gauge=gauge)
 
     if tube: backNeedleRanges=[leftN, rightN]
     else: backNeedleRanges=[]
 
-    lib.dropFinish(k, frontNeedleRanges=[leftN, rightN], backNeedleRanges=backNeedleRanges, carriers=[mainC, wasteC, drawC], direction='+', borderC=wasteC, borderLength=20)
+    knitlib.dropFinish(k, frontNeedleRanges=[leftN, rightN], backNeedleRanges=backNeedleRanges, carriers=[mainC, wasteC, drawC], direction='+', borderC=wasteC, borderLength=20)
 
     k.write(out_fp)
