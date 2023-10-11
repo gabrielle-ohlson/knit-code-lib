@@ -1,0 +1,3 @@
+[submodule "knitout-frontend-py"]
+	path = knitout-frontend-py
+	url = https://github.com/textiles-lab/knitout-frontend-py
