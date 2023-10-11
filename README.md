@@ -1,4 +1,4 @@
-# stim-objects
+# knit-code-lib
 
 clone with command: `git clone --recurse-submodules https://github.com/gabrielle-ohlson/knit-code-lib`
 
