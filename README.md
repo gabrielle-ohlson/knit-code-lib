@@ -1,6 +1,6 @@
 # knit-code-lib
 
-clone with command: `git clone --recurse-submodules https://github.com/gabrielle-ohlson/knit-code-lib`
+clone with command: `git clone --recurse-submodules https://github.com/gabrielle-ohlson/knitlib`
 
 ## Importing the `knitout-frontend-py` submodule
 If you didn't clone with the flag `--recurse-submodules`, run the command `git submodule init` and then `git submodule update` to add the necessary submodules to the project. \

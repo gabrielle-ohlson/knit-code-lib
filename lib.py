@@ -1,5 +1,5 @@
 from helpers import c2cs, toggleDir, tuckPattern, knitPass
-from stitch_patterns import interlock
+from stitchPatterns import interlock
 
 # ------------
 # --- MISC ---
