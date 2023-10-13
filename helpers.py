@@ -1,3 +1,29 @@
+import numpy as np
+
+# --- MISC HELPERS ---
+def parityRound(num, parity='even'):
+    if parity == 'even': return round(num/2)*2
+    else: return int(np.floor(num/2))*2 + 1
+
+
+def toList(el):
+    if isinstance(el, str): return [el]
+    else: return list(el)
+
+
+def flattenList(l):
+    out = []
+    for item in l:
+        if hasattr(item, '__iter__') and not isinstance(item, str):
+            out.extend(flattenList(item))
+        else: out.append(item)
+    return out
+
+
+def bnHalfG(b, n):
+    if b == 'f': return n*2
+    else: return (n*2)+1
+
 
 # --- ENSURES CARRIERS ARE IN THE FORM WE WANT (always list, even if passed as string) ---
 def c2cs(c):
