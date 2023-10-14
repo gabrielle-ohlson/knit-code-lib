@@ -80,6 +80,10 @@ def toggleDir(track_dict, c):
   return track_dict[c]
 
 
+def toggleDirection(d):
+    if d == '-': return '+'
+    else: return '-'
+
 # ----------------------
 # --- KNITTING STUFF ---
 # ----------------------
