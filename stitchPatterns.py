@@ -210,11 +210,6 @@ def rib(k, start_n, end_n, passes, c, bed=None, bed_loops={'f': [], 'b': []}, se
     '''
     cs = c2cs(c) # ensure tuple type
 
-    if bed is None:
-        bed = 'f'
-        single_bed = False
-    else: single_bed = True
-
     k.comment(f'begin rib ({sequence})')
 
     if releasehook and passes < 2: raise ValueError("not safe to releasehook with less than 2 passes.")
@@ -243,8 +238,11 @@ def rib(k, start_n, end_n, passes, c, bed=None, bed_loops={'f': [], 'b': []}, se
         k.inhook(*cs)
         if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=cs)
 
-    if bed == 'f': bed2 = 'b'
-    else: bed2 = 'f'
+    if bed is None: bed, bed2 = 'f', 'b'
+    else:
+        if bed == 'f': bed2 = 'b'
+        else: bed2 = 'f'
+        bed_loops[bed].extend(n_ranges[d1]) #make sure we transfer to get them where we want #TODO; #check
 
     if len(bed_loops['f']) or len(bed_loops['b']): # indicates that we might need to start by xferring to proper spots
         if xfer_speedNumber is not None: k.speedNumber(xfer_speedNumber)
