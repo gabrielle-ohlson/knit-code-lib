@@ -174,15 +174,15 @@ class CarrierTracker:
         self.end_n = end_n
 
         if self.start_n is not None and self.end_n is not None:
-            if self.start_n < self.end_n: self.d = '+'
-            else: self.d = '-'
-        else: self.d = None
+            if self.start_n < self.end_n: self.direction = '+'
+            else: self.direction = '-'
+        else: self.direction = None # can use this to store the carrier but signify that it isn't in
 
     
     def toggle(self, new_start_n=None, new_end_n=None):
-        if self.d is not None:
-            if self.d == '+': self.d = '-'
-            else: self.d = '+'
+        if self.direction is not None:
+            if self.direction == '+': self.direction = '-'
+            else: self.direction = '+'
         
         if new_start_n is None: new_start_n = self.end_n
         if new_end_n is None: new_end_n = self.start_n
