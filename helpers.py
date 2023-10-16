@@ -50,7 +50,7 @@ def bnValid(b, n, gauge=1):
     return (b == 'f' and n % gauge == 0) or (b == 'b' and n % gauge == (gauge//2))
 
 
-def halveGauge(gauge, mod):
+def halveGauge(gauge, mod): # usage: n % (gauge*2) == mods[0] or n % (gauge*2) == mods[1]
     if type(mod) == str: #passed bed for it
         if mod == 'f': mod = 0
         else: mod = gauge//2 # -1 #if gauge=1, this is 0 no matter what so works
@@ -104,13 +104,6 @@ def includeNSecureSides(n, secure_needles={}, knit_bed=None):
       if knit_bed == secure_needles[n]: return True
       else: return False
   else: return True
-
-
-def toggleDir(track_dict, c):
-  if track_dict[c] == '+': track_dict[c] = '-'
-  else: track_dict[c] = '+'
-
-  return track_dict[c]
 
 
 def toggleDirection(d):
@@ -172,15 +165,11 @@ def knitPass(k, start_n, end_n, c, bed='f', gauge=1, empty_needles=[]):
 
     if end_n > start_n: #pass is pos
         for n in range(start_n, end_n+1):
-            if f'{bed}{n}' not in empty_needles:
-                if (bed == 'f' and n % gauge == 0) or (bed == 'b' and (gauge == 1 or n % gauge != 0)): k.knit('+', f'{bed}{n}', *cs) 
-                elif n == end_n: k.miss('+', f'{bed}{n}', *cs)
+            if f'{bed}{n}' not in empty_needles and bnValid(bed, n, gauge): k.knit('+', f'{bed}{n}', *cs) 
             elif n == end_n: k.miss('+', f'{bed}{n}', *cs)
     else: #pass is neg
         for n in range(start_n, end_n-1, -1):
-            if f'{bed}{n}' not in empty_needles:
-                if (bed == 'f' and n % gauge == 0) or (bed == 'b' and (gauge == 1 or n % gauge != 0)): k.knit('-', f'{bed}{n}', *cs)
-                elif n == end_n: k.miss('-', f'{bed}{n}', *cs)
+            if f'{bed}{n}' not in empty_needles and bnValid(bed, n, gauge): k.knit('-', f'{bed}{n}', *cs)
             elif n == end_n: k.miss('-', f'{bed}{n}', *cs)
 
 

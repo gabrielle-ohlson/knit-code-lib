@@ -2,7 +2,7 @@ import os
 import sys
 sys.path.insert(0, os.getcwd())
 
-from .helpers import c2cs, toggleDir, tuckPattern, knitPass, flattenIter, halveGauge, bnValid, toggleDirection
+from .helpers import c2cs, tuckPattern, flattenIter, halveGauge, bnValid, toggleDirection
 from .stitchPatterns import interlock
 
 # ------------
@@ -778,35 +778,34 @@ def bindoffTag(k, d, bed, edge_n, c):
     if d == '+': shift = -1 #will knit the tag to the left of edge_n
     else: shift = 1 #will knit the tag to the right of edge_n
 
-    carrier_track = {cs: d}
-
     for r in range(4):
         k.knit(d, f'{bed}{edge_n}', *cs)
         if r == 3:
             k.tuck(d, f'{bed}{edge_n+shift}', *cs)
-        d = toggleDir(carrier_track, cs)
+        d = toggleDirection(d)
 
     k.tuck(d, f'{bed}{edge_n+(shift*2)}', *cs)
     k.knit(d, f'{bed}{edge_n+(shift)}', *cs)
     k.knit(d, f'{bed}{edge_n}', *cs)
 
-    d = toggleDir(carrier_track, cs)
+    d = toggleDirection(d)
     if d == '-': # started pos
         for r in range(2):
             for n in range(edge_n, edge_n-3, -1):
                 k.knit(d, f'{bed}{n}', *cs)
-            d = toggleDir(carrier_track, cs)
+            d = toggleDirection(d)
+
             for n in range(edge_n-2, edge_n+1):
                 k.knit(d, f'{bed}{n}', *cs)
-            d = toggleDir(carrier_track, cs)
+            d = toggleDirection(d)
     else: # started neg
         for r in range(2):
             for n in range(edge_n, edge_n+3):
                 k.knit(d, f'{bed}{n}', *cs)
-            d = toggleDir(carrier_track, cs)
+            d = toggleDirection(d)
             for n in range(edge_n+2, edge_n-1, -1):
                 k.knit(d, f'{bed}{n}', *cs)
-            d = toggleDir(carrier_track, cs)
+            d = toggleDirection(d)
 
     return d # next direction to knit in (though likely not doing anymore knitting)
 
