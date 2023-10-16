@@ -32,13 +32,30 @@ def flattenIter(l): #TODO: add support for dict and other iters
         else: out.append(item)
     
     if type(l) == list: return out
-    elif type(l) == tuple: out = tuple(out)
+    elif type(l) == tuple: return tuple(out)
     else: raise ValueError(f"type {type(l)} not support yet. TODO")
 
 
 def bnHalfG(b, n):
     if b == 'f': return n*2
     else: return (n*2)+1
+
+
+def bnGauged(b, n, gauge=2):
+    if b == 'f': return n*gauge
+    else: return (n*gauge)+(gauge//2)
+
+
+def bnValid(b, n, gauge=1):
+    return (b == 'f' and n % gauge == 0) or (b == 'b' and n % gauge == (gauge//2))
+
+
+def halveGauge(gauge, mod):
+    if type(mod) == str: #passed bed for it
+        if mod == 'f': mod = 0
+        else: mod = gauge//2 # -1 #if gauge=1, this is 0 no matter what so works
+    #
+    return [mod, mod+gauge]
 
 
 # --- ENSURES CARRIERS ARE IN THE FORM WE WANT (always tuple, even if passed as string) ---
