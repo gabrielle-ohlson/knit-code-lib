@@ -167,21 +167,6 @@ def knitPass(k, start_n, end_n, c, bed='f', gauge=1, empty_needles=[]):
             elif n == end_n: k.miss('-', f'{bed}{n}', *cs)
 
 
-
-class Car(object):
-    """Car example with weight and speed."""
-    def __init__(self):
-        self._weight = None # internal value
-        self.speed = None
-
-    @property
-    def weight(self):
-        return self._weight
-
-    @weight.setter
-    def weight(self, the_weight):
-        self._weight = the_weight - 10 # or whatever here
-
 class CarrierTracker:
     def __init__(self, cs, start_n=None, end_n=None):
         self.cs = cs
@@ -219,7 +204,7 @@ class CarrierTracker:
     @end_n.setter
     def end_n(self, val):
         self._end_n = val
-        self._updateDirection()
+        self._updateDirection() #TODO: consider changing this since it would be called twice if updating start_n and end_n simultaneously
     
     def toggle(self, new_start_n=None, new_end_n=None):
         if new_start_n is None: new_start_n = self._end_n
@@ -229,3 +214,6 @@ class CarrierTracker:
         self._end_n = new_end_n
 
         self._updateDirection(do_toggle=True)
+
+    def __copy__(self):
+        return CarrierTracker(self.cs, self._start_n, self._end_n)
