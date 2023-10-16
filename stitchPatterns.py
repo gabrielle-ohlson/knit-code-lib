@@ -32,7 +32,7 @@ def jersey(k, start_n, end_n, length, c, bed='f', gauge=1, empty_needles=[], inh
     -------
     * _type_: _description_
     '''
-    cs = c2cs(c) # ensure list type
+    cs = c2cs(c) # ensure tuple type
 
     if releasehook and length < 2 and not tuck_pattern: raise ValueError("not safe to releasehook with less than 2 passes.")
 
@@ -100,7 +100,7 @@ def interlock(k, start_n, end_n, length, c, gauge=1, start_condition=1, empty_ne
     * `xfer_speedNumber` (int, optional): value to set for the `x-speed-number` knitout extension when transferring. Defaults to `None`.
     * `xfer_stitchNumber` (int, optional): value to set for the `x-stitch-number` knitout extension when transferring. Defaults to `None`.
     '''
-    cs = c2cs(c) # ensure list type
+    cs = c2cs(c) # ensure tuple type
 
     k.comment('begin interlock')
     if inhook: k.inhook(*cs)
@@ -302,10 +302,9 @@ def rib(k, start_n, end_n, length, c, bed=None, bed_loops={'f': [], 'b': []}, se
     *sequence is the repeating rib pattern (e.g. 'fb' of 'bf' for 1x1 [first bed indicates which bed left-most needle will be on], 'ffbb' for 2x2, 'fbffbb' for 1x1x2x2, etc.)
     *gauge is gauge
     '''
-    cs = c2cs(c) # ensure list type
+    cs = c2cs(c) # ensure tuple type
 
     k.comment(f'begin rib ({sequence})')
-    # if inhook: k.inhook(*cs)
 
     if releasehook and length < 2: raise ValueError("not safe to releasehook with less than 2 passes.")
 
@@ -410,7 +409,7 @@ def altKnitTuck(k, start_n, end_n, length, c, bed='f', gauge=1, sequence='kt', t
     '''
     *TODO
     '''
-    cs = c2cs(c) # ensure list type
+    cs = c2cs(c) # ensure tuple type
 
     k.comment(f'begin alt knit/tuck ({sequence})')
 
@@ -476,7 +475,7 @@ def garter(k, start_n, end_n, length, c, bed='f', bed_loops={'f': [], 'b': []}, 
     * secure_start_n and *secure_end_n are booleans that indicate whether or not we should refrain from xferring the edge-most needles, for security (NOTE: this should be True if given edge needle is on the edge of the piece [rather than in the middle of it])
     * gauge is... gauge
     '''
-    cs = c2cs(c) # ensure list type
+    cs = c2cs(c) # ensure tuple type
 
     pattern_rows = {
         'f': sequence.count('f'),
@@ -626,7 +625,7 @@ def tuckGarter(k, start_n, end_n, length, c, bed='f', sequence='ffb', secure_sta
     * secure_start_n and *secure_end_n are booleans that indicate whether or not we should refrain from xferring the edge-most needles, for security (NOTE: this should be True if given edge needle is on the edge of the piece [rather than in the middle of it])
     * gauge is... gauge
     '''
-    cs = c2cs(c) # ensure list type
+    cs = c2cs(c) # ensure tuple type
 
     pattern_rows = {
         'f': sequence.count('f'),
@@ -775,7 +774,7 @@ def tuckGarter(k, start_n, end_n, length, c, bed='f', sequence='ffb', secure_sta
 
 
 def seed(k, start_n, end_n, length, c, bed='f', bed_loops={'f': [], 'b': []}, sequence='fb', secure_start_n=True, secure_end_n=True, gauge=1, inhook=False, releasehook=False, tuck_pattern=True, speedNumber=None, stitchNumber=None, xfer_speedNumber=None, xfer_stitchNumber=None): #TODO: fix this for gauge 2 secure needles
-    cs = c2cs(c) # ensure list type
+    cs = c2cs(c) # ensure tuple type
 
     k.comment(f'begin seed ({sequence})')
 
@@ -940,7 +939,7 @@ def seed(k, start_n, end_n, length, c, bed='f', bed_loops={'f': [], 'b': []}, se
 
 
 def tuckStitch(k, start_n, end_n, length, c, bed='f', gauge=1, sequence='kt', inhook=False, releasehook=False, tuck_pattern=True):
-    cs = c2cs(c) # ensure list type
+    cs = c2cs(c) # ensure tuple type
 
     k.comment(f'begin tuck stitch ({sequence})')
 

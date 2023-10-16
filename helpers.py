@@ -11,6 +11,11 @@ def toList(el):
     else: return list(el)
 
 
+def toTuple(el):
+    if hasattr(el, '__iter__') and not isinstance(el, str): return tuple(el)
+    else: return (el,)
+
+
 def flattenList(l):
     out = []
     for item in l:
@@ -20,15 +25,26 @@ def flattenList(l):
     return out
 
 
+def flattenIter(l): #TODO: add support for dict and other iters
+    out = []
+    for item in l:
+        if hasattr(item, '__iter__') and not isinstance(item, str): out.extend(flattenIter(item))
+        else: out.append(item)
+    
+    if type(l) == list: return out
+    elif type(l) == tuple: out = tuple(out)
+    else: raise ValueError(f"type {type(l)} not support yet. TODO")
+
+
 def bnHalfG(b, n):
     if b == 'f': return n*2
     else: return (n*2)+1
 
 
-# --- ENSURES CARRIERS ARE IN THE FORM WE WANT (always list, even if passed as string) ---
+# --- ENSURES CARRIERS ARE IN THE FORM WE WANT (always tuple, even if passed as string) ---
 def c2cs(c):
-    if hasattr(c, '__iter__') and not isinstance(c, str): return list(c)
-    else: return [c]
+    if hasattr(c, '__iter__') and not isinstance(c, str): return tuple(c)
+    else: return (c,)
 
 
 def sortBedNeedles(bnList=[], direction='+'):
@@ -101,7 +117,7 @@ def tuckPattern(k, first_n, direction, c=None, bed='f', machine='swgn2'): #remem
     * `bed` (str, optional): bed to tuck on. Defaults to 'f'.
     * `machine` (str, optional): knitting machine model (options are swgn2 and kniterate). Defaults to 'swgn2'.
     '''
-    cs = c2cs(c) # ensure list type
+    cs = c2cs(c) # ensure tuple type
 
     if direction == '+':
         for n in range(first_n-1, first_n-6, -1):
@@ -135,7 +151,7 @@ def knitPass(k, start_n, end_n, c, bed='f', gauge=1, empty_needles=[]):
     '''
     *TODO
     '''
-    cs = c2cs(c) # ensure list type
+    cs = c2cs(c) # ensure tuple type
 
     if end_n > start_n: #pass is pos
         for n in range(start_n, end_n+1):

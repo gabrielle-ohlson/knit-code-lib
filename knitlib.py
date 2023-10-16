@@ -24,7 +24,7 @@ def drawThread(k, left_n, right_n, draw_c, final_dir='-', final_bed='f', circula
     * `miss_draw` (int, optional): optional needle to miss carrier past after knitting. Defaults to None.
     * `gauge` (int, optional): gauge to knit in. Defaults to 1.
     '''
-    cs = c2cs(draw_c) # ensure list type
+    cs = c2cs(draw_c) # ensure tuple type
 
     if final_bed == 'f': init_bed = 'b'
     else: init_bed = 'f'
@@ -68,7 +68,7 @@ def circular(k, start_n, end_n, length, c, gauge=1):
     *c is carrier
     *gauge is... gauge
     '''
-    cs = c2cs(c) # ensure list type
+    cs = c2cs(c) # ensure tuple type
 
     if end_n > start_n: #first pass is pos
         beg = 0
@@ -442,7 +442,7 @@ def altTuckCaston(k, start_n, end_n, c, bed, gauge=1, inhook=False, releasehook=
     '''
 
     # for sheet:
-    cs = c2cs(c) # ensure list type
+    cs = c2cs(c) # ensure tuple type
 
     k.comment('begin alternating tuck cast-on')
     if speedNumber is not None: k.speedNumber(speedNumber)
@@ -546,7 +546,7 @@ def openTubeCaston(k, start_n, end_n, c, gauge=1, inhook=False, releasehook=Fals
     * `speedNumber` (int): value to set for the `x-speed-number` knitout extension. Defaults to `None`.
     * `stitchNumber` (int): value to set for the `x-stitch-number` knitout extension. Defaults to `None`.
     '''
-    cs = c2cs(c) # ensure list type
+    cs = c2cs(c) # ensure tuple type
 
     k.comment('begin open tube cast-on')
     if speedNumber is not None: k.speedNumber(speedNumber)
@@ -611,7 +611,7 @@ def zigzagCaston(k, start_n, end_n, c, gauge=1, inhook=False, releasehook=False,
 
     - only one pass; carrier will end on the side opposite to which it started
     '''
-    cs = c2cs(c) # ensure list type
+    cs = c2cs(c) # ensure tuple type
 
     if releasehook and not tuck_pattern: raise ValueError("not safe to releasehook with less than 2 passes.")
 
@@ -644,7 +644,7 @@ def zigzagCaston(k, start_n, end_n, c, gauge=1, inhook=False, releasehook=False,
 
 
 def altTuckTubeCaston(k, start_n, end_n, c, gauge=1, inhook=False, releasehook=False, tuck_pattern=False):
-    cs = c2cs(c) # ensure list type
+    cs = c2cs(c) # ensure tuple type
 
     k.comment('begin alternating tuck tube cast-on')
 
