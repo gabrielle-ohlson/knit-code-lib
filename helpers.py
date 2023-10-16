@@ -167,25 +167,65 @@ def knitPass(k, start_n, end_n, c, bed='f', gauge=1, empty_needles=[]):
             elif n == end_n: k.miss('-', f'{bed}{n}', *cs)
 
 
+
+class Car(object):
+    """Car example with weight and speed."""
+    def __init__(self):
+        self._weight = None # internal value
+        self.speed = None
+
+    @property
+    def weight(self):
+        return self._weight
+
+    @weight.setter
+    def weight(self, the_weight):
+        self._weight = the_weight - 10 # or whatever here
+
 class CarrierTracker:
     def __init__(self, cs, start_n=None, end_n=None):
         self.cs = cs
-        self.start_n = start_n
-        self.end_n = end_n
+        # internal values
+        self._start_n = start_n
+        self._end_n = end_n
 
-        if self.start_n is not None and self.end_n is not None:
-            if self.start_n < self.end_n: self.direction = '+'
+        self.direction = None # for now # can use this to store the carrier but signify that it isn't in
+
+        self._updateDirection()
+
+    # internal helper method
+    def _updateDirection(self, do_toggle=False):
+        if self._start_n is not None and self._end_n is not None:
+            if self._start_n < self._end_n: self.direction = '+'
             else: self.direction = '-'
-        else: self.direction = None # can use this to store the carrier but signify that it isn't in
-
-    
-    def toggle(self, new_start_n=None, new_end_n=None):
-        if self.direction is not None:
+        elif do_toggle and self.direction is not None:
             if self.direction == '+': self.direction = '-'
             else: self.direction = '+'
-        
-        if new_start_n is None: new_start_n = self.end_n
-        if new_end_n is None: new_end_n = self.start_n
+        else: self.direction = None #TODO: decide if should keep ths
 
-        self.start_n = new_start_n
-        self.end_n = new_end_n
+    @property
+    def start_n(self):
+        return self._start_n
+    
+    @property
+    def end_n(self):
+        return self._end_n
+
+    @start_n.setter
+    def start_n(self, val):
+        self._start_n = val
+        self._updateDirection()
+    
+    @end_n.setter
+    def end_n(self, val):
+        self._end_n = val
+        self._updateDirection()
+    
+    def toggle(self, new_start_n=None, new_end_n=None):
+        if new_start_n is None: new_start_n = self._end_n
+        if new_end_n is None: new_end_n = self._start_n
+
+        self._start_n = new_start_n
+        self._end_n = new_end_n
+
+        self._updateDirection(do_toggle=True)
