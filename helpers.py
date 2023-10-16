@@ -166,3 +166,26 @@ def knitPass(k, start_n, end_n, c, bed='f', gauge=1, empty_needles=[]):
                 elif n == end_n: k.miss('-', f'{bed}{n}', *cs)
             elif n == end_n: k.miss('-', f'{bed}{n}', *cs)
 
+
+class CarrierTracker:
+    def __init__(self, cs, start_n=None, end_n=None):
+        self.cs = cs
+        self.start_n = start_n
+        self.end_n = end_n
+
+        if self.start_n is not None and self.end_n is not None:
+            if self.start_n < self.end_n: self.d = '+'
+            else: self.d = '-'
+        else: self.d = None
+
+    
+    def toggle(self, new_start_n=None, new_end_n=None):
+        if self.d is not None:
+            if self.d == '+': self.d = '-'
+            else: self.d = '+'
+        
+        if new_start_n is None: new_start_n = self.end_n
+        if new_end_n is None: new_end_n = self.start_n
+
+        self.start_n = new_start_n
+        self.end_n = new_end_n
