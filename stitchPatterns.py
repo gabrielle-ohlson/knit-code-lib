@@ -571,7 +571,7 @@ def tuckGarter(k, start_n, end_n, passes, c, bed="f", sequence="ffb", gauge=1, b
     
     pattern_rows["f"] += 1 #for the tucks
 
-    b1 = sequence[p % len(sequence)]
+    b1 = sequence[0]
     b2 = "f" if b1 == "b" else "b"
 
     xfer_loops = {b2: [n for n in list(set(bn_locs[b2]+bed_loops.get(b2, []))) if bnValid(bed, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles[b2]]}
