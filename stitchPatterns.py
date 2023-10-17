@@ -273,7 +273,7 @@ def rib(k, start_n, end_n, passes, c, bed=None, sequence="fb", gauge=1, bed_loop
         if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=cs)
 
     # now let's make sure we have *all* the info in one dict
-    xfer_loops = {"f": [n for n in list(set(bn_locs.get("f", []), bed_loops.get("f", []))) if sequence[n % len(sequence)] == "b" and bnValid(bed, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles["f"]], "b": [n for n in list(set(bn_locs.get("b", []), bed_loops.get("b", []))) if sequence[n % len(sequence)] == "f" and bnValid(bed, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles["b"]]}
+    xfer_loops = {"f": [n for n in list(set(bn_locs.get("f", [])+bed_loops.get("f", []))) if sequence[n % len(sequence)] == "b" and bnValid(bed, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles["f"]], "b": [n for n in list(set(bn_locs.get("b", [])+bed_loops.get("b", []))) if sequence[n % len(sequence)] == "f" and bnValid(bed, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles["b"]]}
 
     if len(xfer_loops["f"]) or len(xfer_loops["b"]): # indicates that we might need to start by xferring to proper spots
         if xfer_speedNumber is not None: k.speedNumber(xfer_speedNumber)
@@ -443,7 +443,7 @@ def garter(k, start_n, end_n, passes, c, bed=None, sequence="fb", gauge=1, bed_l
     b1 = sequence[0]
     b2 = "f" if b1 == "b" else "b"
 
-    xfer_loops = {b2: [n for n in list(set(bn_locs[b2], bed_loops.get(b2, []))) if bnValid(bed, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles[b2]]}
+    xfer_loops = {b2: [n for n in list(set(bn_locs[b2]+bed_loops.get(b2, []))) if bnValid(bed, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles[b2]]}
 
     if len(xfer_loops[b2]):
         for n in n_ranges[d2]:
@@ -556,7 +556,7 @@ def tuckGarter(k, start_n, end_n, passes, c, bed="f", sequence="ffb", gauge=1, b
     b1 = sequence[p % len(sequence)]
     b2 = "f" if b1 == "b" else "b"
 
-    xfer_loops = {b2: [n for n in list(set(bn_locs[b2], bed_loops.get(b2, []))) if bnValid(bed, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles[b2]]}
+    xfer_loops = {b2: [n for n in list(set(bn_locs[b2]+bed_loops.get(b2, []))) if bnValid(bed, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles[b2]]}
 
     if len(xfer_loops[b2]):
         for n in n_ranges[d2]:
@@ -658,7 +658,7 @@ def seed(k, start_n, end_n, passes, c, bed="f", sequence="fb", gauge=1, bed_loop
     # if bed == "f": bed2 = "b"
     # else: bed2 = "f"
 
-    xfer_loops = {"f": [n for n in list(set(bn_locs.get("f", []), bed_loops.get("f", []))) if sequence[n % len(sequence)] == "b" and bnValid(bed, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles["f"]], "b": [n for n in list(set(bn_locs.get("b", []), bed_loops.get("b", []))) if sequence[n % len(sequence)] == "f" and bnValid(bed, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles["b"]]}
+    xfer_loops = {"f": [n for n in list(set(bn_locs.get("f", [])+bed_loops.get("f", []))) if sequence[n % len(sequence)] == "b" and bnValid(bed, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles["f"]], "b": [n for n in list(set(bn_locs.get("b", [])+bed_loops.get("b", []))) if sequence[n % len(sequence)] == "f" and bnValid(bed, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles["b"]]}
 
     if len(xfer_loops["f"]) or len(xfer_loops["b"]): # indicates that we might need to start by xferring to proper spots
         if xfer_speedNumber is not None: k.speedNumber(xfer_speedNumber)
