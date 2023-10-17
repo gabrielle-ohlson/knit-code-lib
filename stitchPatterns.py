@@ -636,7 +636,7 @@ def tuckGarter(k, start_n, end_n, passes, c, bed="f", sequence="ffb", gauge=1, b
     return d #return the direction that the next pass should be, so know which to use next
 
 
-def seed(k, start_n, end_n, passes, c, bed="f", sequence="fb", gauge=1, bed_loops={"f": [], "b": []}, avoid_bns={"f": [], "b": []}, secure_start_n=True, secure_end_n=True, inhook=False, releasehook=False, tuck_pattern=True, speedNumber=None, stitchNumber=None, xfer_speedNumber=None, xfer_stitchNumber=None): #TODO: fix this for gauge 2 secure needles
+def seed(k, start_n, end_n, passes, c, bed="f", sequence="fb", gauge=1, bed_loops={"f": [], "b": []}, avoid_bns={"f": [], "b": []}, secure_start_n=True, secure_end_n=True, inhook=False, releasehook=False, tuck_pattern=True, speedNumber=None, stitchNumber=None, xfer_speedNumber=None, xfer_stitchNumber=None):
     if releasehook and not tuck_pattern and passes < 2: raise ValueError("not safe to releasehook with less than 2 passes. Try adding a tuck pattern.")
 
     k.comment(f"begin seed ({sequence})")

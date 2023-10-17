@@ -291,6 +291,10 @@ def bnFormat(needles, bed=None, gauge=2, sort=True, unique=True, return_type=lis
         return d_out
     else: raise ValueError(f"Return type {return_type} not yet supported.")
 
+
+def rollSequence(seq_str, i):
+    return seq_str[i%len(seq_str):]+seq_str[:i%len(seq_str)]
+
 #-------------------------------------------------------------------------------
 
 
