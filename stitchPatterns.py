@@ -352,14 +352,14 @@ def altKnitTuck(k, start_n, end_n, passes, c, bed='f', gauge=1, sequence='kt', t
     else: return '+'
 
 
-def garter(k, start_n, end_n, passes, c, bed='f', bed_loops={'f': [], 'b': []}, sequence='fb', secure_start_n=True, secure_end_n=True, gauge=1, inhook=False, releasehook=False, tuck_pattern=True, speedNumber=None, stitchNumber=None, xfer_speedNumber=None, xfer_stitchNumber=None): #TODO: fix this for gauge 2 secure needles
+def garter(k, start_n, end_n, passes, c, bed=None, bed_loops={'f': [], 'b': []}, sequence='fb', secure_start_n=True, secure_end_n=True, gauge=1, inhook=False, releasehook=False, tuck_pattern=True, speedNumber=None, stitchNumber=None, xfer_speedNumber=None, xfer_stitchNumber=None): #TODO: fix this for gauge 2 secure needles
     '''
     * k is knitout Writer
     * start_n is the starting needle to knit on
     * end_n is the last needle to knit on
     * passes is total passes knit
     * c is carrier
-    * bed is the bed to start on
+    * bed is the bed it belongs to
     * sequence is the number of knit/purl rows to knit before switch to the other (e.g. 2 -- knit 2 rows, purl 2 rows [repeat]) #TODO: alter (and alter in all other code)
     * secure_start_n and *secure_end_n are booleans that indicate whether or not we should refrain from xferring the edge-most needles, for security (NOTE: this should be True if given edge needle is on the edge of the piece [rather than in the middle of it])
     * gauge is... gauge
@@ -381,8 +381,7 @@ def garter(k, start_n, end_n, passes, c, bed='f', bed_loops={'f': [], 'b': []}, 
         d1 = '+'
         d2 = '-'
 
-        n_range1 = range(start_n, end_n+1)
-        n_range2 = range(end_n, start_n-1, -1)
+        n_ranges = {'+': range(start_n, end_n+1), '-': range(end_n, start_n-1, -1)}
 
         if gauge == 2: #TODO: adjust this for other gauges etc. #*
             if secure_start_n:
@@ -407,8 +406,7 @@ def garter(k, start_n, end_n, passes, c, bed='f', bed_loops={'f': [], 'b': []}, 
         d1 = '-'
         d2 = '+'
 
-        n_range1 = range(start_n, end_n-1, -1)
-        n_range2 = range(end_n, start_n+1)
+        n_ranges = {'-': range(start_n, end_n-1, -1), '+': range(end_n, start_n+1)}
 
         if gauge == 2: #TODO: adjust this for other gauges etc. #*
             if secure_start_n:
@@ -436,7 +434,6 @@ def garter(k, start_n, end_n, passes, c, bed='f', bed_loops={'f': [], 'b': []}, 
     
     # for now: (will be reset)
     d = d1
-    needle_range = n_range1
 
     if type(pattern_rows) != dict:
         pat_rows = {}
@@ -444,49 +441,49 @@ def garter(k, start_n, end_n, passes, c, bed='f', bed_loops={'f': [], 'b': []}, 
         pat_rows['b'] = pattern_rows
         pattern_rows = pat_rows
     
-    b = sequence[0]
-    b2 = 'f' if b == 'b' else 'b'
+    b1 = sequence[0]
+    b2 = 'f' if b1 == 'b' else 'b'
+
+    if bed is not None:
+        bed_loops[bed].extend(n_ranges[d2]) #make sure we transfer to get them where we want #TODO; #check
 
     if len(bed_loops['f']) or len(bed_loops['b']):
-        for n in n_range1:
-            if n in bed_loops[b2] and bnValid(bed, n, gauge) and n not in secure_needles[b2]: k.xfer(f'{b2}{n}', f'{b}{n}')
+        for n in n_ranges[d2]:
+            if n in bed_loops[b2] and bnValid(bed, n, gauge) and n not in secure_needles[b2]: k.xfer(f'{b2}{n}', f'{b1}{n}')
     
     for p in range(passes):
-        if p % 2 == 0:
-            d = d1
-            needle_range = n_range1
-        else:
-            d = d2
-            needle_range = n_range2
+        if p % 2 == 0: d = d1
+        else: d = d2
 
-        if p > 0 and b != sequence[p % len(sequence)]: # transfer
+        if p > 0 and b1 != sequence[p % len(sequence)]: # transfer
             if xfer_speedNumber is not None: k.speedNumber(xfer_speedNumber)
             if xfer_stitchNumber is not None: k.stitchNumber(xfer_stitchNumber)
             
-            for n in n_range1:
-                if bnValid(bed, n, gauge) and n not in secure_needles[b]: k.xfer(f'{b}{n}', f'{sequence[p % len(sequence)]}{n}')
+            for n in n_ranges[d]:
+                if bnValid(bed, n, gauge) and n not in secure_needles[b1]: k.xfer(f'{b1}{n}', f'{sequence[p % len(sequence)]}{n}')
 
             if speedNumber is not None: k.speedNumber(speedNumber)
             if stitchNumber is not None: k.stitchNumber(stitchNumber)
 
-        b = sequence[p % len(sequence)]
+        b1 = sequence[p % len(sequence)]
 
-        b2 = 'f' if b == 'b' else 'b'
+        b2 = 'f' if b1 == 'b' else 'b'
 
         if releasehook and p == 2:
             k.releasehook(*cs)
             if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=None) # drop it
 
-        for n in needle_range:
+        for n in n_ranges[d]:
             if bnValid(bed, n, gauge):
                 if n in secure_needles[b2]: k.knit(d, f'{b2}{n}', *cs)
-                else: k.knit(d, f'{b}{n}', *cs)
-            elif n == end_n: k.miss(d, f'{b}{n}', *cs)
+                else: k.knit(d, f'{b1}{n}', *cs)
+            elif n == end_n: k.miss(d, f'{b1}{n}', *cs)
 
     if len(bed_loops['f']) or len(bed_loops['b']):
-        b2 = 'f' if b == 'b' else b
+        b2 = 'f' if b1 == 'b' else b1
 
-        if n in bed_loops[b2] and bnValid(bed, n, gauge) and n not in secure_needles[b2]: k.xfer(f'{b}{n}', f'{b2}{n}')
+        for n in n_ranges[d]:
+            if n in bed_loops[b2] and bnValid(bed, n, gauge) and n not in secure_needles[b2]: k.xfer(f'{b1}{n}', f'{b2}{n}')
 
     if type(pattern_rows) == dict: k.comment(f'end {pattern_rows["f"]}x{pattern_rows["b"]} garter')
     else: k.comment(f'end {pattern_rows}x{pattern_rows} garter')
