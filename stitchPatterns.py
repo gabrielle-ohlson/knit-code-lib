@@ -214,8 +214,9 @@ def rib(k, start_n, end_n, passes, c, bed=None, bed_loops={'f': [], 'b': []}, se
 
     if releasehook and passes < 2: raise ValueError("not safe to releasehook with less than 2 passes.")
 
-    if not 'f' in bed_loops: bed_loops['f'] = []
-    if not 'b' in bed_loops: bed_loops['b'] = []
+    xfer_loops = bed_loops.copy()
+    if not 'f' in xfer_loops: xfer_loops['f'] = []
+    if not 'b' in xfer_loops: xfer_loops['b'] = []
 
     if gauge > 1:
         gauged_sequence = ''
@@ -242,16 +243,16 @@ def rib(k, start_n, end_n, passes, c, bed=None, bed_loops={'f': [], 'b': []}, se
     else:
         if bed == 'f': bed2 = 'b'
         else: bed2 = 'f'
-        bed_loops[bed].extend(n_ranges[d1]) #make sure we transfer to get them where we want #TODO; #check
+        xfer_loops[bed].extend([n for n in n_ranges[d1] if bnValid(bed, n, gauge)]) #make sure we transfer to get them where we want #TODO; #check
 
-    if len(bed_loops['f']) or len(bed_loops['b']): # indicates that we might need to start by xferring to proper spots
+    if len(xfer_loops['f']) or len(xfer_loops['b']): # indicates that we might need to start by xferring to proper spots
         if xfer_speedNumber is not None: k.speedNumber(xfer_speedNumber)
         if xfer_stitchNumber is not None: k.stitchNumber(xfer_stitchNumber)
 
         for n in n_ranges[d1]: #TODO: #check adjustment for gauge
             if bnValid(bed, n, gauge):
-                if sequence[n % len(sequence)] == bed2 and n in bed_loops[bed]: k.xfer(f'{bed}{n}', f'{bed2}{n}')
-                elif sequence[n % len(sequence)] == bed and n in bed_loops[bed2]: k.xfer(f'{bed2}{n}', f'{bed}{n}')
+                if sequence[n % len(sequence)] == bed2 and n in xfer_loops[bed]: k.xfer(f'{bed}{n}', f'{bed2}{n}')
+                elif sequence[n % len(sequence)] == bed and n in xfer_loops[bed2]: k.xfer(f'{bed2}{n}', f'{bed}{n}')
             
         if speedNumber is not None: k.speedNumber(speedNumber)
         if stitchNumber is not None: k.stitchNumber(stitchNumber)
@@ -277,14 +278,14 @@ def rib(k, start_n, end_n, passes, c, bed=None, bed_loops={'f': [], 'b': []}, se
                 elif n == last_n: k.miss(d, f'b{n}', *cs)
     
     # return the loops:
-    if len(bed_loops['f']) or len(bed_loops['b']):
+    if len(xfer_loops['f']) or len(xfer_loops['b']):
         if xfer_speedNumber is not None: k.speedNumber(xfer_speedNumber)
         if xfer_stitchNumber is not None: k.stitchNumber(xfer_stitchNumber)
 
         for n in n_ranges[d1]: #TODO: adjust for gauge
             if bnValid(bed, n, gauge):
-                if sequence[n % len(sequence)] == bed2 and n in bed_loops[bed]: k.xfer(f'{bed2}{n}', f'{bed}{n}')
-                elif sequence[n % len(sequence)] == bed and n in bed_loops[bed2]: k.xfer(f'{bed}{n}', f'{bed2}{n}')
+                if sequence[n % len(sequence)] == bed2 and n in xfer_loops[bed]: k.xfer(f'{bed2}{n}', f'{bed}{n}')
+                elif sequence[n % len(sequence)] == bed and n in xfer_loops[bed2]: k.xfer(f'{bed}{n}', f'{bed2}{n}')
             
         if speedNumber is not None: k.speedNumber(speedNumber)
         if stitchNumber is not None: k.stitchNumber(stitchNumber)
@@ -366,6 +367,10 @@ def garter(k, start_n, end_n, passes, c, bed=None, bed_loops={'f': [], 'b': []},
     '''
     cs = c2cs(c) # ensure tuple type
 
+    xfer_loops = bed_loops.copy()
+    if not 'f' in xfer_loops: xfer_loops['f'] = []
+    if not 'b' in xfer_loops: xfer_loops['b'] = []
+
     pattern_rows = {
         'f': sequence.count('f'),
         'b': sequence.count('b')
@@ -385,19 +390,19 @@ def garter(k, start_n, end_n, passes, c, bed=None, bed_loops={'f': [], 'b': []},
 
         if secure_start_n: #TODO: improve this
             for n in range(start_n, end_n+1):
-                if bnValid('f', n, gauge) or n in bed_loops['f']:
+                if bnValid('f', n, gauge) or n in xfer_loops['f']:
                     secure_needles['f'].append(n)
                     break
-                elif bnValid('b', n, gauge) or n in bed_loops['b']:
+                elif bnValid('b', n, gauge) or n in xfer_loops['b']:
                     secure_needles['b'].append(n)
                     break
         
         if secure_end_n:  #TODO: improve this
             for n in range(end_n, start_n-1, -1):
-                if bnValid('f', n, gauge) or n in bed_loops['f']:
+                if bnValid('f', n, gauge) or n in xfer_loops['f']:
                     secure_needles['f'].append(n)
                     break
-                elif bnValid('b', n, gauge) or n in bed_loops['b']:
+                elif bnValid('b', n, gauge) or n in xfer_loops['b']:
                     secure_needles['b'].append(n)
                     break
     else: #first pass is neg
@@ -408,19 +413,19 @@ def garter(k, start_n, end_n, passes, c, bed=None, bed_loops={'f': [], 'b': []},
 
         if secure_start_n: #TODO: improve this
             for n in range(start_n, end_n-1, -1):
-                if bnValid('f', n, gauge) or n in bed_loops['f']:
+                if bnValid('f', n, gauge) or n in xfer_loops['f']:
                     secure_needles['f'].append(n)
                     break
-                elif bnValid('b', n, gauge) or n in bed_loops['b']:
+                elif bnValid('b', n, gauge) or n in xfer_loops['b']:
                     secure_needles['b'].append(n)
                     break
         
         if secure_end_n:  #TODO: improve this
             for n in range(end_n, start_n+1):
-                if bnValid('f', n, gauge) or n in bed_loops['f']:
+                if bnValid('f', n, gauge) or n in xfer_loops['f']:
                     secure_needles['f'].append(n)
                     break
-                elif bnValid('b', n, gauge) or n in bed_loops['b']:
+                elif bnValid('b', n, gauge) or n in xfer_loops['b']:
                     secure_needles['b'].append(n)
                     break
 
@@ -441,11 +446,11 @@ def garter(k, start_n, end_n, passes, c, bed=None, bed_loops={'f': [], 'b': []},
     b2 = 'f' if b1 == 'b' else 'b'
 
     if bed is not None:
-        bed_loops[bed].extend([n for n in n_ranges[d2] if bnValid(bed, n, gauge)]) #make sure we transfer to get them where we want #TODO; #check
+        xfer_loops[bed].extend([n for n in n_ranges[d2] if bnValid(bed, n, gauge)]) #make sure we transfer to get them where we want #TODO; #check
 
-    if len(bed_loops['f']) or len(bed_loops['b']):
+    if len(xfer_loops['f']) or len(xfer_loops['b']):
         for n in n_ranges[d2]:
-            if n in bed_loops[b2] and bnValid(bed, n, gauge) and n not in secure_needles[b2]: k.xfer(f'{b2}{n}', f'{b1}{n}')
+            if n in xfer_loops[b2] and bnValid(bed, n, gauge) and n not in secure_needles[b2]: k.xfer(f'{b2}{n}', f'{b1}{n}')
     
     for p in range(passes):
         if p % 2 == 0: d = d1
@@ -475,11 +480,11 @@ def garter(k, start_n, end_n, passes, c, bed=None, bed_loops={'f': [], 'b': []},
                 else: k.knit(d, f'{b1}{n}', *cs)
             elif n == end_n: k.miss(d, f'{b1}{n}', *cs)
 
-    if len(bed_loops['f']) or len(bed_loops['b']):
+    if len(xfer_loops['f']) or len(xfer_loops['b']):
         b2 = 'f' if b1 == 'b' else 'b'
 
         for n in n_ranges[d]:
-            if n in bed_loops[b2] and bnValid(bed, n, gauge) and n not in secure_needles[b2]: k.xfer(f'{b1}{n}', f'{b2}{n}')
+            if n in xfer_loops[b2] and bnValid(bed, n, gauge) and n not in secure_needles[b2]: k.xfer(f'{b1}{n}', f'{b2}{n}')
 
     if type(pattern_rows) == dict: k.comment(f'end {pattern_rows["f"]}x{pattern_rows["b"]} garter')
     else: k.comment(f'end {pattern_rows}x{pattern_rows} garter')
@@ -647,8 +652,9 @@ def seed(k, start_n, end_n, passes, c, bed='f', bed_loops={'f': [], 'b': []}, se
 
     if releasehook and passes < 2: raise ValueError("not safe to releasehook with less than 2 passes.")
 
-    if not 'f' in bed_loops: bed_loops['f'] = []
-    if not 'b' in bed_loops: bed_loops['b'] = []
+    xfer_loops = bed_loops.copy()
+    if not 'f' in xfer_loops: xfer_loops['f'] = []
+    if not 'b' in xfer_loops: xfer_loops['b'] = []
 
     secure_needles = {}
 
@@ -697,14 +703,14 @@ def seed(k, start_n, end_n, passes, c, bed='f', bed_loops={'f': [], 'b': []}, se
     if bed == 'f': bed2 = 'b'
     else: bed2 = 'f'
 
-    if len(bed_loops['f']) or len(bed_loops['b']): # indicates that we might need to start by xferring to proper spots
+    if len(xfer_loops['f']) or len(xfer_loops['b']): # indicates that we might need to start by xferring to proper spots
         if xfer_speedNumber is not None: k.speedNumber(xfer_speedNumber)
         if xfer_stitchNumber is not None: k.stitchNumber(xfer_stitchNumber)
 
         for n in n_ranges[d1]: #TODO: adjust for gauge
             if n not in secure_needles and bnValid(bed, n, gauge):
-                if sequence[n % len(sequence)] == bed2 and n in bed_loops[bed]: k.xfer(f'{bed}{n}', f'{bed2}{n}')
-                elif sequence[n % len(sequence)] == bed and n in bed_loops[bed2]: k.xfer(f'{bed2}{n}', f'{bed}{n}')
+                if sequence[n % len(sequence)] == bed2 and n in xfer_loops[bed]: k.xfer(f'{bed}{n}', f'{bed2}{n}')
+                elif sequence[n % len(sequence)] == bed and n in xfer_loops[bed2]: k.xfer(f'{bed2}{n}', f'{bed}{n}')
             
         if speedNumber is not None: k.speedNumber(speedNumber)
         if stitchNumber is not None: k.stitchNumber(stitchNumber)
@@ -741,8 +747,8 @@ def seed(k, start_n, end_n, passes, c, bed='f', bed_loops={'f': [], 'b': []}, se
             else:
                 for n in n_ranges[d]: #TODO: adjust for gauge
                     if n not in secure_needles and bnValid(bed, n, gauge):
-                        if sequence[n % len(sequence)] == 'f' and n in bed_loops['b']: k.xfer(f'f{n}', f'b{n}')
-                        elif sequence[n % len(sequence)] == 'b' and n in bed_loops['f']: k.xfer(f'b{n}', f'f{n}')
+                        if sequence[n % len(sequence)] == 'f' and n in xfer_loops['b']: k.xfer(f'f{n}', f'b{n}')
+                        elif sequence[n % len(sequence)] == 'b' and n in xfer_loops['f']: k.xfer(f'b{n}', f'f{n}')
 
             if speedNumber is not None: k.speedNumber(speedNumber)
             if stitchNumber is not None: k.stitchNumber(stitchNumber)
@@ -776,8 +782,8 @@ def seed(k, start_n, end_n, passes, c, bed='f', bed_loops={'f': [], 'b': []}, se
             else:
                 for n in n_ranges[d]: #TODO: adjust for gauge
                     if n not in secure_needles and bnValid(bed, n, gauge):
-                        if sequence[n % len(sequence)] == 'f' and n in bed_loops['f']: k.xfer(f'b{n}', f'f{n}')
-                        elif sequence[n % len(sequence)] == 'b' and n in bed_loops['b']: k.xfer(f'f{n}', f'b{n}')
+                        if sequence[n % len(sequence)] == 'f' and n in xfer_loops['f']: k.xfer(f'b{n}', f'f{n}')
+                        elif sequence[n % len(sequence)] == 'b' and n in xfer_loops['b']: k.xfer(f'f{n}', f'b{n}')
             
             if speedNumber is not None: k.speedNumber(speedNumber)
             if stitchNumber is not None: k.stitchNumber(stitchNumber)
