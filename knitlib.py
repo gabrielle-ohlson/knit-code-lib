@@ -2,8 +2,9 @@ import os
 import sys
 sys.path.insert(0, os.getcwd())
 
-from .helpers import c2cs, tuckPattern, flattenIter, halveGauge, bnValid, toggleDirection
+from .helpers import tuckPattern, c2cs, flattenIter, halveGauge, bnValid, toggleDirection
 from .stitchPatterns import interlock
+
 
 # ------------
 # --- MISC ---
@@ -278,10 +279,10 @@ def wasteSection(k, left_n, right_n, closed_caston=True, waste_c='1', draw_c='2'
     
     if waste_c in end_on_right: #NOTE: would need to add extra pass if waste_c == draw_c and closed_caston == True (but doesn't really make sense to have same yarn for those)
         if machine.lower() == 'kniterate' and initial and interlock_length > 24:
-            interlock(k, right_n, left_n, 24, waste_c, gauge) #TODO: edit this function to include new bn validater #*#*#*
+            interlock(k, right_n, left_n, 24, waste_c, gauge=gauge)
             k.pause('cut yarns')
-            interlock(k, right_n, left_n, interlock_length-24, waste_c, gauge)
-        else: interlock(k, right_n, left_n, interlock_length, waste_c, gauge, releasehook=(machine.lower() == 'swgn2' and waste_c in in_cs))
+            interlock(k, right_n, left_n, interlock_length-24, waste_c, gauge=gauge)
+        else: interlock(k, right_n, left_n, interlock_length, waste_c, gauge=gauge, releasehook=(machine.lower() == 'swgn2' and waste_c in in_cs))
 
         if draw_middle:
             if draw_c is not None:
@@ -311,12 +312,12 @@ def wasteSection(k, left_n, right_n, closed_caston=True, waste_c='1', draw_c='2'
             if initial and interlock_length > 12:
                 if interlock_length < 24:
                     pause_after = 24-interlock_length
-                    interlock(k, right_n, left_n, pause_after, waste_c, gauge) # 20 32 (16) #12 interlock_length-8 # 12
+                    interlock(k, right_n, left_n, pause_after, waste_c, gauge=gauge) # 20 32 (16) #12 interlock_length-8 # 12
                     if machine.lower() == 'kniterate': k.pause('cut yarns')
-                    interlock(k, right_n, left_n, interlock_length-pause_after, waste_c, gauge) # 8 interlockL 20- (32-20) 20-32 + 20+20
-                else: interlock(k, right_n, left_n, interlock_length, waste_c, gauge)
+                    interlock(k, right_n, left_n, interlock_length-pause_after, waste_c, gauge=gauge) # 8 interlockL 20- (32-20) 20-32 + 20+20
+                else: interlock(k, right_n, left_n, interlock_length, waste_c, gauge=gauge)
             else:
-                interlock(k, right_n, left_n, interlock_length, waste_c, gauge)
+                interlock(k, right_n, left_n, interlock_length, waste_c, gauge=gauge)
                 if machine.lower() == 'kniterate' and initial: k.pause('cut yarns')
         else:
             if machine.lower() == 'kniterate' and initial and interlock_length <= 24: k.pause('cut yarns')
@@ -324,14 +325,14 @@ def wasteSection(k, left_n, right_n, closed_caston=True, waste_c='1', draw_c='2'
         if miss_waste is not None: k.miss('+', f'f{miss_waste}', waste_c)
     else:
         if machine.lower() == 'kniterate' and initial and interlock_length > 24:
-            interlock(k, left_n, right_n, 24, waste_c, gauge)
+            interlock(k, left_n, right_n, 24, waste_c, gauge=gauge)
             k.pause('cut yarns')
-            interlock(k, left_n, right_n, interlock_length-24, waste_c, gauge)
+            interlock(k, left_n, right_n, interlock_length-24, waste_c, gauge=gauge)
         else:
             if machine.lower() == 'swgn2' and initial:
                 interlock(k, right_n, left_n, 1.5, waste_c, gauge, releasehook=(machine.lower() == 'swgn2' and waste_c in in_cs))
                 interlock_length -= 2
-            interlock(k, left_n, right_n, interlock_length, waste_c, gauge)
+            interlock(k, left_n, right_n, interlock_length, waste_c, gauge=gauge)
 
         if draw_middle:
             if draw_c is not None:
@@ -361,12 +362,12 @@ def wasteSection(k, left_n, right_n, closed_caston=True, waste_c='1', draw_c='2'
             if initial and interlock_length > 12:
                 if interlock_length < 24:
                     pause_after = 24-interlock_length
-                    interlock(k, left_n, right_n, pause_after, waste_c, gauge) # 20 32 (16) #12 interlock_length-8 # 12
+                    interlock(k, left_n, right_n, pause_after, waste_c, gauge=gauge) # 20 32 (16) #12 interlock_length-8 # 12
                     if machine.lower() == 'kniterate': k.pause('cut yarns')
-                    interlock(k, left_n, right_n, interlock_length-pause_after, waste_c, gauge) # 8 interlockL 20- (32-20) 20-32 + 20+20
-                else: interlock(k, left_n, right_n, interlock_length, waste_c, gauge)
+                    interlock(k, left_n, right_n, interlock_length-pause_after, waste_c, gauge=gauge) # 8 interlockL 20- (32-20) 20-32 + 20+20
+                else: interlock(k, left_n, right_n, interlock_length, waste_c, gauge=gauge)
             else:
-                interlock(k, left_n, right_n, interlock_length, waste_c, gauge)
+                interlock(k, left_n, right_n, interlock_length, waste_c, gauge=gauge)
                 if initial: k.pause('cut yarns')
         else:
             if machine.lower() == 'kniterate' and initial and interlock_length <= 24: k.pause('cut yarns')
@@ -672,7 +673,7 @@ def zigzagCaston(k, start_n, end_n, c, gauge=1, inhook=False, releasehook=False,
 # -----------------------
 
 #--- FINISH BY DROP FUNCTION ---
-def dropFinish(k, front_needle_ranges=[], back_needle_ranges=[], out_carriers=[], roll_out=True, empty_needles=[], direction='+', border_c=None, border_length=16, gauge=1, machine='swgn2'):
+def dropFinish(k, front_needle_ranges=[], back_needle_ranges=[], out_carriers=[], roll_out=True, avoid_bns={"f": [], "b": []}, direction='+', border_c=None, border_length=16, gauge=1, machine='swgn2'):
     '''
     Finishes knitting by dropping loops (optionally knitting 16 rows of waste yarn prior with `border_c`, and optionally taking carriers listed in `carriers` param out afterwards).
 
@@ -717,11 +718,11 @@ def dropFinish(k, front_needle_ranges=[], back_needle_ranges=[], out_carriers=[]
 
         def knitBorderPos(needle_range, bed):
             for n in range(needle_range[0], needle_range[1]+1):
-                if bnValid(bed, n, gauge) and f'{bed}{n}' not in empty_needles: k.knit('+', f'{bed}{n}', *border_cs)
+                if bnValid(bed, n, gauge) and n not in avoid_bns[bed]: k.knit('+', f'{bed}{n}', *border_cs)
         
         def knitBorderNeg(needle_range, bed):
             for n in range(needle_range[1], needle_range[0]-1, -1):
-                if bnValid(bed, n, gauge) and f'{bed}{n}' not in empty_needles: k.knit('-', f'{bed}{n}', *border_cs)
+                if bnValid(bed, n, gauge) and n not in avoid_bns[bed]: k.knit('-', f'{bed}{n}', *border_cs)
     
         for r in range(beg, length):
             if r % 2 == 0: knitBorderPos(pos_needle_range, pos_bed)
@@ -756,12 +757,12 @@ def dropFinish(k, front_needle_ranges=[], back_needle_ranges=[], out_carriers=[]
         if type(needle_ranges[0]) == int: #just one range (one section)
             if roll_out and machine.lower() == 'kniterate' and (needle_ranges is back_needle_ranges or not len(back_needle_ranges)): k.addRollerAdvance(2000) #TODO: determine what max roller advance is
             for n in range(needle_ranges[0], needle_ranges[1]+1):
-                if bnValid(bed, n, gauge) and f'{bed}{n}' not in empty_needles: k.drop(f'{bed}{n}')
+                if bnValid(bed, n, gauge) and n not in avoid_bns[bed]: k.drop(f'{bed}{n}')
         else: #multiple ranges (multiple sections, likely shortrowing)
             for nr in needle_ranges:
                 if roll_out and machine.lower() == 'kniterate' and needle_ranges.index(nr) == len(needle_ranges)-1 and (needle_ranges is back_needle_ranges or not len(back_needle_ranges)): k.addRollerAdvance(2000)
                 for n in range(nr[0], nr[1]+1):
-                    if bnValid(bed, n, gauge) and f'{bed}{n}' not in empty_needles: k.drop(f'{bed}{n}')
+                    if bnValid(bed, n, gauge) and n not in avoid_bns[bed]: k.drop(f'{bed}{n}')
     #--- end dropOnBed func ---#^
 
     if len(front_needle_ranges): dropOnBed(front_needle_ranges, 'f')

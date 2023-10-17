@@ -1,10 +1,10 @@
-from .helpers import c2cs, convertToBN, includeNSecureSides, tuckPattern, knitPass, halveGauge, bnValid, toggleDirection
+from .helpers import c2cs, halveGauge, bnValid, toggleDirection, bnEdges, tuckPattern, knitPass
 
 # --------------------------------
 # --- STITCH PATTERN FUNCTIONS ---
 # --------------------------------
 # if doing gauge == 2, want width to be odd so *actually* have number of stitches
-def jersey(k, start_n, end_n, passes, c, bed='f', gauge=1, empty_needles=[], inhook=False, releasehook=False, tuck_pattern=True, speedNumber=None, stitchNumber=None):
+def jersey(k, start_n, end_n, passes, c, bed="f", gauge=1, avoid_bns={"f": [], "b": []}, inhook=False, releasehook=False, tuck_pattern=True, speedNumber=None, stitchNumber=None):
     '''
     helper function for jersey stitch pattern
 
@@ -15,9 +15,9 @@ def jersey(k, start_n, end_n, passes, c, bed='f', gauge=1, empty_needles=[], inh
     * `end_n` (int): the last needle to knit on in a pass (inclusive)
     * `passes` (int): number of rows
     * `c` (str or list): the carrier to use for the cast-on (or list of carriers, if plating)
-    * `bed` (str, optional): bed to do the knitting on. Defaults to 'f'.
+    * `bed` (str, optional): bed to do the knitting on. Defaults to "f".
     * `gauge` (int, optional): gauge to knit in. Defaults to 1.
-    * `empty_needles` (list, optional): list of needles that should stay empty (aka avoid knitting on). Defaults to [].
+    * `avoid_needles` (list, optional): list of needles that should stay empty (aka avoid knitting on). Defaults to [].
     * `inhook` (bool, optional): whether to have the function do an inhook. Defaults to False.
     * `releasehook` (bool, optional): whether to have the function do a releasehook (after 2 passes). Defaults to False.
     * `tuck_pattern` (bool, optional): whether to include a tuck pattern for extra security when bringing in the carrier (only applicable if `inhook` or `releasehook` == `True`). Defaults to `False`.
@@ -36,12 +36,12 @@ def jersey(k, start_n, end_n, passes, c, bed='f', gauge=1, empty_needles=[], inh
 
     if releasehook and passes < 2 and not tuck_pattern: raise ValueError("not safe to releasehook with less than 2 passes.")
 
-    k.comment('begin jersey')
+    k.comment("begin jersey")
     if speedNumber is not None: k.speedNumber(speedNumber)
     if stitchNumber is not None: k.stitchNumber(stitchNumber)
 
-    if end_n > start_n: d1 = '+'
-    else: d1 = '-'
+    if end_n > start_n: d1 = "+"
+    else: d1 = "-"
 
     if inhook:
         k.inhook(*cs)
@@ -61,23 +61,29 @@ def jersey(k, start_n, end_n, passes, c, bed='f', gauge=1, empty_needles=[], inh
             pass_start_n = end_n
             pass_end_n = start_n
 
-        knitPass(k, start_n=pass_start_n, end_n=pass_end_n, c=c, bed=bed, gauge=gauge, empty_needles=empty_needles)
+        knitPass(k, start_n=pass_start_n, end_n=pass_end_n, c=c, bed=bed, gauge=gauge, avoid_bns=avoid_bns)
     if releasehook: # still hasn't happened
         k.releasehook(*cs)
         if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=None) # drop it
         releasehook = False
 
-    k.comment('end jersey')
+    k.comment("end jersey")
 
     if passes % 2 == 0:
-        if end_n > start_n: return '+'
-        else: return '-'
+        if end_n > start_n: return "+"
+        else: return "-"
     else:
-        if end_n > start_n: return '-'
-        else: return '+'
+        if end_n > start_n: return "-"
+        else: return "+"
 
 
-def interlock(k, start_n, end_n, passes, c, bed=None, gauge=1, seq1_mod_idx=0, empty_needles=[], secure_start_n=False, secure_end_n=False, inhook=False, releasehook=False, speedNumber=None, stitchNumber=None, xfer_speedNumber=None, xfer_stitchNumber=None): #TODO: add tuck pattern
+"""
+tube (single bed) example:
+-------------------------
+e.g. for gauge 2:
+if mod == 0
+"""
+def interlock(k, start_n, end_n, passes, c, bed=None, gauge=1, avoid_bns={"f": [], "b": []}, secure_start_n=False, secure_end_n=False, inhook=False, releasehook=False, speedNumber=None, stitchNumber=None, xfer_speedNumber=None, xfer_stitchNumber=None): #TODO: add tuck pattern
     '''
     Knits on every needle interlock starting on side indicated by which needle value is greater.
     In this function length is the number of total passes knit so if you want an interlock segment that is 20 courses long on each side set length to 40. Useful if you want to have odd amounts of interlock.
@@ -87,12 +93,13 @@ def interlock(k, start_n, end_n, passes, c, bed=None, gauge=1, seq1_mod_idx=0, e
     * `end_n` (int): the last needle to knit on in a pass (inclusive)
     * `passes` (int): total number of passes to knit (NOTE: there are two passes per row in interlock)
     * `c` (str or list): the carrier to use for the cast-on (or list of carriers, if plating)
-    * `bed` (str, optional): the primary bed, to transfer the loops back to at the end (if applicable); NOTE: this should only be added if knitting if half gauge tube with stitch patterns inserted on one bed (since the function will act accordingly). Defaults to `None`.
-    * secure_start_n and ...
+    * `bed` (str, optional): the primary bed, that the loops belong to if knitting a single-bed type of interlock (aka if knitting an open tube with separate stitch patterns on either side).  Valid values are `f`, `b`, or `None`.  If `f` or `b`, will halve the gauge and transfer loops to the other bed to get them in place for knitting, and then finally transfer the loops back to at the end.  Defaults to `None` (which means knitting regular closed double bed interlock).
     * `gauge` (int, optional): gauge to knit in. Defaults to `1`.
-    * `start_condition` (int, optional): dictates which needles first pass of interlock knits only (usually you can just ignore this unless you want to do something very specific). #TODO: document better
+    # * `reverse_seq` (bool, optional): whether to reverse the needle sequence we start with for interlock passes.  This is useful for when calling this function one pass at a time, e.g., for open tubes, toggling knitting on either bed (so you might, for example, knit on the front bed and start with `passes=1, c=carrier, bed="f", gauge=2, reverse_seq=False`, then do a pass on the back bed, and then call `passes=1, c=carrier, bed="f", gauge=2, reverse_seq=True`).  Otherwise, you can just ignore this.
+    * secure_start_n and ...
+   
     * `empty_needles` (list, optional): list of needles that should stay empty (aka avoid knitting on). Defaults to `[]`.
-    * `current_bed` (str, optional): the bed(s) that current has knitting (valid values are: 'f' [front] and 'b' [back]); if value is None, will assume that the loops are already in position for interlock (e.g. not knitting circular half-gauge interlock). Defaults to `None`.
+    * `current_bed` (str, optional): the bed(s) that current has knitting (valid values are: "f" [front] and "b" [back]); if value is None, will assume that the loops are already in position for interlock (e.g. not knitting circular half-gauge interlock). Defaults to `None`.
     * `home_bed` (str, optional): the bed to transfer the loops back to at the end (if applicable); NOTE: this should only be added if knitting if half gauge tube with stitch patterns inserted on one bed (since the function will act accordingly). Defaults to `None`.
     * secure_start_n and ...
     * secure_end_n are booleans that indicate whether or not we should refrain from xferring the edge-most needles, for security (NOTE: this should be True if given edge needle is on the edge of the piece [rather than in the middle of it])
@@ -110,30 +117,45 @@ def interlock(k, start_n, end_n, passes, c, bed=None, gauge=1, seq1_mod_idx=0, e
 
     if releasehook and passes < 2: raise ValueError("not safe to releasehook with less than 2 passes.")
 
-    empty_needles = convertToBN(empty_needles)
+    if end_n > start_n: #first pass is pos
+        d1, d2 = "+", "-"
+        left_n = start_n
+        right_n = end_n
+        seq1_idx, seq2_idx = 1, 0 #this ensures that if `passes=1` (e.g., when knitting open tubes and switching between beds), we are still toggling which sequence we start with for the first pass in the function
+    else: #first pass is neg
+        d1, d2 = "-", "+"
+        left_n = end_n
+        right_n = start_n
+        seq1_idx, seq2_idx = 0, 1
 
     if bed is None:
-        bed = 'f'
         single_bed = False
-    else: single_bed = True
+        bed, bed2 = "f", "b"
+        
+        bn_locs = {"f": [n for n in range(left_n, right_n+1) if bnValid("f", n, gauge) and n not in avoid_bns.get("f", [])], "b": [n for n in range(left_n, right_n+1) if bnValid("b", n, gauge) and n not in avoid_bns.get("b", [])]}
+    else:
+        single_bed = True
+        if bed == "f": bed2 = "b"
+        else: bed2 = "f"
 
-    if bed == 'f': bed2 = 'b'
-    else: bed2 = 'f'
+        bn_locs = {bed: [n for n in range(left_n, right_n+1) if bnValid(bed, n, gauge) and n not in avoid_bns[bed]], bed2: []}
+
+    secure_needles = {"f": [], "b": []}
+
+    edge_bns = bnEdges(left_n, right_n, gauge, bed_loops=bn_locs, avoid_bns=avoid_bns, return_type=list)
+
+    if d1 == "+": #first pass is pos
+        if secure_start_n: secure_needles[edge_bns[0][0]].append(edge_bns[0][1])
+        if secure_end_n: secure_needles[edge_bns[1][0]].append(edge_bns[1][1])
+    else: #first pass is neg
+        if secure_end_n: secure_needles[edge_bns[0][0]].append(edge_bns[0][1])
+        if secure_start_n: secure_needles[edge_bns[1][0]].append(edge_bns[1][1])
     
-    seq2_mod_idx = abs(seq1_mod_idx-1)
+    # seq2_idx = abs(seq1_idx-1)
     
     mods2 = halveGauge(gauge, bed)
 
-    if end_n > start_n: #first pass is pos
-        d1, d2 = '+', '-'
-        left_n = start_n
-        right_n = end_n
-    else: #first pass is neg
-        d1, d2 = '-', '+'
-        left_n = end_n
-        right_n = start_n
-
-    n_ranges = {'+': range(left_n, right_n+1), '-': range(right_n, left_n-1, -1)}
+    n_ranges = {"+": range(left_n, right_n+1), "-": range(right_n, left_n-1, -1)}
 
     if single_bed:
         mods4 = [halveGauge(gauge*2, mods2[0]), halveGauge(gauge*2, mods2[1])]
@@ -143,8 +165,8 @@ def interlock(k, start_n, end_n, passes, c, bed=None, gauge=1, seq1_mod_idx=0, e
         if xfer_stitchNumber is not None: k.stitchNumber(xfer_stitchNumber)
 
         for n in range(left_n, right_n+1):
-            if (n == start_n and secure_start_n) or (n == end_n and secure_end_n): continue
-            if f'{bed}{n}' not in empty_needles and n % (gauge*2) == mods2[1]: k.xfer(f'{bed}{n}', f'{bed2}{n}')
+            if n in avoid_bns.get("f", []) or n in avoid_bns.get("b", []) or n in secure_needles[bed]: continue
+            elif n % (gauge*2) == mods2[1]: k.xfer(f"{bed}{n}", f"{bed2}{n}")
         
         # reset settings
         if speedNumber is not None: k.speedNumber(speedNumber)
@@ -152,27 +174,27 @@ def interlock(k, start_n, end_n, passes, c, bed=None, gauge=1, seq1_mod_idx=0, e
 
         def passSequence1(d):
             for n in n_ranges[d]:
-                if n % (gauge*4) == mods4[0][seq1_mod_idx]: k.knit(d, f'{bed}{n}', *cs)
-                elif n % (gauge*4) == mods4[1][seq1_mod_idx]: k.knit(d, f'{bed2}{n}', *cs)
-                elif n == n_ranges[d][-1]: k.miss(d, f'{bed}{n}', *cs)
+                if n % (gauge*4) == mods4[0][seq1_idx] and n not in avoid_bns[bed]: k.knit(d, f"{bed}{n}", *cs)
+                elif n % (gauge*4) == mods4[1][seq1_idx] and n not in avoid_bns[bed2]: k.knit(d, f"{bed2}{n}", *cs)
+                elif n == n_ranges[d][-1]: k.miss(d, f"{bed}{n}", *cs)
 
         def passSequence2(d):
             for n in n_ranges[d]:
-                if n % (gauge*4) == mods4[0][seq2_mod_idx]: k.knit(d, f'{bed}{n}', *cs)
-                elif n % (gauge*4) == mods4[1][seq2_mod_idx]: k.knit(d, f'{bed2}{n}', *cs)
-                elif n == n_ranges[d][-1]: k.miss(d, f'{bed}{n}', *cs)
+                if n % (gauge*4) == mods4[0][seq2_idx] and n not in avoid_bns[bed]: k.knit(d, f"{bed}{n}", *cs)
+                elif n % (gauge*4) == mods4[1][seq2_idx] and n not in avoid_bns[bed2]: k.knit(d, f"{bed2}{n}", *cs)
+                elif n == n_ranges[d][-1]: k.miss(d, f"{bed}{n}", *cs)
     else:
         def passSequence1(d):
             for n in n_ranges[d]:
-                if n % (gauge*2) == mods2[seq1_mod_idx]: k.knit(d, f'{bed}{n}', *cs)
-                elif n % (gauge*2) == mods2[seq2_mod_idx]: k.knit(d, f'{bed2}{n}', *cs)
-                elif n == n_ranges[d][-1]: k.miss(d, f'{bed}{n}', *cs)
+                if n % (gauge*2) == mods2[seq1_idx] and n not in avoid_bns[bed]: k.knit(d, f"{bed}{n}", *cs)
+                elif n % (gauge*2) == mods2[seq2_idx] and n not in avoid_bns[bed2]: k.knit(d, f"{bed2}{n}", *cs)
+                elif n == n_ranges[d][-1]: k.miss(d, f"{bed}{n}", *cs)
         
         def passSequence2(d):
             for n in n_ranges[d]:
-                if n % (gauge*2) == mods2[seq2_mod_idx]: k.knit(d, f'{bed}{n}', *cs)
-                elif n % (gauge*2) == mods2[seq1_mod_idx]: k.knit(d, f'{bed2}{n}', *cs)
-                elif n == n_ranges[d][-1]: k.miss(d, f'{bed}{n}', *cs)
+                if n % (gauge*2) == mods2[seq2_idx] and n not in avoid_bns[bed]: k.knit(d, f"{bed}{n}", *cs)
+                elif n % (gauge*2) == mods2[seq1_idx] and n not in avoid_bns[bed2]: k.knit(d, f"{bed2}{n}", *cs)
+                elif n == n_ranges[d][-1]: k.miss(d, f"{bed}{n}", *cs)
 
     #--- the knitting ---
     for p in range(passes):
@@ -186,8 +208,8 @@ def interlock(k, start_n, end_n, passes, c, bed=None, gauge=1, seq1_mod_idx=0, e
         if xfer_stitchNumber is not None: k.stitchNumber(xfer_stitchNumber)
 
         for n in range(left_n, right_n+1):
-            if (n == start_n and secure_start_n) or (n == end_n and secure_end_n): continue
-            if f'{bed}{n}' not in empty_needles and n % (gauge*2) == mods2[1]: k.xfer(f'{bed2}{n}', f'{bed}{n}')
+            if avoid_bns.get("f", []) or n in avoid_bns.get("b", []) or n in secure_needles[bed]: continue
+            elif n % (gauge*2) == mods2[1]: k.xfer(f"{bed2}{n}", f"{bed}{n}")
         
         # reset settings
         if speedNumber is not None: k.speedNumber(speedNumber)
@@ -196,7 +218,7 @@ def interlock(k, start_n, end_n, passes, c, bed=None, gauge=1, seq1_mod_idx=0, e
     k.comment('end interlock')
 
 
-def rib(k, start_n, end_n, passes, c, bed=None, bed_loops={'f': [], 'b': []}, sequence='fb', gauge=1, inhook=False, releasehook=False, tuck_pattern=True, speedNumber=None, stitchNumber=None, xfer_speedNumber=None, xfer_stitchNumber=None): #TODO: #check to make sure this is working well for gauge > 1 #*
+def rib(k, start_n, end_n, passes, c, bed=None, sequence="fb", gauge=1, bed_loops={"f": [], "b": []}, avoid_bns={"f": [], "b": []}, secure_start_n=False, secure_end_n=False, inhook=False, releasehook=False, tuck_pattern=True, speedNumber=None, stitchNumber=None, xfer_speedNumber=None, xfer_stitchNumber=None): #TODO: #check to make sure this is working well for gauge > 1 #*
     '''
     *k is the knitout Writer
     *end_n is the last needle
@@ -210,13 +232,9 @@ def rib(k, start_n, end_n, passes, c, bed=None, bed_loops={'f': [], 'b': []}, se
     '''
     cs = c2cs(c) # ensure tuple type
 
-    k.comment(f'begin rib ({sequence})')
+    k.comment(f"begin rib ({sequence})")
 
     if releasehook and passes < 2: raise ValueError("not safe to releasehook with less than 2 passes.")
-
-    xfer_loops = bed_loops.copy()
-    if not 'f' in xfer_loops: xfer_loops['f'] = []
-    if not 'b' in xfer_loops: xfer_loops['b'] = []
 
     if gauge > 1:
         gauged_sequence = ''
@@ -224,35 +242,51 @@ def rib(k, start_n, end_n, passes, c, bed=None, bed_loops={'f': [], 'b': []}, se
             gauged_sequence += char * gauge
         sequence = gauged_sequence
     
+    if bed is None:
+        bed, bed2 = "f", "b"
+        bn_locs = bed_loops.copy()
+    else:
+        if bed == "f": bed2 = "b"
+        else: bed2 = "f"
+        bn_locs = {bed: [n for n in n_ranges[d1] if bnValid(bed, n, gauge)]} #make sure we transfer to get them where we want #TODO; #check
+
+    secure_needles = {"f": [], "b": []}
+
     if end_n > start_n: #first pass is pos
-        d1 = '+'
-        d2 = '-'
-
+        d1 = "+"
+        d2 = "-"
         n_ranges = {d1: range(start_n, end_n+1), d2: range(end_n, start_n-1, -1)}
-    else: #first pass is neg
-        d1 = '-'
-        d2 = '+'
 
+        edge_bns = bnEdges(start_n, end_n, gauge, bed_loops=bn_locs, avoid_bns=avoid_bns, return_type=list)
+        if secure_start_n: secure_needles[edge_bns[0][0]].append(edge_bns[0][1])
+        if secure_end_n: secure_needles[edge_bns[1][0]].append(edge_bns[1][1])
+    else: #first pass is neg
+        d1 = "-"
+        d2 = "+"
         n_ranges = {d1: range(start_n, end_n-1, -1), d2: range(end_n, start_n+1)}
+
+        edge_bns = bnEdges(end_n, start_n, gauge, bed_loops=bn_locs, avoid_bns=avoid_bns, return_type=list)
+        if secure_end_n: secure_needles[edge_bns[0][0]].append(edge_bns[0][1])
+        if secure_start_n: secure_needles[edge_bns[1][0]].append(edge_bns[1][1])
 
     if inhook:
         k.inhook(*cs)
         if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=cs)
 
-    if bed is None: bed, bed2 = 'f', 'b'
-    else:
-        if bed == 'f': bed2 = 'b'
-        else: bed2 = 'f'
-        xfer_loops[bed].extend([n for n in n_ranges[d1] if bnValid(bed, n, gauge)]) #make sure we transfer to get them where we want #TODO; #check
+    # now let's make sure we have *all* the info in one dict
+    xfer_loops = {"f": [n for n in list(set(bn_locs.get("f", []), bed_loops.get("f", []))) if sequence[n % len(sequence)] == "b" and bnValid(bed, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles["f"]], "b": [n for n in list(set(bn_locs.get("b", []), bed_loops.get("b", []))) if sequence[n % len(sequence)] == "f" and bnValid(bed, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles["b"]]}
 
-    if len(xfer_loops['f']) or len(xfer_loops['b']): # indicates that we might need to start by xferring to proper spots
+    if len(xfer_loops["f"]) or len(xfer_loops["b"]): # indicates that we might need to start by xferring to proper spots
         if xfer_speedNumber is not None: k.speedNumber(xfer_speedNumber)
         if xfer_stitchNumber is not None: k.stitchNumber(xfer_stitchNumber)
 
         for n in n_ranges[d1]: #TODO: #check adjustment for gauge
-            if bnValid(bed, n, gauge):
-                if sequence[n % len(sequence)] == bed2 and n in xfer_loops[bed]: k.xfer(f'{bed}{n}', f'{bed2}{n}')
-                elif sequence[n % len(sequence)] == bed and n in xfer_loops[bed2]: k.xfer(f'{bed2}{n}', f'{bed}{n}')
+            if n in xfer_loops["f"]: k.xfer(f"f{n}", f"b{n}")
+            elif n in xfer_loops["b"]: k.xfer(f"b{n}", f"f{n}")
+            # if n in avoid_bns.get("f", []) or n in avoid_bns.get("b", []) or not bnValid(bed, n, gauge): continue
+            # else:
+            #     if sequence[n % len(sequence)] == bed2 and n in xfer_loops[bed] and n not in secure_needles[bed]: k.xfer(f"{bed}{n}", f"{bed2}{n}")
+            #     elif sequence[n % len(sequence)] == bed and n in xfer_loops[bed2] and n not in secure_needles[bed2]: k.xfer(f"{bed2}{n}", f"{bed}{n}")
             
         if speedNumber is not None: k.speedNumber(speedNumber)
         if stitchNumber is not None: k.stitchNumber(stitchNumber)
@@ -270,57 +304,58 @@ def rib(k, start_n, end_n, passes, c, bed=None, bed_loops={'f': [], 'b': []}, se
             last_n = start_n
 
         for n in n_ranges[d]:
-            if sequence[n % len(sequence)] == 'f':
-                if bnValid(bed, n, gauge): k.knit(d, f'f{n}', *cs) #xferred it or bed == 'f', ok to knit
-                elif n == last_n: k.miss(d, f'f{n}', *cs)
-            else: #sequence == 'b'
-                if bnValid(bed, n, gauge): k.knit(d, f'b{n}', *cs) #xferred it or bed == 'b', ok to knit
-                elif n == last_n: k.miss(d, f'b{n}', *cs)
+            if n in secure_needles["f"] and n not in bn_locs.get("b", []): k.knit(d, f"f{n}", *cs) #TODO: #check
+            elif n in secure_needles["b"] and n not in bn_locs.get("f", []): k.knit(d, f"b{n}", *cs) #TODO: #check
+            elif sequence[n % len(sequence)] == "f" and n not in avoid_bns.get("f", []) and bnValid(bed, n, gauge): k.knit(d, f"f{n}", *cs) #xferred it or bed == "f", ok to knit
+            elif sequence[n % len(sequence)] == "b" and n not in avoid_bns.get("b", []) and bnValid(bed, n, gauge): k.knit(d, f"b{n}", *cs) #xferred it or bed == "b", ok to knit
+            elif n == last_n: k.miss(d, f"f{n}", *cs)
     
     # return the loops:
-    if len(xfer_loops['f']) or len(xfer_loops['b']):
+    if len(xfer_loops["f"]) or len(xfer_loops["b"]):
         if xfer_speedNumber is not None: k.speedNumber(xfer_speedNumber)
         if xfer_stitchNumber is not None: k.stitchNumber(xfer_stitchNumber)
 
-        for n in n_ranges[d1]: #TODO: adjust for gauge
-            if bnValid(bed, n, gauge):
-                if sequence[n % len(sequence)] == bed2 and n in xfer_loops[bed]: k.xfer(f'{bed2}{n}', f'{bed}{n}')
-                elif sequence[n % len(sequence)] == bed and n in xfer_loops[bed2]: k.xfer(f'{bed}{n}', f'{bed2}{n}')
+        for n in n_ranges[d1]:
+            if n in xfer_loops["f"]: k.xfer(f"b{n}", f"f{n}")
+            elif n in xfer_loops["b"]: k.xfer(f"f{n}", f"b{n}")
+
+            # if bnValid(bed, n, gauge) and n not in avoid_bns[bed] and n not in avoid_bns[bed2]:
+            #     if sequence[n % len(sequence)] == bed2 and n in bn_locs[bed]: k.xfer(f"{bed2}{n}", f"{bed}{n}")
+            #     elif sequence[n % len(sequence)] == bed and n in bn_locs[bed2]: k.xfer(f"{bed}{n}", f"{bed2}{n}")
             
         if speedNumber is not None: k.speedNumber(speedNumber)
         if stitchNumber is not None: k.stitchNumber(stitchNumber)
 
-    k.comment('end rib')
+    k.comment("end rib")
 
     if passes % 2 == 0:
-        if end_n > start_n: return '+'
-        else: return '-'
+        if end_n > start_n: return "+"
+        else: return "-"
     else:
-        if end_n > start_n: return '-'
-        else: return '+'
+        if end_n > start_n: return "-"
+        else: return "+"
 
 
-def altKnitTuck(k, start_n, end_n, passes, c, bed='f', gauge=1, sequence='kt', tuck_sequence='mt', inhook=False, releasehook=False, tuck_pattern=True):
+def altKnitTuck(k, start_n, end_n, passes, c, bed="f", sequence="kt", tuck_sequence="mt", gauge=1, avoid_bns={"f": [], "b": []}, inhook=False, releasehook=False, tuck_pattern=True):
     '''
     *TODO
     '''
     cs = c2cs(c) # ensure tuple type
 
-    k.comment(f'begin alt knit/tuck ({sequence})')
+    k.comment(f"begin alt knit/tuck ({sequence})")
 
-    if end_n > start_n: d1 = '+'
-    else: d1 = '-'
+    if end_n > start_n: d1 = "+"
+    else: d1 = "-"
 
     if inhook:
         k.inhook(*cs)
-        if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=cs)
+        if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=cs) #TODO: add avoid bns to `tuckPattern` func
 
     if releasehook and passes < 2: raise ValueError("not safe to releasehook with less than 2 passes.")
 
     mods2 = halveGauge(gauge, bed)
 
-    if gauge > 1:
-        if not bnValid(bed, start_n, gauge) or not bnValid(bed, end_n, gauge): raise Warning(f"with gauge: {gauge} > 1, we want both edge needles to be on the primary bed, {bed}, to ensure there are loops on the end needle => the stitch count is accurate.")
+    # if gauge > 1: if not bnValid(bed, start_n, gauge) or not bnValid(bed, end_n, gauge): raise Warning(f"with gauge: {gauge} > 1, we want both edge needles to be on the primary bed, {bed}, to ensure there are loops on the end needle => the stitch count is accurate.")
 
     for p in range(passes):
         if releasehook and p == 2:
@@ -338,22 +373,22 @@ def altKnitTuck(k, start_n, end_n, passes, c, bed='f', gauge=1, sequence='kt', t
         else:
             if pass_end_n > pass_start_n: #pass is pos
                 for n in range(pass_start_n, pass_end_n+1):
-                    if n == pass_end_n and bnValid(bed, n, gauge): k.miss('+', f'{bed}{n}', *cs) #don't tuck on last needle since we're going to turn around and knit on it
-                    elif n % (gauge*2) == mods2[0]: k.tuck('+', f'{bed}{n}', *cs)
-                    elif n == pass_end_n: k.miss('+', f'{bed}{n}', *cs)
+                    if n == pass_end_n and bnValid(bed, n, gauge): k.miss("+", f"{bed}{n}", *cs) #don't tuck on last needle since we're going to turn around and knit on it
+                    elif n % (gauge*2) == mods2[0] and n not in avoid_bns[bed]: k.tuck("+", f"{bed}{n}", *cs)
+                    elif n == pass_end_n: k.miss("+", f"{bed}{n}", *cs)
             else: #pass is neg
                 for n in range(pass_start_n, pass_end_n-1, -1):
-                    if n == pass_end_n and bnValid(bed, n, gauge): k.miss('-', f'{bed}{n}', *cs) #don't tuck on last needle since we're going to turn around and knit on it
-                    elif n % (gauge*2) == mods2[1]: k.tuck('-', f'{bed}{n}', *cs)
-                    elif n == pass_end_n: k.miss('-', f'{bed}{n}', *cs)
+                    if n == pass_end_n and bnValid(bed, n, gauge): k.miss("-", f"{bed}{n}", *cs) #don't tuck on last needle since we're going to turn around and knit on it
+                    elif n % (gauge*2) == mods2[1] and n not in avoid_bns[bed]: k.tuck("-", f"{bed}{n}", *cs)
+                    elif n == pass_end_n: k.miss("-", f"{bed}{n}", *cs)
 
-    k.comment('end alt knit/tuck')
+    k.comment("end alt knit/tuck ({sequence})")
 
-    if pass_end_n > pass_start_n: return '-' #just knit a pos pass
-    else: return '+'
+    if pass_end_n > pass_start_n: return "-" #just knit a pos pass
+    else: return "+"
 
 
-def garter(k, start_n, end_n, passes, c, bed=None, bed_loops={'f': [], 'b': []}, sequence='fb', secure_start_n=True, secure_end_n=True, gauge=1, inhook=False, releasehook=False, tuck_pattern=True, speedNumber=None, stitchNumber=None, xfer_speedNumber=None, xfer_stitchNumber=None): #TODO: fix this for gauge 2 secure needles
+def garter(k, start_n, end_n, passes, c, bed=None, sequence="fb", gauge=1, bed_loops={"f": [], "b": []}, avoid_bns={"f": [], "b": []}, secure_start_n=True, secure_end_n=True, inhook=False, releasehook=False, tuck_pattern=True, speedNumber=None, stitchNumber=None, xfer_speedNumber=None, xfer_stitchNumber=None): #TODO: fix this for gauge 2 secure needles
     '''
     * k is knitout Writer
     * start_n is the starting needle to knit on
@@ -367,67 +402,31 @@ def garter(k, start_n, end_n, passes, c, bed=None, bed_loops={'f': [], 'b': []},
     '''
     cs = c2cs(c) # ensure tuple type
 
-    xfer_loops = bed_loops.copy()
-    if not 'f' in xfer_loops: xfer_loops['f'] = []
-    if not 'b' in xfer_loops: xfer_loops['b'] = []
+    if bed is not None: bn_locs = {bed: [n for n in n_ranges[d1] if bnValid(bed, n, gauge)]} #make sure we transfer to get them where we want #TODO; #check
+    else: bn_locs = bed_loops.copy()
 
-    pattern_rows = {
-        'f': sequence.count('f'),
-        'b': sequence.count('b')
-    }
+    pattern_rows = {"f": sequence.count("f"), "b": sequence.count("b")}
 
     k.comment(f'begin {pattern_rows["f"]}x{pattern_rows["b"]} garter')
 
     if releasehook and passes < 2: raise ValueError("not safe to releasehook with less than 2 passes.")
 
-    secure_needles = {'f': [], 'b': []}
+    secure_needles = {"f": [], "b": []}
 
     if end_n > start_n: #first pass is pos
-        d1 = '+'
-        d2 = '-'
+        d1, d2 = "+", "-"
+        n_ranges = {"+": range(start_n, end_n+1), "-": range(end_n, start_n-1, -1)}
 
-        n_ranges = {'+': range(start_n, end_n+1), '-': range(end_n, start_n-1, -1)}
-
-        if secure_start_n: #TODO: improve this
-            for n in range(start_n, end_n+1):
-                if bnValid('f', n, gauge) or n in xfer_loops['f']:
-                    secure_needles['f'].append(n)
-                    break
-                elif bnValid('b', n, gauge) or n in xfer_loops['b']:
-                    secure_needles['b'].append(n)
-                    break
-        
-        if secure_end_n:  #TODO: improve this
-            for n in range(end_n, start_n-1, -1):
-                if bnValid('f', n, gauge) or n in xfer_loops['f']:
-                    secure_needles['f'].append(n)
-                    break
-                elif bnValid('b', n, gauge) or n in xfer_loops['b']:
-                    secure_needles['b'].append(n)
-                    break
+        edge_bns = bnEdges(start_n, end_n, gauge, bed_loops=bn_locs, avoid_bns=avoid_bns, return_type=list)
+        if secure_start_n: secure_needles[edge_bns[0][0]].append(edge_bns[0][1])
+        if secure_end_n: secure_needles[edge_bns[1][0]].append(edge_bns[1][1])
     else: #first pass is neg
-        d1 = '-'
-        d2 = '+'
+        d1, d2 = "-", "+"
+        n_ranges = {"-": range(start_n, end_n-1, -1), "+": range(end_n, start_n+1)}
 
-        n_ranges = {'-': range(start_n, end_n-1, -1), '+': range(end_n, start_n+1)}
-
-        if secure_start_n: #TODO: improve this
-            for n in range(start_n, end_n-1, -1):
-                if bnValid('f', n, gauge) or n in xfer_loops['f']:
-                    secure_needles['f'].append(n)
-                    break
-                elif bnValid('b', n, gauge) or n in xfer_loops['b']:
-                    secure_needles['b'].append(n)
-                    break
-        
-        if secure_end_n:  #TODO: improve this
-            for n in range(end_n, start_n+1):
-                if bnValid('f', n, gauge) or n in xfer_loops['f']:
-                    secure_needles['f'].append(n)
-                    break
-                elif bnValid('b', n, gauge) or n in xfer_loops['b']:
-                    secure_needles['b'].append(n)
-                    break
+        edge_bns = bnEdges(end_n, start_n, gauge, bed_loops=bn_locs, avoid_bns=avoid_bns, return_type=list)
+        if secure_end_n: secure_needles[edge_bns[0][0]].append(edge_bns[0][1])
+        if secure_start_n: secure_needles[edge_bns[1][0]].append(edge_bns[1][1])
 
     if inhook:
         k.inhook(*cs)
@@ -438,19 +437,18 @@ def garter(k, start_n, end_n, passes, c, bed=None, bed_loops={'f': [], 'b': []},
 
     if type(pattern_rows) != dict:
         pat_rows = {}
-        pat_rows['f'] = pattern_rows
-        pat_rows['b'] = pattern_rows
+        pat_rows["f"] = pattern_rows
+        pat_rows["b"] = pattern_rows
         pattern_rows = pat_rows
     
     b1 = sequence[0]
-    b2 = 'f' if b1 == 'b' else 'b'
+    b2 = "f" if b1 == "b" else "b"
 
-    if bed is not None:
-        xfer_loops[bed].extend([n for n in n_ranges[d2] if bnValid(bed, n, gauge)]) #make sure we transfer to get them where we want #TODO; #check
+    xfer_loops = {b2: [n for n in list(set(bn_locs[b2], bed_loops.get(b2, []))) if bnValid(bed, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles[b2]]}
 
-    if len(xfer_loops['f']) or len(xfer_loops['b']):
+    if len(xfer_loops[b2]):
         for n in n_ranges[d2]:
-            if n in xfer_loops[b2] and bnValid(bed, n, gauge) and n not in secure_needles[b2]: k.xfer(f'{b2}{n}', f'{b1}{n}')
+            if n in xfer_loops[b2]: k.xfer(f"{b2}{n}", f"{b1}{n}")
     
     for p in range(passes):
         if p % 2 == 0: d = d1
@@ -461,14 +459,14 @@ def garter(k, start_n, end_n, passes, c, bed=None, bed_loops={'f': [], 'b': []},
             if xfer_stitchNumber is not None: k.stitchNumber(xfer_stitchNumber)
             
             for n in n_ranges[d]:
-                if bnValid(bed, n, gauge) and n not in secure_needles[b1]: k.xfer(f'{b1}{n}', f'{sequence[p % len(sequence)]}{n}')
+                if n in avoid_bns.get("f", []) or n in avoid_bns.get("b", []): continue
+                elif bnValid(bed, n, gauge) and n not in secure_needles[b1]: k.xfer(f"{b1}{n}", f"{sequence[p % len(sequence)]}{n}")
 
             if speedNumber is not None: k.speedNumber(speedNumber)
             if stitchNumber is not None: k.stitchNumber(stitchNumber)
 
         b1 = sequence[p % len(sequence)]
-
-        b2 = 'f' if b1 == 'b' else 'b'
+        b2 = "f" if b1 == "b" else "b"
 
         if releasehook and p == 2:
             k.releasehook(*cs)
@@ -476,24 +474,25 @@ def garter(k, start_n, end_n, passes, c, bed=None, bed_loops={'f': [], 'b': []},
 
         for n in n_ranges[d]:
             if bnValid(bed, n, gauge):
-                if n in secure_needles[b2]: k.knit(d, f'{b2}{n}', *cs)
-                else: k.knit(d, f'{b1}{n}', *cs)
-            elif n == end_n: k.miss(d, f'{b1}{n}', *cs)
-
-    if len(xfer_loops['f']) or len(xfer_loops['b']):
-        b2 = 'f' if b1 == 'b' else 'b'
-
+                if n in secure_needles[b2] or (n in avoid_bns[b1] and n not in avoid_bns[b2]): k.knit(d, f"{b2}{n}", *cs)
+                elif n not in avoid_bns[b1]: k.knit(d, f"{b1}{n}", *cs)
+                elif n == end_n: k.miss(d, f"{b1}{n}", *cs)
+            elif n == end_n: k.miss(d, f"{b1}{n}", *cs)
+    
+    #return loops
+    b2 = "f" if b1 == "b" else "b"
+    if len(xfer_loops.get(b2, [])):
         for n in n_ranges[d]:
-            if n in xfer_loops[b2] and bnValid(bed, n, gauge) and n not in secure_needles[b2]: k.xfer(f'{b1}{n}', f'{b2}{n}')
+            if n in xfer_loops[b2]: k.xfer(f"{b1}{n}", f"{b2}{n}")
 
     if type(pattern_rows) == dict: k.comment(f'end {pattern_rows["f"]}x{pattern_rows["b"]} garter')
     else: k.comment(f'end {pattern_rows}x{pattern_rows} garter')
 
-    next_direction = '-' if d == '+' else '+'
+    next_direction = "-" if d == "+" else "+"
     return next_direction
 
 
-def tuckGarter(k, start_n, end_n, passes, c, bed='f', sequence='ffb', secure_start_n=True, secure_end_n=True, gauge=1, inhook=False, releasehook=False, tuck_pattern=True, speedNumber=None, stitchNumber=None, xfer_speedNumber=None, xfer_stitchNumber=None): #TODO: fix this for gauge 2 secure needles
+def tuckGarter(k, start_n, end_n, passes, c, bed="f", sequence="ffb", gauge=1, bed_loops={"f": [], "b": []}, avoid_bns={"f": [], "b": []}, secure_start_n=False, secure_end_n=False, inhook=False, releasehook=False, tuck_pattern=True, speedNumber=None, stitchNumber=None, xfer_speedNumber=None, xfer_stitchNumber=None): #TODO: fix this for gauge 2 secure needles
     '''
     * k is knitout Writer
     * start_n is the starting needle to knit on
@@ -507,121 +506,94 @@ def tuckGarter(k, start_n, end_n, passes, c, bed='f', sequence='ffb', secure_sta
     '''
     cs = c2cs(c) # ensure tuple type
 
-    pattern_rows = {
-        'f': sequence.count('f'),
-        'b': sequence.count('b')
-    }
+    if bed is not None: bn_locs = {bed: [n for n in n_ranges[d1] if bnValid(bed, n, gauge)]} #make sure we transfer to get them where we want #TODO; #check
+    else:
+        bed = "f"
+        bn_locs = bed_loops.copy()
 
-    if type(pattern_rows) == dict: k.comment(f'begin {pattern_rows["f"]}x{pattern_rows["b"]} garter')
-    else: k.comment(f'begin {pattern_rows}x{pattern_rows} garter')
+    pattern_rows = {"f": sequence.count("f"), "b": sequence.count("b")}
+
+    if type(pattern_rows) == dict: k.comment(f"begin {pattern_rows['f']}x{pattern_rows['b']} garter")
+    else: k.comment(f"begin {pattern_rows}x{pattern_rows} garter")
 
     if releasehook and passes < 2: raise ValueError("not safe to releasehook with less than 2 passes.")
 
     if speedNumber is not None: k.speedNumber(speedNumber)
     if stitchNumber is not None: k.stitchNumber(stitchNumber)
 
-    secure_needles = {}
+    secure_needles = {"f": [], "b": []}
 
-    if bed == 'b': bed2 = 'f'
-    else: bed2 = 'b'
+    if bed == "b": bed2 = "f"
+    else: bed2 = "b"
 
     if end_n > start_n: #first pass is pos
-        d1 = '+'
-        d2 = '-'
+        d1, d2 = "+", "-"
+        n_ranges = {"+": range(start_n, end_n+1), "-": range(end_n, start_n-1, -1)}
 
-        n_range1 = range(start_n, end_n+1)
-        n_range2 = range(end_n, start_n-1, -1)
-
-        if gauge == 2: #TODO: adjust this for other gauges etc. #*
-            if secure_start_n:
-                if start_n % 2 == 0:
-                    secure_needles[start_n] = 'f'
-                    secure_needles[start_n+1] = 'b'
-                else:
-                    secure_needles[start_n] = 'b'
-                    secure_needles[start_n+1] = 'f'
-            
-            if secure_end_n:
-                if end_n % 2 == 0:
-                    secure_needles[end_n] = 'f'
-                    secure_needles[end_n-1] = 'b'
-                else:
-                    secure_needles[end_n] = 'b'
-                    secure_needles[end_n-1] = 'f'
-        else:
-            if secure_start_n: secure_needles[start_n] = bed
-            if secure_end_n: secure_needles[end_n] = bed
+        edge_bns = bnEdges(start_n, end_n, gauge, bed_loops=bn_locs, avoid_bns=avoid_bns, return_type=list)
+        if secure_start_n: secure_needles[edge_bns[0][0]].append(edge_bns[0][1])
+        if secure_end_n: secure_needles[edge_bns[1][0]].append(edge_bns[1][1])
     else: #first pass is neg
-        d1 = '-'
-        d2 = '+'
+        d1, d2 = "-", "+"
+        n_ranges = {"-": range(start_n, end_n-1, -1), "+": range(end_n, start_n+1)}
 
-        n_range1 = range(start_n, end_n-1, -1)
-        n_range2 = range(end_n, start_n+1)
-
-        if gauge == 2: #TODO: adjust this for other gauges etc. #*
-            if secure_start_n:
-                if start_n % 2 == 0:
-                    secure_needles[start_n] = 'f'
-                    secure_needles[start_n-1] = 'b'
-                else:
-                    secure_needles[start_n] = 'b'
-                    secure_needles[start_n-1] = 'f'
-            
-            if secure_end_n:
-                if end_n % 2 == 0:
-                    secure_needles[end_n] = 'f'
-                    secure_needles[end_n+1] = 'b'
-                else:
-                    secure_needles[end_n] = 'b'
-                    secure_needles[end_n+1] = 'f'
-        else:
-            if secure_start_n: secure_needles[start_n] = bed
-            if secure_end_n: secure_needles[end_n] = bed
+        edge_bns = bnEdges(end_n, start_n, gauge, bed_loops=bn_locs, avoid_bns=avoid_bns, return_type=list)
+        if secure_end_n: secure_needles[edge_bns[0][0]].append(edge_bns[0][1])
+        if secure_start_n: secure_needles[edge_bns[1][0]].append(edge_bns[1][1])
 
     if inhook:
         k.inhook(*cs)
         if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=cs)
-    
+
     # for now: (will be reset)
     d = d1
-    needle_range = n_range1
 
     if type(pattern_rows) != dict:
-        pat_rows = {'f': pattern_rows, 'b': pattern_rows}
+        pat_rows = {"f": pattern_rows, "b": pattern_rows}
         pattern_rows = pat_rows
     
-    pattern_rows['f'] += 1 #for the tucks
+    pattern_rows["f"] += 1 #for the tucks
+
+    b1 = sequence[p % len(sequence)]
+    b2 = "f" if b1 == "b" else "b"
+
+    xfer_loops = {b2: [n for n in list(set(bn_locs[b2], bed_loops.get(b2, []))) if bnValid(bed, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles[b2]]}
+
+    if len(xfer_loops[b2]):
+        for n in n_ranges[d2]:
+            if n in xfer_loops[b2]: k.xfer(f"{b2}{n}", f"{b1}{n}")
 
     pass_ct = 0
-    for l in range(passes):
-        if l % 2 == 0:
-            b1 = bed
-            b2 = bed2
-        else:
-            b1 = bed2
-            b2 = bed
+    for p in range(passes):
+        if p > 0: b1, b2 = b2, b1 #toggle
+        
+        # if p % 2 == 0:
+        #     b1 = bed
+        #     b2 = bed2
+        # else:
+        #     b1 = bed2
+        #     b2 = bed
 
-        for r in range(0, pattern_rows[b1]):
+        for r in range(pattern_rows[b1]):
             if releasehook and pass_ct == 2:
                 k.releasehook(*cs)
                 if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=None) # drop it
             
-            if b1 == 'f' and r == 0:
-                for n in needle_range:
-                    if n % (gauge*2) == 0 and includeNSecureSides(n, secure_needles=secure_needles, knit_bed=None): k.tuck(d, f'{b1}{n}', *cs)
-                    elif n == end_n: k.miss(d, f'{b1}{n}', *cs)
+            if b1 == "f" and r == 0:
+                for n in n_ranges[d]:
+                    if n not in avoid_bns[b1] and n % (gauge*2) == 0 and n != edge_bns[0][1] and n != edge_bns[1][1]: k.tuck(d, f"{b1}{n}", *cs)
+                    elif n == end_n: k.miss(d, f"{b1}{n}", *cs)
             else:
-                for n in needle_range:
-                    if bnValid(bed, n, gauge) and includeNSecureSides(n, secure_needles=secure_needles, knit_bed=b1): k.knit(d, f'{b1}{n}', *cs)
-                    elif bnValid(bed, n, gauge): k.knit(d, f'{bed}{n}', *cs)
-                    elif n == end_n: k.miss(d, f'{b1}{n}', *cs)
+                for n in n_ranges[d]:
+                    if bnValid(bed, n, gauge):
+                        if n in secure_needles[b2] or (n in avoid_bns[b1] and n not in avoid_bns[b2]): k.knit(d, f"{b2}{n}", *cs)
+                        elif n not in avoid_bns[b1]: k.knit(d, f"{b1}{n}", *cs)
+                        elif n == end_n: k.miss(d, f"{b1}{n}", *cs)
+                    elif n == end_n: k.miss(d, f"{b1}{n}", *cs)
 
-            if d == d1:
-                d = d2
-                needle_range = n_range2
-            else:
-                d = d1
-                needle_range = n_range1
+            # if d == d1: d = d2
+            # else: d = d1
+            d = toggleDirection(d)
 
             pass_ct += 1
             if pass_ct == passes: break
@@ -631,53 +603,31 @@ def tuckGarter(k, start_n, end_n, passes, c, bed='f', sequence='ffb', secure_sta
         if xfer_speedNumber is not None: k.speedNumber(xfer_speedNumber)
         if xfer_stitchNumber is not None: k.stitchNumber(xfer_stitchNumber)
             
-        for n in n_range1:
-            if bnValid(bed, n, gauge) and includeNSecureSides(n, secure_needles=secure_needles): k.xfer(f'{b1}{n}', f'{b2}{n}')
+        for n in n_ranges[d]:
+            if n in avoid_bns.get("f", []) or n in avoid_bns.get("b", []) or n in secure_needles.get("f", []) or n in secure_needles.get("b", []) or not bnValid(bed, n, gauge): continue
+            elif n in bn_locs[bed2]: k.xfer(f"{bed}{n}", f"{bed2}{n}") #TODO: #check
+            else: k.xfer(f"{b1}{n}", f"{b2}{n}")
 
         if speedNumber is not None: k.speedNumber(speedNumber)
         if stitchNumber is not None: k.stitchNumber(stitchNumber)
 
         if pass_ct == passes: break
 
-    if type(pattern_rows) == dict: k.comment(f'end {pattern_rows["f"]-1}x{pattern_rows["b"]} garter')
-    else: k.comment(f'end {pattern_rows}x{pattern_rows} garter')
+    if type(pattern_rows) == dict: k.comment(f"end {pattern_rows['f']-1}x{pattern_rows['b']} garter")
+    else: k.comment(f"end {pattern_rows}x{pattern_rows} garter")
 
     return d #return the direction that the next pass should be, so know which to use next
 
 
-def seed(k, start_n, end_n, passes, c, bed='f', bed_loops={'f': [], 'b': []}, sequence='fb', secure_start_n=True, secure_end_n=True, gauge=1, inhook=False, releasehook=False, tuck_pattern=True, speedNumber=None, stitchNumber=None, xfer_speedNumber=None, xfer_stitchNumber=None): #TODO: fix this for gauge 2 secure needles
+def seed(k, start_n, end_n, passes, c, bed="f", sequence="fb", gauge=1, bed_loops={"f": [], "b": []}, avoid_bns={"f": [], "b": []}, secure_start_n=True, secure_end_n=True, inhook=False, releasehook=False, tuck_pattern=True, speedNumber=None, stitchNumber=None, xfer_speedNumber=None, xfer_stitchNumber=None): #TODO: fix this for gauge 2 secure needles
     cs = c2cs(c) # ensure tuple type
 
-    k.comment(f'begin seed ({sequence})')
+    k.comment(f"begin seed ({sequence})")
 
     if releasehook and passes < 2: raise ValueError("not safe to releasehook with less than 2 passes.")
 
-    xfer_loops = bed_loops.copy()
-    if not 'f' in xfer_loops: xfer_loops['f'] = []
-    if not 'b' in xfer_loops: xfer_loops['b'] = []
-
-    secure_needles = {}
-
-    if gauge == 2:
-        if secure_start_n:
-            if start_n % 2 == 0:
-                secure_needles[start_n] = 'f'
-                secure_needles[start_n-1] = 'b'
-            else:
-                secure_needles[start_n] = 'b'
-                secure_needles[start_n-1] = 'f'
-        
-        if secure_end_n:
-            if end_n % 2 == 0:
-                secure_needles[end_n] = 'f'
-                secure_needles[end_n+1] = 'b'
-            else:
-                secure_needles[end_n] = 'b'
-                secure_needles[end_n+1] = 'f'
-    else:
-        if secure_start_n: secure_needles[start_n] = bed
-        if secure_end_n: secure_needles[end_n] = bed
-
+    if bed is not None: bn_locs = {bed: [n for n in n_ranges[d1] if bnValid(bed, n, gauge)]} #make sure we transfer to get them where we want #TODO; #check
+    else: bn_locs = bed_loops.copy()
 
     if gauge > 1:
         gauged_sequence = ''
@@ -685,32 +635,43 @@ def seed(k, start_n, end_n, passes, c, bed='f', bed_loops={'f': [], 'b': []}, se
             gauged_sequence += char * gauge
         sequence = gauged_sequence
 
+    secure_needles = {"f": [], "b": []}
+
     if end_n > start_n: #first pass is pos
-        d1 = '+'
-        d2 = '-'
-
+        d1, d2 = "+", "-"
         n_ranges = {d1: range(start_n, end_n+1), d2: range(end_n, start_n-1, -1)}
-    else: #first pass is neg
-        d1 = '-'
-        d2 = '+'
 
+        edge_bns = bnEdges(start_n, end_n, gauge, bed_loops=bn_locs, avoid_bns=avoid_bns, return_type=list)
+        if secure_start_n: secure_needles[edge_bns[0][0]].append(edge_bns[0][1])
+        if secure_end_n: secure_needles[edge_bns[1][0]].append(edge_bns[1][1])
+    else: #first pass is neg
+        d1, d2 = "-", "+"
         n_ranges = {d1: range(start_n, end_n-1, -1), d2: range(end_n, start_n+1)}
+
+        edge_bns = bnEdges(end_n, start_n, gauge, bed_loops=bn_locs, avoid_bns=avoid_bns, return_type=list)
+        if secure_end_n: secure_needles[edge_bns[0][0]].append(edge_bns[0][1])
+        if secure_start_n: secure_needles[edge_bns[1][0]].append(edge_bns[1][1])
 
     if inhook:
         k.inhook(*cs)
         if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=cs)
     
-    if bed == 'f': bed2 = 'b'
-    else: bed2 = 'f'
+    # if bed == "f": bed2 = "b"
+    # else: bed2 = "f"
 
-    if len(xfer_loops['f']) or len(xfer_loops['b']): # indicates that we might need to start by xferring to proper spots
+    xfer_loops = {"f": [n for n in list(set(bn_locs.get("f", []), bed_loops.get("f", []))) if sequence[n % len(sequence)] == "b" and bnValid(bed, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles["f"]], "b": [n for n in list(set(bn_locs.get("b", []), bed_loops.get("b", []))) if sequence[n % len(sequence)] == "f" and bnValid(bed, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles["b"]]}
+
+    if len(xfer_loops["f"]) or len(xfer_loops["b"]): # indicates that we might need to start by xferring to proper spots
         if xfer_speedNumber is not None: k.speedNumber(xfer_speedNumber)
         if xfer_stitchNumber is not None: k.stitchNumber(xfer_stitchNumber)
 
-        for n in n_ranges[d1]: #TODO: adjust for gauge
-            if n not in secure_needles and bnValid(bed, n, gauge):
-                if sequence[n % len(sequence)] == bed2 and n in xfer_loops[bed]: k.xfer(f'{bed}{n}', f'{bed2}{n}')
-                elif sequence[n % len(sequence)] == bed and n in xfer_loops[bed2]: k.xfer(f'{bed2}{n}', f'{bed}{n}')
+        for n in n_ranges[d1]:
+            if n in xfer_loops["f"]: k.xfer(f"f{n}", f"b{n}")
+            elif n in xfer_loops["b"]: k.xfer(f"b{n}", f"f{n}")
+            # if n in avoid_bns.get("f", []) or n in avoid_bns.get("b", []): continue
+            # elif n not in secure_needles and bnValid(bed, n, gauge): 
+            #     if sequence[n % len(sequence)] == bed2 and n in bn_locs[bed]: k.xfer(f"{bed}{n}", f"{bed2}{n}")
+            #     elif sequence[n % len(sequence)] == bed and n in bn_locs[bed2]: k.xfer(f"{bed2}{n}", f"{bed}{n}")
             
         if speedNumber is not None: k.speedNumber(speedNumber)
         if stitchNumber is not None: k.stitchNumber(stitchNumber)
@@ -725,30 +686,30 @@ def seed(k, start_n, end_n, passes, c, bed='f', bed_loops={'f': [], 'b': []}, se
             last_n = end_n
 
             for n in n_ranges[d]:
-                if n in secure_needles:
-                    if bnValid(bed, n, gauge): k.knit(d, f'{secure_needles[n]}{n}', *cs) #xferred it or bed == 'f', ok to knit
-                    elif n == last_n: k.miss(d, f'{secure_needles[n]}{n}', *cs)
-                else:
-                    if sequence[n % len(sequence)] == 'f':
-                        if bnValid(bed, n, gauge): k.knit(d, f'f{n}', *cs) #xferred it or bed == 'f', ok to knit
-                        elif n == last_n: k.miss(d, f'f{n}', *cs)
-                    else: #sequence == 'b'
-                        if bnValid(bed, n, gauge): k.knit(d, f'b{n}', *cs) #xferred it or bed == 'b', ok to knit
-                        elif n == last_n: k.miss(d, f'b{n}', *cs)
+                if bnValid(bed, n, gauge):
+                    if n in secure_needles["f"] and n not in bn_locs.get("b", []): k.knit(d, f"f{n}", *cs) #TODO: #check
+                    elif n in secure_needles["b"] and n not in bn_locs.get("f", []): k.knit(d, f"b{n}", *cs) #TODO: #check
+                    else:
+                        if n not in avoid_bns.get("f", []) and (sequence[n % len(sequence)] == "f" or (sequence[n % len(sequence)] == "b" and n in avoid_bns.get("b", []))): k.knit(d, f"f{n}", *cs) #xferred it or bed == "f", ok to knit
+                        elif n not in avoid_bns.get("b", []) and (sequence[n % len(sequence)] == "b" or (sequence[n % len(sequence)] == "f" and n in avoid_bns.get("f", []))): k.knit(d, f"b{n}", *cs) #xferred it or bed == "b", ok to knit
+                        elif n == last_n: k.miss(d, f"f{n}", *cs)
+                elif n == last_n: k.miss(d, f"f{n}", *cs)
             
             if xfer_speedNumber is not None: k.speedNumber(xfer_speedNumber)
             if xfer_stitchNumber is not None: k.stitchNumber(xfer_stitchNumber)
 
             if p < passes-1:
-                for n in n_ranges[d]: #TODO: adjust for gauge
-                    if n not in secure_needles and bnValid(bed, n, gauge):
-                        if sequence[n % len(sequence)] == 'f': k.xfer(f'f{n}', f'b{n}')
-                        else: k.xfer(f'b{n}', f'f{n}')
+                for n in n_ranges[d]:
+                    if n in avoid_bns.get("f", []) or n in avoid_bns.get("b", []): continue
+                    elif bnValid(bed, n, gauge):
+                        if sequence[n % len(sequence)] == "f" and n not in secure_needles["f"]: k.xfer(f"f{n}", f"b{n}")
+                        elif sequence[n % len(sequence)] == "b" and n not in secure_needles["b"]: k.xfer(f"b{n}", f"f{n}")
             else:
-                for n in n_ranges[d]: #TODO: adjust for gauge
-                    if n not in secure_needles and bnValid(bed, n, gauge):
-                        if sequence[n % len(sequence)] == 'f' and n in xfer_loops['b']: k.xfer(f'f{n}', f'b{n}')
-                        elif sequence[n % len(sequence)] == 'b' and n in xfer_loops['f']: k.xfer(f'b{n}', f'f{n}')
+                for n in n_ranges[d]:
+                    if n in avoid_bns.get("f", []) or n in avoid_bns.get("b", []) or n in secure_needles["f"] or n in secure_needles["b"]: continue
+                    elif bnValid(bed, n, gauge):
+                        if sequence[n % len(sequence)] == "f" and n in xfer_loops.get("b", []): k.xfer(f"f{n}", f"b{n}")
+                        elif sequence[n % len(sequence)] == "b" and n in xfer_loops.get("f", []): k.xfer(f"b{n}", f"f{n}")
 
             if speedNumber is not None: k.speedNumber(speedNumber)
             if stitchNumber is not None: k.stitchNumber(stitchNumber)
@@ -757,58 +718,57 @@ def seed(k, start_n, end_n, passes, c, bed='f', bed_loops={'f': [], 'b': []}, se
             last_n = start_n
 
             for n in n_ranges[d]:
-                if n in secure_needles:
-                    if bnValid(bed, n, gauge):
-                        k.knit(d, f'{secure_needles[n]}{n}', *cs) #xferred it or bed == 'f', ok to knit
-                    elif n == last_n: k.miss(d, f'{secure_needles[n]}{n}', *cs)
-                else:
-                    if sequence[n % len(sequence)] == 'f':
-                        if bnValid(bed, n, gauge):
-                            k.knit(d, f'b{n}', *cs) #xferred it or bed == 'f', ok to knit
-                        elif n == last_n: k.miss(d, f'b{n}', *cs)
-                    else: #sequence == 'b'
-                        if bnValid(bed, n, gauge):
-                            k.knit(d, f'f{n}', *cs) #xferred it or bed == 'b', ok to knit
-                        elif n == last_n: k.miss(d, f'f{n}', *cs)
+                if bnValid(bed, n, gauge):
+                    if n in secure_needles["f"] and n not in bn_locs.get("b", []): k.knit(d, f"f{n}", *cs) #TODO: #check
+                    elif n in secure_needles["b"] and n not in bn_locs.get("f", []): k.knit(d, f"b{n}", *cs) #TODO: #check
+                    else:
+                        if n not in avoid_bns.get("b", []) and (sequence[n % len(sequence)] == "f" or (sequence[n % len(sequence)] == "b" and n in avoid_bns.get("f", []))): k.knit(d, f"b{n}", *cs) #xferred it or bed == "f", ok to knit
+                        elif n not in avoid_bns.get("f", []) and (sequence[n % len(sequence)] == "b" or (sequence[n % len(sequence)] == "f" and n in avoid_bns.get("b", []))): k.knit(d, f"f{n}", *cs) #xferred it or bed == "b", ok to knit
+                        elif n == last_n: k.miss(d, f"f{n}", *cs)
+                elif n == last_n: k.miss(d, f"f{n}", *cs)
 
             if xfer_speedNumber is not None: k.speedNumber(xfer_speedNumber)
             if xfer_stitchNumber is not None: k.stitchNumber(xfer_stitchNumber)
 
             if p < passes-1:
-                for n in n_ranges[d]: #TODO: adjust for gauge
-                    if n not in secure_needles and bnValid(bed, n, gauge):
-                        if sequence[n % len(sequence)] == 'f': k.xfer(f'b{n}', f'f{n}')
-                        else: k.xfer(f'f{n}', f'b{n}')
+                for n in n_ranges[d]:
+                    if n in avoid_bns.get("f", []) or n in avoid_bns.get("b", []): continue
+                    elif n not in secure_needles and bnValid(bed, n, gauge):
+                        if sequence[n % len(sequence)] == "f": k.xfer(f"b{n}", f"f{n}")
+                        else: k.xfer(f"f{n}", f"b{n}")
             else:
                 for n in n_ranges[d]: #TODO: adjust for gauge
-                    if n not in secure_needles and bnValid(bed, n, gauge):
-                        if sequence[n % len(sequence)] == 'f' and n in xfer_loops['f']: k.xfer(f'b{n}', f'f{n}')
-                        elif sequence[n % len(sequence)] == 'b' and n in xfer_loops['b']: k.xfer(f'f{n}', f'b{n}')
+                    if n in avoid_bns.get("f", []) or n in avoid_bns.get("b", []) or n in secure_needles["f"] or n in secure_needles["b"]: continue
+                    elif bnValid(bed, n, gauge):
+                        if sequence[n % len(sequence)] == "f" and n in xfer_loops.get("f", []): k.xfer(f"b{n}", f"f{n}")
+                        elif sequence[n % len(sequence)] == "b" and n in xfer_loops.get("b", []): k.xfer(f"f{n}", f"b{n}")
             
             if speedNumber is not None: k.speedNumber(speedNumber)
             if stitchNumber is not None: k.stitchNumber(stitchNumber)
 
-    k.comment(f'end seed ({sequence})')
+    k.comment(f"end seed ({sequence})")
 
     if bnValid(bed, n, gauge) % 2 == 0:
-        if end_n > start_n: return '+'
-        else: return '-'
+        if end_n > start_n: return "+"
+        else: return "-"
     else:
-        if end_n > start_n: return '-'
-        else: return '+'
+        if end_n > start_n: return "-"
+        else: return "+"
 
 
-def tuckStitch(k, start_n, end_n, passes, c, bed='f', gauge=1, sequence='kt', inhook=False, releasehook=False, tuck_pattern=True):
+def tuckStitch(k, start_n, end_n, passes, c, bed="f", sequence="kt", gauge=1, avoid_bns={"f": [], "b": []}, inhook=False, releasehook=False, tuck_pattern=True):
     cs = c2cs(c) # ensure tuple type
 
-    k.comment(f'begin tuck stitch ({sequence})')
+    k.comment(f"begin tuck stitch ({sequence})")
 
     if end_n > start_n:
-        d1, d2 = '+', '-'
-        needle_ranges = [range(start_n, end_n+1), range(end_n, start_n-1, -1)]
+        d1, d2 = "+", "-"
+        n_ranges = {"+": range(start_n, end_n+1), "-": range(end_n, start_n-1, -1)}
     else:
-        d1, d2 = '-', '+'
-        needle_ranges = [range(start_n, end_n-1, -1), range(end_n, start_n+1)]
+        d1, d2 = "-", "+"
+        n_ranges = {"-": range(start_n, end_n-1, -1), "+": range(end_n, start_n+1)}
+
+    edge_bns = bnEdges(n_ranges["+"][0], n_ranges["+"][-1], gauge, bed_loops={bed: [n for n in n_ranges["+"] if bnValid(bed, n, gauge)]}, avoid_bns=avoid_bns, return_type=list)
     
     if inhook:
         k.inhook(*cs)
@@ -822,25 +782,24 @@ def tuckStitch(k, start_n, end_n, passes, c, bed='f', gauge=1, sequence='kt', in
             if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=None) # drop it
 
         if p % 2 == 0:
-            needle_range = needle_ranges[0]
-            do_knit = 'k'
+            do_knit = "k"
             d = d1
             pass_start_n = start_n
             pass_end_n = end_n
         else:
-            needle_range = needle_ranges[1]
-            do_knit = 't'
+            do_knit = "t"
             d = d2
             pass_start_n = end_n
             pass_end_n = start_n
 
-        for n in needle_range:
-            if n % (gauge*2) == 0 or n % (gauge*2) == gauge:
-                if sequence[(n*gauge) % len(sequence)] == do_knit or n == pass_start_n or n == pass_end_n: k.knit(d, f'{bed}{n}', *cs)
-                else: k.tuck(d, f'{bed}{n}', *cs)
-            elif n == pass_end_n: k.miss(d, f'{bed}{n}', *cs)
+        for n in n_ranges[d]:
+            if bnValid(bed, n, gauge) and n not in avoid_bns[bed] and (n % (gauge*2) == 0 or n % (gauge*2) == gauge):
+                if sequence[(n*gauge) % len(sequence)] == do_knit or n == edge_bns[0][1] or n == edge_bns[1][1]: k.knit(d, f"{bed}{n}", *cs)
+                else: k.tuck(d, f"{bed}{n}", *cs)
+            elif n == pass_end_n: k.miss(d, f"{bed}{n}", *cs)
 
-    k.comment('end tuck stitch')
+    k.comment("end tuck stitch")
 
-    if pass_end_n > pass_start_n: return '-' #just knit a pos pass
-    else: return '+'
+    # return next direction:
+    if pass_end_n > pass_start_n: return "-" #just knit a pos pass
+    else: return "+"
