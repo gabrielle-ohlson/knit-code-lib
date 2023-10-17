@@ -444,7 +444,7 @@ def garter(k, start_n, end_n, passes, c, bed=None, sequence="fb", gauge=1, bed_l
     b1 = sequence[0]
     b2 = "f" if b1 == "b" else "b"
 
-    xfer_loops = {b2: [n for n in list(set(bn_locs[b2]+bed_loops.get(b2, []))) if bnValid(bed, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles[b2]]}
+    xfer_loops = {b2: [n for n in list(set(bn_locs.get(b2, [])+bed_loops.get(b2, []))) if bnValid(bed, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles[b2]]}
 
     if len(xfer_loops[b2]):
         for n in n_ranges[d2]:
