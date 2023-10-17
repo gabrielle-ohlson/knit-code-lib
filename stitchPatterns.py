@@ -480,7 +480,7 @@ def garter(k, start_n, end_n, passes, c, bed=None, bed_loops={'f': [], 'b': []},
             elif n == end_n: k.miss(d, f'{b1}{n}', *cs)
 
     if len(bed_loops['f']) or len(bed_loops['b']):
-        b2 = 'f' if b1 == 'b' else b1
+        b2 = 'f' if b1 == 'b' else 'b'
 
         for n in n_ranges[d]:
             if n in bed_loops[b2] and bnValid(bed, n, gauge) and n not in secure_needles[b2]: k.xfer(f'{b1}{n}', f'{b2}{n}')
