@@ -578,7 +578,7 @@ def tuckGarter(k, start_n, end_n, passes, c, bed="f", sequence="ffb", gauge=1, b
 
     if len(xfer_loops[b2]):
         for n in n_ranges[d2]:
-            if n in xfer_loops[b2]: k.xfer(f"{b2}{n}", f"{b1}{n}")
+            if n in xfer_loops.get(b2, []): k.xfer(f"{b2}{n}", f"{b1}{n}")
 
     pass_ct = 0
     for p in range(passes):
@@ -598,13 +598,13 @@ def tuckGarter(k, start_n, end_n, passes, c, bed="f", sequence="ffb", gauge=1, b
             
             if b1 == "f" and r == 0:
                 for n in n_ranges[d]:
-                    if n not in avoid_bns[b1] and n % (gauge*2) == 0 and n != edge_bns[0][1] and n != edge_bns[1][1]: k.tuck(d, f"{b1}{n}", *cs)
+                    if n not in avoid_bns.get(b1, []) and n % (gauge*2) == 0 and n != edge_bns[0][1] and n != edge_bns[1][1]: k.tuck(d, f"{b1}{n}", *cs)
                     elif n == end_n: k.miss(d, f"{b1}{n}", *cs)
             else:
                 for n in n_ranges[d]:
                     if bnValid(bed, n, gauge):
-                        if n in secure_needles[b2] or (n in avoid_bns[b1] and n not in avoid_bns[b2]): k.knit(d, f"{b2}{n}", *cs)
-                        elif n not in avoid_bns[b1]: k.knit(d, f"{b1}{n}", *cs)
+                        if n in secure_needles[b2] or (n in avoid_bns.get(b1, []) and n not in avoid_bns.get(b2, [])): k.knit(d, f"{b2}{n}", *cs)
+                        elif n not in avoid_bns.get(b1, []): k.knit(d, f"{b1}{n}", *cs)
                         elif n == end_n: k.miss(d, f"{b1}{n}", *cs)
                     elif n == end_n: k.miss(d, f"{b1}{n}", *cs)
 
@@ -622,7 +622,7 @@ def tuckGarter(k, start_n, end_n, passes, c, bed="f", sequence="ffb", gauge=1, b
             
         for n in n_ranges[d]:
             if n in avoid_bns.get("f", []) or n in avoid_bns.get("b", []) or n in secure_needles.get("f", []) or n in secure_needles.get("b", []) or not bnValid(bed, n, gauge): continue
-            elif n in bn_locs[bed2]: k.xfer(f"{bed}{n}", f"{bed2}{n}") #TODO: #check
+            elif n in bn_locs.get(bed2, []): k.xfer(f"{bed}{n}", f"{bed2}{n}") #TODO: #check
             else: k.xfer(f"{b1}{n}", f"{b2}{n}")
 
         if speedNumber is not None: k.speedNumber(speedNumber)
