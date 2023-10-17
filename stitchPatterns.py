@@ -32,20 +32,21 @@ def jersey(k, start_n, end_n, passes, c, bed="f", gauge=1, avoid_bns={"f": [], "
     -------
     * _type_: _description_
     '''
-    cs = c2cs(c) # ensure tuple type
-
-    if releasehook and passes < 2 and not tuck_pattern: raise ValueError("not safe to releasehook with less than 2 passes.")
+    if releasehook and not tuck_pattern and passes < 2: raise ValueError("not safe to releasehook with less than 2 passes. Try adding a tuck pattern.")
 
     k.comment("begin jersey")
+
     if speedNumber is not None: k.speedNumber(speedNumber)
     if stitchNumber is not None: k.stitchNumber(stitchNumber)
 
-    if end_n > start_n: d1 = "+"
-    else: d1 = "-"
+    cs = c2cs(c) # ensure tuple type
 
     if inhook:
         k.inhook(*cs)
         if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=cs)
+
+    if end_n > start_n: d1 = "+"
+    else: d1 = "-"
 
     for p in range(passes):
         if releasehook and p == 2:
@@ -83,9 +84,9 @@ tube (single bed) example:
 e.g. for gauge 2:
 if mod == 0
 """
-def interlock(k, start_n, end_n, passes, c, bed=None, gauge=1, avoid_bns={"f": [], "b": []}, secure_start_n=False, secure_end_n=False, inhook=False, releasehook=False, speedNumber=None, stitchNumber=None, xfer_speedNumber=None, xfer_stitchNumber=None): #TODO: add tuck pattern
+def interlock(k, start_n, end_n, passes, c, bed=None, gauge=1, reverse_seq=False, avoid_bns={"f": [], "b": []}, secure_start_n=False, secure_end_n=False, inhook=False, releasehook=False, tuck_pattern=True, speedNumber=None, stitchNumber=None, xfer_speedNumber=None, xfer_stitchNumber=None): #TODO: add tuck pattern
     '''
-    Knits on every needle interlock starting on side indicated by which needle value is greater.
+    Knits on every needle interlock starting on side indicated by which needle value is greater.def interlock
     In this function length is the number of total passes knit so if you want an interlock segment that is 20 courses long on each side set length to 40. Useful if you want to have odd amounts of interlock.
 
     * `k` (class instance): instance of the knitout Writer class
@@ -110,22 +111,30 @@ def interlock(k, start_n, end_n, passes, c, bed=None, gauge=1, avoid_bns={"f": [
     * `xfer_speedNumber` (int, optional): value to set for the `x-speed-number` knitout extension when transferring. Defaults to `None`.
     * `xfer_stitchNumber` (int, optional): value to set for the `x-stitch-number` knitout extension when transferring. Defaults to `None`.
     '''
+    if releasehook and not tuck_pattern and passes < 2: raise ValueError("not safe to releasehook with less than 2 passes. Try adding a tuck pattern.")
+
+    k.comment("begin interlock")
+
+    if speedNumber is not None: k.speedNumber(speedNumber)
+    if stitchNumber is not None: k.stitchNumber(stitchNumber)
+
     cs = c2cs(c) # ensure tuple type
 
-    k.comment('begin interlock')
-    if inhook: k.inhook(*cs)
-
-    if releasehook and passes < 2: raise ValueError("not safe to releasehook with less than 2 passes.")
+    if inhook:
+        k.inhook(*cs)
+        if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=cs)
 
     if end_n > start_n: #first pass is pos
         d1, d2 = "+", "-"
         left_n = start_n
         right_n = end_n
-        seq1_idx, seq2_idx = 1, 0 #this ensures that if `passes=1` (e.g., when knitting open tubes and switching between beds), we are still toggling which sequence we start with for the first pass in the function
+        if reverse_seq: seq1_idx, seq2_idx = 0, 1
+        else: seq1_idx, seq2_idx = 1, 0 #this ensures that if `passes=1` (e.g., when knitting open tubes and switching between beds), we are still toggling which sequence we start with for the first pass in the function
     else: #first pass is neg
         d1, d2 = "-", "+"
         left_n = end_n
         right_n = start_n
+        if reverse_seq: seq1_idx, seq2_idx = 1, 0
         seq1_idx, seq2_idx = 0, 1
 
     if bed is None:
@@ -150,9 +159,7 @@ def interlock(k, start_n, end_n, passes, c, bed=None, gauge=1, avoid_bns={"f": [
     else: #first pass is neg
         if secure_end_n: secure_needles[edge_bns[0][0]].append(edge_bns[0][1])
         if secure_start_n: secure_needles[edge_bns[1][0]].append(edge_bns[1][1])
-    
-    # seq2_idx = abs(seq1_idx-1)
-    
+        
     mods2 = halveGauge(gauge, bed)
 
     n_ranges = {"+": range(left_n, right_n+1), "-": range(right_n, left_n-1, -1)}
@@ -198,7 +205,10 @@ def interlock(k, start_n, end_n, passes, c, bed=None, gauge=1, avoid_bns={"f": [
 
     #--- the knitting ---
     for p in range(passes):
-        if releasehook and p == 2: k.releasehook(*cs)
+        if releasehook and p == 2:
+            k.releasehook(*cs)
+            if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=None) # drop it
+
         if p % 2 == 0: passSequence1(d1)
         else: passSequence2(d2)
 
@@ -215,7 +225,7 @@ def interlock(k, start_n, end_n, passes, c, bed=None, gauge=1, avoid_bns={"f": [
         if speedNumber is not None: k.speedNumber(speedNumber)
         if stitchNumber is not None: k.stitchNumber(stitchNumber)
 
-    k.comment('end interlock')
+    k.comment("end interlock")
 
 
 def rib(k, start_n, end_n, passes, c, bed=None, sequence="fb", gauge=1, bed_loops={"f": [], "b": []}, avoid_bns={"f": [], "b": []}, secure_start_n=False, secure_end_n=False, inhook=False, releasehook=False, tuck_pattern=True, speedNumber=None, stitchNumber=None, xfer_speedNumber=None, xfer_stitchNumber=None): #TODO: #check to make sure this is working well for gauge > 1 #*
@@ -230,11 +240,14 @@ def rib(k, start_n, end_n, passes, c, bed=None, sequence="fb", gauge=1, bed_loop
     *sequence is the repeating rib pattern (e.g. 'fb' of 'bf' for 1x1 [first bed indicates which bed left-most needle will be on], 'ffbb' for 2x2, 'fbffbb' for 1x1x2x2, etc.)
     *gauge is gauge
     '''
-    cs = c2cs(c) # ensure tuple type
+    if releasehook and not tuck_pattern and passes < 2: raise ValueError("not safe to releasehook with less than 2 passes. Try adding a tuck pattern.")
 
     k.comment(f"begin rib ({sequence})")
 
-    if releasehook and passes < 2: raise ValueError("not safe to releasehook with less than 2 passes.")
+    if speedNumber is not None: k.speedNumber(speedNumber)
+    if stitchNumber is not None: k.stitchNumber(stitchNumber)
+
+    cs = c2cs(c) # ensure tuple type
 
     if gauge > 1:
         gauged_sequence = ''
@@ -251,6 +264,10 @@ def rib(k, start_n, end_n, passes, c, bed=None, sequence="fb", gauge=1, bed_loop
         d2 = "+"
         n_ranges = {d1: range(start_n, end_n-1, -1), d2: range(end_n, start_n+1)}
 
+    if inhook:
+        k.inhook(*cs)
+        if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=cs)
+    
     if bed is None:
         bed = "f"
         bn_locs = bed_loops.copy()
@@ -268,10 +285,6 @@ def rib(k, start_n, end_n, passes, c, bed=None, sequence="fb", gauge=1, bed_loop
         if secure_end_n: secure_needles[edge_bns[0][0]].append(edge_bns[0][1])
         if secure_start_n: secure_needles[edge_bns[1][0]].append(edge_bns[1][1])
 
-    if inhook:
-        k.inhook(*cs)
-        if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=cs)
-
     # now let's make sure we have *all* the info in one dict
     xfer_loops = {"f": [n for n in list(set(bn_locs.get("f", [])+bed_loops.get("f", []))) if sequence[n % len(sequence)] == "b" and bnValid(bed, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles["f"]], "b": [n for n in list(set(bn_locs.get("b", [])+bed_loops.get("b", []))) if sequence[n % len(sequence)] == "f" and bnValid(bed, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles["b"]]}
 
@@ -282,11 +295,7 @@ def rib(k, start_n, end_n, passes, c, bed=None, sequence="fb", gauge=1, bed_loop
         for n in n_ranges[d1]: #TODO: #check adjustment for gauge
             if n in xfer_loops["f"]: k.xfer(f"f{n}", f"b{n}")
             elif n in xfer_loops["b"]: k.xfer(f"b{n}", f"f{n}")
-            # if n in avoid_bns.get("f", []) or n in avoid_bns.get("b", []) or not bnValid(bed, n, gauge): continue
-            # else:
-            #     if sequence[n % len(sequence)] == bed2 and n in xfer_loops[bed] and n not in secure_needles[bed]: k.xfer(f"{bed}{n}", f"{bed2}{n}")
-            #     elif sequence[n % len(sequence)] == bed and n in xfer_loops[bed2] and n not in secure_needles[bed2]: k.xfer(f"{bed2}{n}", f"{bed}{n}")
-            
+
         if speedNumber is not None: k.speedNumber(speedNumber)
         if stitchNumber is not None: k.stitchNumber(stitchNumber)
 
@@ -295,6 +304,7 @@ def rib(k, start_n, end_n, passes, c, bed=None, sequence="fb", gauge=1, bed_loop
         if releasehook and p == 2:
             k.releasehook(*cs)
             if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=None) # drop it
+
         if p % 2 == 0:
             d = d1
             last_n = end_n
@@ -335,13 +345,18 @@ def rib(k, start_n, end_n, passes, c, bed=None, sequence="fb", gauge=1, bed_loop
         else: return "+"
 
 
-def altKnitTuck(k, start_n, end_n, passes, c, bed="f", sequence="kt", tuck_sequence="mt", gauge=1, avoid_bns={"f": [], "b": []}, inhook=False, releasehook=False, tuck_pattern=True):
+def altKnitTuck(k, start_n, end_n, passes, c, bed="f", sequence="kt", tuck_sequence="mt", gauge=1, avoid_bns={"f": [], "b": []}, inhook=False, releasehook=False, tuck_pattern=True, speedNumber=None, stitchNumber=None):
     '''
     *TODO
     '''
-    cs = c2cs(c) # ensure tuple type
+    if releasehook and not tuck_pattern and passes < 2: raise ValueError("not safe to releasehook with less than 2 passes. Try adding a tuck pattern.")
 
     k.comment(f"begin alt knit/tuck ({sequence})")
+
+    if speedNumber is not None: k.speedNumber(speedNumber)
+    if stitchNumber is not None: k.stitchNumber(stitchNumber)
+
+    cs = c2cs(c) # ensure tuple type
 
     if end_n > start_n: d1 = "+"
     else: d1 = "-"
@@ -349,8 +364,6 @@ def altKnitTuck(k, start_n, end_n, passes, c, bed="f", sequence="kt", tuck_seque
     if inhook:
         k.inhook(*cs)
         if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=cs) #TODO: add avoid bns to `tuckPattern` func
-
-    if releasehook and passes < 2: raise ValueError("not safe to releasehook with less than 2 passes.")
 
     mods2 = halveGauge(gauge, bed)
 
@@ -381,7 +394,7 @@ def altKnitTuck(k, start_n, end_n, passes, c, bed="f", sequence="kt", tuck_seque
                     elif n % (gauge*2) == mods2[1] and n not in avoid_bns[bed]: k.tuck("-", f"{bed}{n}", *cs)
                     elif n == pass_end_n: k.miss("-", f"{bed}{n}", *cs)
 
-    k.comment("end alt knit/tuck ({sequence})")
+    k.comment(f"end alt knit/tuck ({sequence})")
 
     if pass_end_n > pass_start_n: return "-" #just knit a pos pass
     else: return "+"
@@ -399,6 +412,15 @@ def garter(k, start_n, end_n, passes, c, bed=None, sequence="fb", gauge=1, bed_l
     * secure_start_n and *secure_end_n are booleans that indicate whether or not we should refrain from xferring the edge-most needles, for security (NOTE: this should be True if given edge needle is on the edge of the piece [rather than in the middle of it])
     * gauge is... gauge
     '''
+    if releasehook and not tuck_pattern and passes < 2: raise ValueError("not safe to releasehook with less than 2 passes. Try adding a tuck pattern.")
+
+    pattern_rows = {"f": sequence.count("f"), "b": sequence.count("b")}
+
+    k.comment(f'begin {pattern_rows["f"]}x{pattern_rows["b"]} garter')
+
+    if speedNumber is not None: k.speedNumber(speedNumber)
+    if stitchNumber is not None: k.stitchNumber(stitchNumber)
+
     cs = c2cs(c) # ensure tuple type
 
     if end_n > start_n: #first pass is pos
@@ -410,12 +432,6 @@ def garter(k, start_n, end_n, passes, c, bed=None, sequence="fb", gauge=1, bed_l
 
     if bed is not None: bn_locs = {bed: [n for n in n_ranges[d1] if bnValid(bed, n, gauge)]} #make sure we transfer to get them where we want #TODO; #check
     else: bn_locs = bed_loops.copy()
-
-    pattern_rows = {"f": sequence.count("f"), "b": sequence.count("b")}
-
-    k.comment(f'begin {pattern_rows["f"]}x{pattern_rows["b"]} garter')
-
-    if releasehook and passes < 2: raise ValueError("not safe to releasehook with less than 2 passes.")
 
     secure_needles = {"f": [], "b": []}
 
@@ -504,39 +520,40 @@ def tuckGarter(k, start_n, end_n, passes, c, bed="f", sequence="ffb", gauge=1, b
     * secure_start_n and *secure_end_n are booleans that indicate whether or not we should refrain from xferring the edge-most needles, for security (NOTE: this should be True if given edge needle is on the edge of the piece [rather than in the middle of it])
     * gauge is... gauge
     '''
-    cs = c2cs(c) # ensure tuple type
-
-    if bed is not None: bn_locs = {bed: [n for n in n_ranges[d1] if bnValid(bed, n, gauge)]} #make sure we transfer to get them where we want #TODO; #check
-    else:
-        bed = "f"
-        bn_locs = bed_loops.copy()
+    if releasehook and not tuck_pattern and passes < 2: raise ValueError("not safe to releasehook with less than 2 passes. Try adding a tuck pattern.")
 
     pattern_rows = {"f": sequence.count("f"), "b": sequence.count("b")}
 
     if type(pattern_rows) == dict: k.comment(f"begin {pattern_rows['f']}x{pattern_rows['b']} garter")
     else: k.comment(f"begin {pattern_rows}x{pattern_rows} garter")
 
-    if releasehook and passes < 2: raise ValueError("not safe to releasehook with less than 2 passes.")
-
     if speedNumber is not None: k.speedNumber(speedNumber)
     if stitchNumber is not None: k.stitchNumber(stitchNumber)
+
+    cs = c2cs(c) # ensure tuple type
+
+    if end_n > start_n: #first pass is pos
+        d1, d2 = "+", "-"
+        n_ranges = {"+": range(start_n, end_n+1), "-": range(end_n, start_n-1, -1)}
+    else:
+        d1, d2 = "-", "+"
+        n_ranges = {"-": range(start_n, end_n-1, -1), "+": range(end_n, start_n+1)}
+
+    if bed is not None: bn_locs = {bed: [n for n in n_ranges[d1] if bnValid(bed, n, gauge)]} #make sure we transfer to get them where we want #TODO; #check
+    else:
+        bed = "f"
+        bn_locs = bed_loops.copy()
 
     secure_needles = {"f": [], "b": []}
 
     if bed == "b": bed2 = "f"
     else: bed2 = "b"
 
-    if end_n > start_n: #first pass is pos
-        d1, d2 = "+", "-"
-        n_ranges = {"+": range(start_n, end_n+1), "-": range(end_n, start_n-1, -1)}
-
+    if d1 == "+": #first pass is pos
         edge_bns = bnEdges(start_n, end_n, gauge, bed_loops=bn_locs, avoid_bns=avoid_bns, return_type=list)
         if secure_start_n: secure_needles[edge_bns[0][0]].append(edge_bns[0][1])
         if secure_end_n: secure_needles[edge_bns[1][0]].append(edge_bns[1][1])
     else: #first pass is neg
-        d1, d2 = "-", "+"
-        n_ranges = {"-": range(start_n, end_n-1, -1), "+": range(end_n, start_n+1)}
-
         edge_bns = bnEdges(end_n, start_n, gauge, bed_loops=bn_locs, avoid_bns=avoid_bns, return_type=list)
         if secure_end_n: secure_needles[edge_bns[0][0]].append(edge_bns[0][1])
         if secure_start_n: secure_needles[edge_bns[1][0]].append(edge_bns[1][1])
@@ -620,11 +637,14 @@ def tuckGarter(k, start_n, end_n, passes, c, bed="f", sequence="ffb", gauge=1, b
 
 
 def seed(k, start_n, end_n, passes, c, bed="f", sequence="fb", gauge=1, bed_loops={"f": [], "b": []}, avoid_bns={"f": [], "b": []}, secure_start_n=True, secure_end_n=True, inhook=False, releasehook=False, tuck_pattern=True, speedNumber=None, stitchNumber=None, xfer_speedNumber=None, xfer_stitchNumber=None): #TODO: fix this for gauge 2 secure needles
-    cs = c2cs(c) # ensure tuple type
+    if releasehook and not tuck_pattern and passes < 2: raise ValueError("not safe to releasehook with less than 2 passes. Try adding a tuck pattern.")
 
     k.comment(f"begin seed ({sequence})")
 
-    if releasehook and passes < 2: raise ValueError("not safe to releasehook with less than 2 passes.")
+    if speedNumber is not None: k.speedNumber(speedNumber)
+    if stitchNumber is not None: k.stitchNumber(stitchNumber)
+
+    cs = c2cs(c) # ensure tuple type
 
     if end_n > start_n: #first pass is pos
         d1, d2 = "+", "-"
@@ -669,10 +689,6 @@ def seed(k, start_n, end_n, passes, c, bed="f", sequence="fb", gauge=1, bed_loop
         for n in n_ranges[d1]:
             if n in xfer_loops["f"]: k.xfer(f"f{n}", f"b{n}")
             elif n in xfer_loops["b"]: k.xfer(f"b{n}", f"f{n}")
-            # if n in avoid_bns.get("f", []) or n in avoid_bns.get("b", []): continue
-            # elif n not in secure_needles and bnValid(bed, n, gauge): 
-            #     if sequence[n % len(sequence)] == bed2 and n in bn_locs[bed]: k.xfer(f"{bed}{n}", f"{bed2}{n}")
-            #     elif sequence[n % len(sequence)] == bed and n in bn_locs[bed2]: k.xfer(f"{bed2}{n}", f"{bed}{n}")
             
         if speedNumber is not None: k.speedNumber(speedNumber)
         if stitchNumber is not None: k.stitchNumber(stitchNumber)
@@ -757,10 +773,15 @@ def seed(k, start_n, end_n, passes, c, bed="f", sequence="fb", gauge=1, bed_loop
         else: return "+"
 
 
-def tuckStitch(k, start_n, end_n, passes, c, bed="f", sequence="kt", gauge=1, avoid_bns={"f": [], "b": []}, inhook=False, releasehook=False, tuck_pattern=True):
-    cs = c2cs(c) # ensure tuple type
+def tuckStitch(k, start_n, end_n, passes, c, bed="f", sequence="kt", gauge=1, avoid_bns={"f": [], "b": []}, inhook=False, releasehook=False, tuck_pattern=True, speedNumber=None, stitchNumber=None):
+    if releasehook and not tuck_pattern and passes < 2: raise ValueError("not safe to releasehook with less than 2 passes. Try adding a tuck pattern.")
 
     k.comment(f"begin tuck stitch ({sequence})")
+
+    if speedNumber is not None: k.speedNumber(speedNumber)
+    if stitchNumber is not None: k.stitchNumber(stitchNumber)
+
+    cs = c2cs(c) # ensure tuple type
 
     if end_n > start_n:
         d1, d2 = "+", "-"
