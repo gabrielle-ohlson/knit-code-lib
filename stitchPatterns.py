@@ -401,6 +401,13 @@ def garter(k, start_n, end_n, passes, c, bed=None, sequence="fb", gauge=1, bed_l
     '''
     cs = c2cs(c) # ensure tuple type
 
+    if end_n > start_n: #first pass is pos
+        d1, d2 = "+", "-"
+        n_ranges = {"+": range(start_n, end_n+1), "-": range(end_n, start_n-1, -1)}
+    else: #first pass is neg
+        d1, d2 = "-", "+"
+        n_ranges = {"-": range(start_n, end_n-1, -1), "+": range(end_n, start_n+1)}
+
     if bed is not None: bn_locs = {bed: [n for n in n_ranges[d1] if bnValid(bed, n, gauge)]} #make sure we transfer to get them where we want #TODO; #check
     else: bn_locs = bed_loops.copy()
 
@@ -412,17 +419,11 @@ def garter(k, start_n, end_n, passes, c, bed=None, sequence="fb", gauge=1, bed_l
 
     secure_needles = {"f": [], "b": []}
 
-    if end_n > start_n: #first pass is pos
-        d1, d2 = "+", "-"
-        n_ranges = {"+": range(start_n, end_n+1), "-": range(end_n, start_n-1, -1)}
-
+    if d1 == "+": #first pass is pos
         edge_bns = bnEdges(start_n, end_n, gauge, bed_loops=bn_locs, avoid_bns=avoid_bns, return_type=list)
         if secure_start_n: secure_needles[edge_bns[0][0]].append(edge_bns[0][1])
         if secure_end_n: secure_needles[edge_bns[1][0]].append(edge_bns[1][1])
     else: #first pass is neg
-        d1, d2 = "-", "+"
-        n_ranges = {"-": range(start_n, end_n-1, -1), "+": range(end_n, start_n+1)}
-
         edge_bns = bnEdges(end_n, start_n, gauge, bed_loops=bn_locs, avoid_bns=avoid_bns, return_type=list)
         if secure_end_n: secure_needles[edge_bns[0][0]].append(edge_bns[0][1])
         if secure_start_n: secure_needles[edge_bns[1][0]].append(edge_bns[1][1])
