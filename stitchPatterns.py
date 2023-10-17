@@ -383,50 +383,46 @@ def garter(k, start_n, end_n, passes, c, bed=None, bed_loops={'f': [], 'b': []},
 
         n_ranges = {'+': range(start_n, end_n+1), '-': range(end_n, start_n-1, -1)}
 
-        if gauge == 2: #TODO: adjust this for other gauges etc. #*
-            if secure_start_n:
-                if start_n % 2 == 0:
-                    secure_needles['f'].append(start_n)
-                    secure_needles['b'].append(start_n+1)
-                else:
-                    secure_needles['b'].append(start_n)
-                    secure_needles['f'].append(start_n+1)
-            
-            if secure_end_n:
-                if end_n % 2 == 0:
-                    secure_needles['f'].append(end_n)
-                    secure_needles['b'].append(end_n-1)
-                else:
-                    secure_needles['b'].append(end_n)
-                    secure_needles['f'].append(end_n-1)
-        else:
-            if secure_start_n: secure_needles[bed].append(start_n)
-            if secure_end_n: secure_needles[bed].append(end_n)
+        if secure_start_n: #TODO: improve this
+            for n in range(start_n, end_n+1):
+                if bnValid('f', n, gauge) or n in bed_loops['f']:
+                    secure_needles['f'].append(n)
+                    break
+                elif bnValid('b', n, gauge) or n in bed_loops['b']:
+                    secure_needles['b'].append(n)
+                    break
+        
+        if secure_end_n:  #TODO: improve this
+            for n in range(end_n, start_n-1, -1):
+                if bnValid('f', n, gauge) or n in bed_loops['f']:
+                    secure_needles['f'].append(n)
+                    break
+                elif bnValid('b', n, gauge) or n in bed_loops['b']:
+                    secure_needles['b'].append(n)
+                    break
     else: #first pass is neg
         d1 = '-'
         d2 = '+'
 
         n_ranges = {'-': range(start_n, end_n-1, -1), '+': range(end_n, start_n+1)}
 
-        if gauge == 2: #TODO: adjust this for other gauges etc. #*
-            if secure_start_n:
-                if start_n % 2 == 0:
-                    secure_needles['f'].append(start_n)
-                    secure_needles['b'].append(start_n-1)
-                else:
-                    secure_needles['b'].append(start_n)
-                    secure_needles['f'].append(start_n-1)
-            
-            if secure_end_n:
-                if end_n % 2 == 0:
-                    secure_needles['f'].append(end_n)
-                    secure_needles['b'].append(end_n+1)
-                else:
-                    secure_needles['b'].append(end_n)
-                    secure_needles['f'].append(end_n+1)
-        else:
-            if secure_start_n: secure_needles[bed].append(start_n)
-            if secure_end_n: secure_needles[bed].append(end_n)
+        if secure_start_n: #TODO: improve this
+            for n in range(start_n, end_n-1, -1):
+                if bnValid('f', n, gauge) or n in bed_loops['f']:
+                    secure_needles['f'].append(n)
+                    break
+                elif bnValid('b', n, gauge) or n in bed_loops['b']:
+                    secure_needles['b'].append(n)
+                    break
+        
+        if secure_end_n:  #TODO: improve this
+            for n in range(end_n, start_n+1):
+                if bnValid('f', n, gauge) or n in bed_loops['f']:
+                    secure_needles['f'].append(n)
+                    break
+                elif bnValid('b', n, gauge) or n in bed_loops['b']:
+                    secure_needles['b'].append(n)
+                    break
 
     if inhook:
         k.inhook(*cs)
@@ -445,7 +441,7 @@ def garter(k, start_n, end_n, passes, c, bed=None, bed_loops={'f': [], 'b': []},
     b2 = 'f' if b1 == 'b' else 'b'
 
     if bed is not None:
-        bed_loops[bed].extend(n_ranges[d2]) #make sure we transfer to get them where we want #TODO; #check
+        bed_loops[bed].extend([n for n in n_ranges[d2] if bnValid(bed, n, gauge)]) #make sure we transfer to get them where we want #TODO; #check
 
     if len(bed_loops['f']) or len(bed_loops['b']):
         for n in n_ranges[d2]:
