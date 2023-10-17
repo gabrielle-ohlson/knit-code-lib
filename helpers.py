@@ -134,7 +134,7 @@ def bnValid(b, n, gauge=1):
 def bnEdges(left_n, right_n, gauge, bed_loops={"f": [], "b": []}, avoid_bns={"f": [], "b": []}, return_type=str):
     edge_bns = []
     #
-    if not len(bed_loops["f"]) and not len(bed_loops["b"]):
+    if not len(bed_loops.get("f", [])) and not len(bed_loops.get("b", [])):
         bn_locs = {"f": [n for n in range(left_n, right_n+1) if bnValid("f", n, gauge) and n not in avoid_bns.get("f", [])], "b": [n for n in range(left_n, right_n+1) if bnValid("b", n, gauge) and n not in avoid_bns.get("b", [])]}
     else: bn_locs = bed_loops.copy()
     #
