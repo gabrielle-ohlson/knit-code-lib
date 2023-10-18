@@ -135,7 +135,7 @@ def interlock(k, start_n, end_n, passes, c, bed=None, gauge=1, reverse_seq=False
         left_n = end_n
         right_n = start_n
         if reverse_seq: seq1_idx, seq2_idx = 1, 0
-        seq1_idx, seq2_idx = 0, 1
+        else: seq1_idx, seq2_idx = 0, 1
 
     if bed is None:
         single_bed = False
