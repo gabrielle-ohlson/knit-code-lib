@@ -1,5 +1,9 @@
 from .helpers import c2cs, halveGauge, bnValid, toggleDirection, bnEdges, tuckPattern, knitPass
 
+pattern_names = ["jersey", "interlock", "rib", "altKnitTuck", "garter", "tuckGarter", "seed", "tuckStitch"]
+
+patterns_TODO = ["moss", "bubble", "lace"]
+
 # --------------------------------
 # --- STITCH PATTERN FUNCTIONS ---
 # --------------------------------

@@ -1,84 +1,6 @@
 import numpy as np
 import regex
 
-
-#===============================================================================
-#-------------------------------- CLASS HELPERS --------------------------------
-#===============================================================================
-class BedNeedle:
-    _b_re = r"^[f|b]s?$"
-    _n_re = r"^\d+$"
-    def __init__(self, b, n):
-        assert self.validate(b, n), f"Invalid bed needle args (b: {b}, n: {n})."
-        self.bed = b
-        self.needle = n
-    #
-    def validate(self, b=None, n=None):
-        if b is None: b_res = regex.search(r"^[f|b]s?$", self.bed)
-        else: b_res = regex.search(r"^[f|b]s?$", b)
-        #
-        try:
-            if n is None: n_res = regex.search(self._n_re, str(self.needle))
-            else: n_res = regex.search(self._n_re, str(n))
-        except: return False
-        #
-        return b_res is not None and n_res is not None
-
-
-class CarrierTracker:
-    def __init__(self, cs, start_n=None, end_n=None):
-        self.cs = cs
-        # internal values
-        self._start_n = start_n
-        self._end_n = end_n
-        #
-        self.direction = None # for now # can use this to store the carrier but signify that it isn't in
-        #
-        self._updateDirection()
-    #
-    # internal helper method
-    def _updateDirection(self, do_toggle=False):
-        if self._start_n is not None and self._end_n is not None:
-            if self._start_n < self._end_n: self.direction = "+"
-            else: self.direction = "-"
-        elif do_toggle and self.direction is not None:
-            if self.direction == "+": self.direction = "-"
-            else: self.direction = "+"
-        else: self.direction = None #TODO: decide if should keep ths
-    #
-    @property
-    def start_n(self):
-        return self._start_n
-    #
-    @property
-    def end_n(self):
-        return self._end_n
-    #
-    @start_n.setter
-    def start_n(self, val):
-        self._start_n = val
-        self._updateDirection()
-    #
-    @end_n.setter
-    def end_n(self, val):
-        self._end_n = val
-        self._updateDirection() #TODO: consider changing this since it would be called twice if updating start_n and end_n simultaneously
-    #
-    def toggle(self, new_start_n=None, new_end_n=None):
-        if new_start_n is None: new_start_n = self._end_n
-        if new_end_n is None: new_end_n = self._start_n
-        #
-        self._start_n = new_start_n
-        self._end_n = new_end_n
-        #
-        self._updateDirection(do_toggle=True)
-    #
-    def __copy__(self):
-        return CarrierTracker(self.cs, self._start_n, self._end_n)
-
-#-------------------------------------------------------------------------------
-
-
 #===============================================================================
 #-------------------------------- MISC HELPERS ---------------------------------
 #===============================================================================
@@ -369,5 +291,100 @@ def knitPass(k, start_n, end_n, c, bed="f", gauge=1, avoid_bns={"f": [], "b": []
         for n in range(start_n, end_n-1, -1):
             if f"{bed}{n}" not in avoid_bns_list and bnValid(bed, n, gauge): k.knit("-", f"{bed}{n}", *cs)
             elif n == end_n: k.miss("-", f"{bed}{n}", *cs)
+
+#-------------------------------------------------------------------------------
+
+
+#===============================================================================
+#-------------------------------- CLASS HELPERS --------------------------------
+#===============================================================================
+class BedNeedle:
+    _b_re = r"^[f|b]s?$"
+    _n_re = r"^\d+$"
+    _cs_re = r"^(([1-9]|10)\b ?)+$"
+    def __init__(self, b, n, cs=None):
+        self.bed = b
+        self.needle = n
+        self.cs = cs
+        self.validate(b, n, cs, raise_err=True)
+    #
+    def validate(self, b=None, n=None, cs=None, raise_err=False):
+        if b is None: b = self.bed
+        if n is None: n = self.needle
+        if cs is None: cs = self.cs
+        #
+        b_res = regex.search(self._b_re, b)
+        #
+        try: n_res = regex.search(self._n_re, str(n))
+        except: n_res = None
+        #
+        if cs is None: cs_res = True
+        else:
+            if hasattr(cs, "__iter__") and not isinstance(cs, str): cs_res = regex.search(self._cs_re, " ".join(str(el) for el in cs))
+            else:
+                try: cs_res = regex.search(self._cs_re, str(cs))
+                except: cs_res = None
+        #
+        if raise_err:
+            err_msg = ""
+            if b_res is None: err_msg += f"Invalid bed value: {b}. "
+            if n_res is None: err_msg += f"Invalid needle value: {n}. "
+            if cs_res is None: err_msg += f"Invalid carrier(s) value: {cs}."
+            #
+            if len(err_msg): raise ValueError(err_msg)
+        #
+        return b_res is not None and n_res is not None and cs_res is not None
+
+
+class CarrierTracker:
+    def __init__(self, cs, start_n=None, end_n=None):
+        self.cs = cs
+        # internal values
+        self._start_n = start_n
+        self._end_n = end_n
+        #
+        self.direction = None # for now # can use this to store the carrier but signify that it isn't in
+        #
+        self._updateDirection()
+    #
+    # internal helper method
+    def _updateDirection(self, do_toggle=False):
+        if self._start_n is not None and self._end_n is not None:
+            if self._start_n < self._end_n: self.direction = "+"
+            else: self.direction = "-"
+        elif do_toggle and self.direction is not None:
+            if self.direction == "+": self.direction = "-"
+            else: self.direction = "+"
+        else: self.direction = None #TODO: decide if should keep ths
+    #
+    @property
+    def start_n(self):
+        return self._start_n
+    #
+    @property
+    def end_n(self):
+        return self._end_n
+    #
+    @start_n.setter
+    def start_n(self, val):
+        self._start_n = val
+        self._updateDirection()
+    #
+    @end_n.setter
+    def end_n(self, val):
+        self._end_n = val
+        self._updateDirection() #TODO: consider changing this since it would be called twice if updating start_n and end_n simultaneously
+    #
+    def toggle(self, new_start_n=None, new_end_n=None):
+        if new_start_n is None: new_start_n = self._end_n
+        if new_end_n is None: new_end_n = self._start_n
+        #
+        self._start_n = new_start_n
+        self._end_n = new_end_n
+        #
+        self._updateDirection(do_toggle=True)
+    #
+    def __copy__(self):
+        return CarrierTracker(self.cs, self._start_n, self._end_n)
 
 #-------------------------------------------------------------------------------
