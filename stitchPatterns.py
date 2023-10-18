@@ -524,8 +524,8 @@ def tuckGarter(k, start_n, end_n, passes, c, bed="f", sequence="ffb", gauge=1, b
 
     pattern_rows = {"f": sequence.count("f"), "b": sequence.count("b")}
 
-    if type(pattern_rows) == dict: k.comment(f"begin {pattern_rows['f']}x{pattern_rows['b']} garter")
-    else: k.comment(f"begin {pattern_rows}x{pattern_rows} garter")
+    if type(pattern_rows) == dict: k.comment(f"begin {pattern_rows['f']}x{pattern_rows['b']} garter with tucks")
+    else: k.comment(f"begin {pattern_rows}x{pattern_rows} garter with tucks")
 
     if speedNumber is not None: k.speedNumber(speedNumber)
     if stitchNumber is not None: k.stitchNumber(stitchNumber)
@@ -569,16 +569,18 @@ def tuckGarter(k, start_n, end_n, passes, c, bed="f", sequence="ffb", gauge=1, b
         pat_rows = {"f": pattern_rows, "b": pattern_rows}
         pattern_rows = pat_rows
     
-    pattern_rows["f"] += 1 #for the tucks
-
     b1 = sequence[0]
     b2 = "f" if b1 == "b" else "b"
+
+    pattern_rows[b1] += 1 #for the tucks
 
     xfer_loops = {b2: [n for n in list(set(bn_locs.get(b2, [])+bed_loops.get(b2, []))) if bnValid(bed, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles[b2]]}
 
     if len(xfer_loops[b2]):
         for n in n_ranges[d2]:
             if n in xfer_loops.get(b2, []): k.xfer(f"{b2}{n}", f"{b1}{n}")
+
+    mods2 = halveGauge(gauge, bed)
 
     pass_ct = 0
     for p in range(passes):
@@ -596,9 +598,9 @@ def tuckGarter(k, start_n, end_n, passes, c, bed="f", sequence="ffb", gauge=1, b
                 k.releasehook(*cs)
                 if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=None) # drop it
             
-            if b1 == "f" and r == 0:
+            if b1 == bed and r == 0:
                 for n in n_ranges[d]:
-                    if n not in avoid_bns.get(b1, []) and n % (gauge*2) == 0 and n != edge_bns[0][1] and n != edge_bns[1][1]: k.tuck(d, f"{b1}{n}", *cs)
+                    if n not in avoid_bns.get(b1, []) and n % (gauge*2) == mods2[0] and n != edge_bns[0][1] and n != edge_bns[1][1]: k.tuck(d, f"{b1}{n}", *cs)
                     elif n == end_n: k.miss(d, f"{b1}{n}", *cs)
             else:
                 for n in n_ranges[d]:
@@ -608,8 +610,6 @@ def tuckGarter(k, start_n, end_n, passes, c, bed="f", sequence="ffb", gauge=1, b
                         elif n == end_n: k.miss(d, f"{b1}{n}", *cs)
                     elif n == end_n: k.miss(d, f"{b1}{n}", *cs)
 
-            # if d == d1: d = d2
-            # else: d = d1
             d = toggleDirection(d)
 
             pass_ct += 1
@@ -630,8 +630,8 @@ def tuckGarter(k, start_n, end_n, passes, c, bed="f", sequence="ffb", gauge=1, b
 
         if pass_ct == passes: break
 
-    if type(pattern_rows) == dict: k.comment(f"end {pattern_rows['f']-1}x{pattern_rows['b']} garter")
-    else: k.comment(f"end {pattern_rows}x{pattern_rows} garter")
+    if type(pattern_rows) == dict: k.comment(f"end {pattern_rows['f']-1}x{pattern_rows['b']} garter with tucks")
+    else: k.comment(f"end {pattern_rows}x{pattern_rows} garter with tucks")
 
     return d #return the direction that the next pass should be, so know which to use next
 
