@@ -795,8 +795,14 @@ def tuckStitch(k, start_n, end_n, passes, c, bed="f", sequence="kt", gauge=1, av
     if inhook:
         k.inhook(*cs)
         if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=cs)
+    
+    # mods2 = halveGauge(gauge, bed)
 
-    if releasehook and passes < 2: raise ValueError("not safe to releasehook with less than 2 passes.")
+    if gauge > 1:
+        gauged_sequence = ''
+        for char in sequence:
+            gauged_sequence += char * gauge
+        sequence = gauged_sequence
 
     for p in range(passes):
         if releasehook and p == 2:
@@ -815,8 +821,8 @@ def tuckStitch(k, start_n, end_n, passes, c, bed="f", sequence="kt", gauge=1, av
             pass_end_n = start_n
 
         for n in n_ranges[d]:
-            if bnValid(bed, n, gauge) and n not in avoid_bns[bed] and (n % (gauge*2) == 0 or n % (gauge*2) == gauge):
-                if sequence[(n*gauge) % len(sequence)] == do_knit or n == edge_bns[0][1] or n == edge_bns[1][1]: k.knit(d, f"{bed}{n}", *cs)
+            if bnValid(bed, n, gauge) and n not in avoid_bns[bed]: # and (n % (gauge*2) == mods2[0] or n % (gauge*2) == mods2[1]):
+                if sequence[n % len(sequence)] == do_knit or n == edge_bns[0][1] or n == edge_bns[1][1]: k.knit(d, f"{bed}{n}", *cs)
                 else: k.tuck(d, f"{bed}{n}", *cs)
             elif n == pass_end_n: k.miss(d, f"{bed}{n}", *cs)
 
