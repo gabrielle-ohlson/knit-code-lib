@@ -676,9 +676,6 @@ def seed(k, start_n, end_n, passes, c, bed="f", sequence="fb", gauge=1, bed_loop
     if inhook:
         k.inhook(*cs)
         if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=cs)
-    
-    # if bed == "f": bed2 = "b"
-    # else: bed2 = "f"
 
     xfer_loops = {"f": [n for n in list(set(bn_locs.get("f", [])+bed_loops.get("f", []))) if sequence[n % len(sequence)] == "b" and bnValid(bed, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles["f"]], "b": [n for n in list(set(bn_locs.get("b", [])+bed_loops.get("b", []))) if sequence[n % len(sequence)] == "f" and bnValid(bed, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles["b"]]}
 
