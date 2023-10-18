@@ -598,7 +598,7 @@ def tuckGarter(k, start_n, end_n, passes, c, bed="f", sequence="ffb", tuck_seque
                 k.releasehook(*cs)
                 if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=None) # drop it
             
-            if b1 == sequence[0] and sequence[r % len(sequence)] == 't': # r == 0:
+            if b1 == sequence[0] and tuck_sequence[r % len(tuck_sequence)] == 't': # r == 0:
                 for n in n_ranges[d]:
                     if n not in avoid_bns.get(b1, []) and n % (gauge*2) == mods2[0] and n != edge_bns[0][1] and n != edge_bns[1][1]: k.tuck(d, f"{b1}{n}", *cs)
                     elif n == end_n: k.miss(d, f"{b1}{n}", *cs)
