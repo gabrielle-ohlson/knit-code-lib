@@ -988,7 +988,7 @@ def closedBindoff_old(k, count, xfer_needle, c, side="l", double_bed=True, as_de
     else: k.comment('end dec by bindoff')
 
 
-def sheetBindoff(k, bed, start_n, end_n, c, gauge=1, mod=None, speedNumber=None, stitchNumber=None, xfer_stitchNumber=None, use_sliders=False): #TODO: #check support for gauge=2 #TODO: add `as_dec_method` option #*
+def sheetBindoff(k, start_n, end_n, c, bed="f", gauge=1, mod=None, speedNumber=None, stitchNumber=None, xfer_stitchNumber=None, use_sliders=False): #TODO: #check support for gauge=2 #TODO: add `as_dec_method` option #*
     cs = c2cs(c) #ensure tuple type
 
     k.comment(f"begin {bed} bed sheet bindoff")
