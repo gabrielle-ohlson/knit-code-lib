@@ -53,13 +53,37 @@ def bnValid(b, n, gauge=1):
 #===============================================================================
 #----------------------------------- GETTERS -----------------------------------
 #===============================================================================
+def bnLast(start_n, end_n, gauge, bed_loops={"f": [], "b": []}, avoid_bns={"f": [], "b": []}, return_type=str):
+    bn = None
+    if end_n > start_n: step = 1
+    else: step = -1
+    #
+    if not len(bed_loops.get("f", [])) and not len(bed_loops.get("b", [])):
+        bn_locs = {"f": [n for n in range(start_n, end_n+step, step) if bnValid("f", n, gauge) and n not in avoid_bns.get("f", [])], "b": [n for n in range(start_n, end_n+step, step) if bnValid("b", n, gauge) and n not in avoid_bns.get("b", [])]}
+    else: bn_locs = bed_loops.copy()
+    #
+    for n in range(end_n, start_n-step, -step):
+        if n in bn_locs.get("f", []):
+            if return_type == str: bn = f"f{n}"
+            else: bn = ["f", n]
+            break
+        elif n in bn_locs.get("b", []):
+            if return_type == str: bn = f"b{n}"
+            else: bn = ["b", n]
+            break
+    #
+    return bn
+
+
 def bnEdges(left_n, right_n, gauge, bed_loops={"f": [], "b": []}, avoid_bns={"f": [], "b": []}, return_type=str):
-    edge_bns = []
+    # edge_bns = []
     #
     if not len(bed_loops.get("f", [])) and not len(bed_loops.get("b", [])):
         bn_locs = {"f": [n for n in range(left_n, right_n+1) if bnValid("f", n, gauge) and n not in avoid_bns.get("f", [])], "b": [n for n in range(left_n, right_n+1) if bnValid("b", n, gauge) and n not in avoid_bns.get("b", [])]}
     else: bn_locs = bed_loops.copy()
     #
+    return [bnLast(right_n, left_n, gauge, bn_locs, avoid_bns, return_type), bnLast(left_n, right_n, gauge, bn_locs, avoid_bns, return_type)]
+
     for n in range(left_n, right_n+1):
         if n in bn_locs.get("f", []):
             if return_type == str: edge_bns.append(f"f{n}")
@@ -81,6 +105,8 @@ def bnEdges(left_n, right_n, gauge, bed_loops={"f": [], "b": []}, avoid_bns={"f"
             break
     #
     return edge_bns
+
+
 
 #-------------------------------------------------------------------------------
 

@@ -2,7 +2,7 @@ import os
 import sys
 sys.path.insert(0, os.getcwd())
 
-from .helpers import tuckPattern, c2cs, flattenIter, halveGauge, bnValid, toggleDirection
+from .helpers import tuckPattern, c2cs, flattenIter, halveGauge, bnValid, toggleDirection, bnLast
 from .stitchPatterns import interlock
 
 
@@ -774,6 +774,16 @@ def dropFinish(k, front_needle_ranges=[], back_needle_ranges=[], out_carriers=[]
 
 
 def bindoffTag(k, d, bed, edge_n, c, outhook=False, drop=False):
+    if c is None: #just drop it
+        if d == "-": # started pos
+            for n in range(edge_n, edge_n-3, -1):
+                k.drop(f"{bed}{n}")
+        else:
+            for n in range(edge_n, edge_n+3):
+                k.drop(f"{bed}{n}")
+        #
+        return
+
     cs = c2cs(c) # ensure tuple type
 
     if d == "+": shift = -1 #will knit the tag to the left of edge_n
@@ -988,7 +998,7 @@ def closedBindoff_old(k, count, xfer_needle, c, side="l", double_bed=True, as_de
     else: k.comment('end dec by bindoff')
 
 
-def sheetBindoff(k, start_n, end_n, c, bed="f", gauge=1, mod=None, speedNumber=None, stitchNumber=None, xfer_stitchNumber=None, use_sliders=False): #TODO: #check support for gauge=2 #TODO: add `as_dec_method` option #*
+def sheetBindoff(k, start_n, end_n, c, bed="f", gauge=1, mod=None, use_sliders=False, add_tag=True, outhook=False, speedNumber=None, stitchNumber=None, xfer_stitchNumber=None): #TODO: #check support for gauge=2 #TODO: add `as_dec_method` option #*
     cs = c2cs(c) #ensure tuple type
 
     k.comment(f"begin {bed} bed sheet bindoff")
@@ -1027,13 +1037,19 @@ def sheetBindoff(k, start_n, end_n, c, bed="f", gauge=1, mod=None, speedNumber=N
         R = -1 # rack for transferring from bed2
 
     if use_sliders: bed2 += "s"
+
+    last_bn = bnLast(start_n, end_n, gauge, return_type=list)
     
-    edge_n = needle_range[-1]
+    # edge_n = needle_range[-1]
 
     for n in needle_range:
-        if n == edge_n:
-            if stitchNumber is not None: k.stitchNumber(stitchNumber)
-            d = bindoffTag(k, d, bed, n, cs)
+        if n == last_bn[1]:
+            if add_tag:
+                if stitchNumber is not None: k.stitchNumber(stitchNumber)
+                bindoffTag(k, d, bed, n, cs)
+            if outhook: k.outhook(*cs)
+            if add_tag: bindoffTag(k, d, bed, n, None) #drop it
+            break
         else:
             if stitchNumber is not None: k.stitchNumber(stitchNumber)
             k.knit(d, f"{bed}{n}", *cs)
@@ -1045,12 +1061,11 @@ def sheetBindoff(k, start_n, end_n, c, bed="f", gauge=1, mod=None, speedNumber=N
             k.xfer(f'{bed2}{n}', f'{bed}{n+shift}')
             k.rack(0)
 
-
     if stitchNumber is not None: k.stitchNumber(stitchNumber) #reset
     k.comment(f"end {bed} bed sheet bindoff")
 
 
-def closedTubeBindoff(k, start_n, end_n, c, gauge=1, bed_mods=None, speedNumber=None, stitchNumber=None, xfer_stitchNumber=None, use_sliders=False, add_tag=True): #TODO: #check support for gauge=2
+def closedTubeBindoff(k, start_n, end_n, c, gauge=1, bed_mods=None, use_sliders=False, add_tag=True, outhook=False, speedNumber=None, stitchNumber=None, xfer_stitchNumber=None): #TODO: #check support for gauge=2
     cs = c2cs(c) # ensure tuple type
 
     if bed_mods is None: bed_mods = {"f": 0, "b": gauge//2} #just use default
@@ -1136,7 +1151,10 @@ def closedTubeBindoff(k, start_n, end_n, c, gauge=1, bed_mods=None, speedNumber=
         if n == last_bn[1]: #TODO: change this to last_n (aka last needle based on gauge/mods)
             if add_tag:
                 if stitchNumber is not None: k.stitchNumber(stitchNumber)
-                d = bindoffTag(k, d, bed, n, cs)
+                bindoffTag(k, d, bed, n, cs)
+            if outhook: k.outhook(*cs)
+            if add_tag: bindoffTag(k, d, bed, n, None) #drop it
+            break
         else:
             # if f"{bed}{n}" in empty_needles: continue # don't bind it off because it's empty
 
@@ -1167,7 +1185,7 @@ def closedTubeBindoff(k, start_n, end_n, c, gauge=1, bed_mods=None, speedNumber=
     return last_bn #in case we want to move it since it should be empty etc.
 
 
-def openTubeBindoff(k, start_n, end_n, c, speedNumber=None, stitchNumber=None, xfer_stitchNumber=None, gauge=1, bed_mods=None, use_sliders=False, add_tag=True): #TODO: add code for gauge 2
+def openTubeBindoff(k, start_n, end_n, c, gauge=1, bed_mods=None, use_sliders=False, add_tag=True, outhook=False, speedNumber=None, stitchNumber=None, xfer_stitchNumber=None): #TODO: add code for gauge 2
     # https://github.com/textiles-lab/knitout-examples/blob/master/J-30.js
     cs = c2cs(c) # ensure tuple type
 
@@ -1231,7 +1249,11 @@ def openTubeBindoff(k, start_n, end_n, c, speedNumber=None, stitchNumber=None, x
         if n == last_n_b: #knit a tag:
             if add_tag:
                 if stitchNumber is not None: k.stitchNumber(stitchNumber)
-                d = bindoffTag(k, d, "b", n, cs)
+                bindoffTag(k, d, "b", n, cs)
+                # d = bindoffTag(k, d, "b", n, cs)
+            if outhook: k.outhook(*cs)
+            if add_tag: bindoffTag(k, d, "b", n, None) #drop it
+            break
         else:
             if stitchNumber is not None: k.stitchNumber(stitchNumber)
             k.knit(d, f"b{n}", *cs)
