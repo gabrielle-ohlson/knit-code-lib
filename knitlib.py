@@ -9,7 +9,7 @@ from .stitchPatterns import interlock
 # ------------
 # --- MISC ---
 # ------------
-def drawThread(k, left_n, right_n, draw_c, final_dir="-", final_bed="f", circular=False, miss_draw=None, gauge=1):
+def drawThread(k, left_n, right_n, draw_c, final_direction="-", final_bed="f", circular=False, miss_draw=None, gauge=1):
     '''
     helper function for draw threads
 
@@ -19,8 +19,8 @@ def drawThread(k, left_n, right_n, draw_c, final_dir="-", final_bed="f", circula
     * `left_n` (int): the left-most needle to knit on
     * `right_n` (int): the right-most needle to knit on
     * `draw_c` (str): the carrier to use
-    * `final_dir` (str, optional): the final direction we want the draw thread to knit in. (Note that if "-", carrier ends on left side, else if "+", carrier ends on right side). Defaults to "-".
-    * `final_dir` (str, optional): the final bed knit on (only applicable for circular). Defaults to "f".
+    * `final_direction` (str, optional): the final direction we want the draw thread to knit in. (Note that if "-", carrier ends on left side, else if "+", carrier ends on right side). Defaults to "-".
+    * `final_bed` (str, optional): the final bed knit on (only applicable for circular). Defaults to "f".
     * `circular` (bool, optional): whether to knit circularly. Defaults to False.
     * `miss_draw` (int, optional): optional needle to miss carrier past after knitting. Defaults to None.
     * `gauge` (int, optional): gauge to knit in. Defaults to 1.
@@ -45,7 +45,7 @@ def drawThread(k, left_n, right_n, draw_c, final_dir="-", final_bed="f", circula
 
     k.comment("begin draw thread")
 
-    if final_dir == "+":
+    if final_direction == "+":
         if circular: negDraw(init_bed, False)
         posDraw(final_bed)
     else:
@@ -56,33 +56,32 @@ def drawThread(k, left_n, right_n, draw_c, final_dir="-", final_bed="f", circula
 
 
 #--- FUNCTION FOR DOING THE MAIN KNITTING OF CIRCULAR, OPEN TUBES ---
-def circular(k, start_n, end_n, length, c, gauge=1):
+def circular(k, start_n, end_n, passes, c, gauge=1):
     '''
     Knits on every needle circular tube starting on side indicated by which needle value is greater.
-    In this function length is the number of total passes knit so if you want a tube that
-    is 20 courses long on each side set length to 40.
+    In this function passes is the number of total passes knit so if you want a tube that
+    is 20 courses long on each side set passes to 40.
 
     *k is knitout Writer
     *start_n is the starting needle to knit on
     *end_n is the last needle to knit on
-    *length is total passes knit
+    *passes is total passes knit
     *c is carrier
     *gauge is... gauge
     '''
     cs = c2cs(c) # ensure tuple type
 
     if end_n > start_n: #first pass is pos
-        beg = 0
+        d = "+"
         left_n = start_n
         right_n = end_n
     else: #first pass is neg
-        beg = 1
-        length += 1
+        d = "-"
         left_n = end_n
         right_n = start_n
 
-    for h in range(beg, length):
-        if h % 2 == 0:
+    for p in range(passes):
+        if d == "+":
             for n in range(left_n, right_n+1):
                 if bnValid("f", n, gauge): k.knit("+", f"f{n}", *cs)
                 elif n == right_n: k.miss("+", f"f{n}", *cs)
@@ -90,6 +89,8 @@ def circular(k, start_n, end_n, length, c, gauge=1):
             for n in range(right_n, left_n-1, -1):
                 if bnValid("b", n, gauge): k.knit("-", f"b{n}", *cs)
                 elif n == left_n: k.miss("-", f"b{n}", *cs)
+        #
+        d = toggleDirection(d)
 
 
 #--- FUNCTION FOR BRINGING IN CARRIERS (only for kniterate) ---
@@ -156,7 +157,7 @@ def catchYarns(k, left_n, right_n, carriers, gauge=1, end_on_right=[], miss_need
             else: k.miss("-", f"f{miss_needles[c]}", c)
 
 
-def wasteSection(k, left_n, right_n, closed_caston=True, waste_c="1", draw_c="2", in_cs=[], gauge=1, init_dirs={}, end_on_right=[], first_needles={}, catch_max_needles=False, initial=True, draw_middle=False, interlock_length=40, speedNumber=None, stitchNumber=None, rollerAdvance=None, waste_speedNumber=None, waste_stitchNumber=None, machine="swgn2"):
+def wasteSection(k, left_n, right_n, closed_caston=True, waste_c="1", draw_c="2", in_cs=[], gauge=1, init_directions={}, end_on_right=[], first_needles={}, catch_max_needles=False, initial=True, draw_middle=False, interlock_passes=40, speedNumber=None, stitchNumber=None, rollerAdvance=None, waste_speedNumber=None, waste_stitchNumber=None, machine="swgn2"):
     '''
     Does everything to prepare for knitting prior to (and not including) the cast-on.
         - bring in carriers
@@ -175,13 +176,13 @@ def wasteSection(k, left_n, right_n, closed_caston=True, waste_c="1", draw_c="2"
     * draw_c (str, optional): same as above, but for the draw thread carrier. Defaults to `2`.
     * in_cs (list, optional): an *optional* list of other carriers that should be brought in/positioned with catchYarns (NOTE: leave empty if not initial wasteSection). Defaults to `[]`.
     * gauge (int, optional): the knitting gauge. Defaults to `1`.
-    * init_dirs (dict, optional): a dictionary with carriers as keys and directions (`-` or `+`) as values, indicating which direction to start with for a given carrier key. If a carrier that is used in teh waste section isn't included in the dict keys, will default to which ever side the carriers start on for the given machine (left for kniterate and right for swgn2). Defaults to `{}`.
+    * init_directions (dict, optional): a dictionary with carriers as keys and directions (`-` or `+`) as values, indicating which direction to start with for a given carrier key. If a carrier that is used in teh waste section isn't included in the dict keys, will default to which ever side the carriers start on for the given machine (left for kniterate and right for swgn2). Defaults to `{}`.
     * end_on_right (list, optional): an *optional* list of carriers that should be parked on the right side after the wasteSection (**see *NOTE* below for details about what to do if not initial**) — e.g. `end_on_right=["2", "3"]`. Defaults to `[]`.
     * first_needles (dict, optional): an *optional* dictionary with carrier as key and a list of `[<left_n>, <right_n>]` as the value. It indicates the edge-most needles in the first row that the carrier is used in for the main piece. — e.g. `first_needles={"1": [0, 10]}`. Defaults to `{}`.
     * catch_max_needles (bool, optional): determines whether or not the maximum number of needles (possible for the given gauge) will be knitted on for *every* carrier (yes if `True`; if `False`, knits on interval determined by number of carriers). Defaults to `False`.
     * initial (bool, optional): if `True`, indicates that this wasteSection is the very first thing being knitted for the piece; otherwise, if `False`, it's probably a wasteSection to separate samples (and will skip over catchYarns). Defaults to True.
     * draw_middle (bool, optional): if `True`, indicates that a draw thread should be placed in the middle of the waste section (and no draw thread will be added at end, also no circular knitting, so only interlock). Defaults to False.
-    * interlock_length (int, optional): the number of passes of interlock that should be included (note that, if not `draw_middle`, 8 rows of circular will also be added onto the <x-number> of `interlock_length` indicated). Defaults to `40`.
+    * interlock_passes (int, optional): the number of passes of interlock that should be included (note that, if not `draw_middle`, 8 rows of circular will also be added onto the <x-number> of `interlock_passes` indicated). Defaults to `40`.
 
     Returns:
     -------
@@ -262,114 +263,114 @@ def wasteSection(k, left_n, right_n, closed_caston=True, waste_c="1", draw_c="2"
     if waste_speedNumber is not None: k.speedNumber(waste_speedNumber)
     if waste_stitchNumber is not None: k.stitchNumber(waste_stitchNumber)
 
-    if draw_middle: interlock_length //= 2
+    if draw_middle: interlock_passes //= 2
     
-    if draw_c in end_on_right: draw_final_dir = "+" #drawSide = "r" # side it ends on (could also do from `finalDirs` or `endDirs`)
-    else: draw_final_dir = "-" #drawSide = "l"
+    if draw_c in end_on_right: draw_final_d = "+" #drawSide = "r" # side it ends on (could also do from `finalDirs` or `endDirs`)
+    else: draw_final_d = "-" #drawSide = "l"
 
-    # init dir for draw thread: #TODO: do this for other carriers
-    if draw_c in init_dirs:
-        draw_init_dir = init_dirs[draw_c]
+    # init direction for draw thread: #TODO: do this for other carriers
+    if draw_c in init_directions:
+        draw_init_d = init_directions[draw_c]
     elif draw_c in in_cs: # meaning we are bringing it in for the first time
-        if machine.lower() == "kniterate": draw_init_dir = "+"
-        else: draw_init_dir = "-"
-    elif (draw_final_dir == "+" and closed_caston) or (draw_final_dir == "-" and not closed_caston): draw_init_dir = "+"
-    else: draw_init_dir = "-"
+        if machine.lower() == "kniterate": draw_init_d = "+"
+        else: draw_init_d = "-"
+    elif (draw_final_d == "+" and closed_caston) or (draw_final_d == "-" and not closed_caston): draw_init_d = "+"
+    else: draw_init_d = "-"
     
     if waste_c in end_on_right: #NOTE: would need to add extra pass if waste_c == draw_c and closed_caston == True (but doesn't really make sense to have same yarn for those)
-        if machine.lower() == "kniterate" and initial and interlock_length > 24:
+        if machine.lower() == "kniterate" and initial and interlock_passes > 24:
             interlock(k, right_n, left_n, 24, waste_c, gauge=gauge)
             k.pause("cut yarns")
-            interlock(k, right_n, left_n, interlock_length-24, waste_c, gauge=gauge)
-        else: interlock(k, right_n, left_n, interlock_length, waste_c, gauge=gauge, releasehook=(machine.lower() == "swgn2" and waste_c in in_cs))
+            interlock(k, right_n, left_n, interlock_passes-24, waste_c, gauge=gauge)
+        else: interlock(k, right_n, left_n, interlock_passes, waste_c, gauge=gauge, releasehook=(machine.lower() == "swgn2" and waste_c in in_cs))
 
         if draw_middle:
             if draw_c is not None:
                 if machine.lower() == "swgn2" and draw_c in in_cs:
                     k.inhook(*c2cs(draw_c))
-                    tuckPattern(k, first_n=(left_n if draw_init_dir=="+" else right_n), direction=draw_init_dir, c=draw_c)
+                    tuckPattern(k, first_n=(left_n if draw_init_d=="+" else right_n), direction=draw_init_d, c=draw_c)
                     
-                if draw_init_dir == draw_final_dir: # we need to tuck to get it in the correct position
+                if draw_init_d == draw_final_d: # we need to tuck to get it in the correct position
                     n_range = range(left_n, right_n+1)
-                    if draw_init_dir == "-": n_range = n_range[::-1] #reverse it reversed(n_range)
+                    if draw_init_d == "-": n_range = n_range[::-1] #reverse it reversed(n_range)
                     cs = c2cs(draw_c)
                     for n in n_range:
-                        if n % 2 == 0: k.tuck(draw_init_dir, f"b{n}", *cs)
-                        elif n == n_range[-1]: k.miss(draw_init_dir, f"b{n}", *cs)
+                        if n % 2 == 0: k.tuck(draw_init_d, f"b{n}", *cs)
+                        elif n == n_range[-1]: k.miss(draw_init_d, f"b{n}", *cs)
                     
                     # this is essentially circular
-                    drawThread(k, left_n, right_n, draw_c, final_dir=("-" if draw_final_dir == "+" else "+"), final_bed="f", circular=False, miss_draw=miss_draw, gauge=gauge)
+                    drawThread(k, left_n, right_n, draw_c, final_direction=("-" if draw_final_d == "+" else "+"), final_bed="f", circular=False, miss_draw=miss_draw, gauge=gauge)
                     for n in n_range:
                         if n % 2 == 0: k.drop(f"b{n}")
-                    drawThread(k, left_n, right_n, draw_c, final_dir=draw_final_dir, final_bed="b", circular=False, miss_draw=miss_draw, gauge=gauge)
-                else: drawThread(k, left_n, right_n, draw_c, final_dir=draw_final_dir, circular=True, miss_draw=miss_draw, gauge=gauge) 
+                    drawThread(k, left_n, right_n, draw_c, final_direction=draw_final_d, final_bed="b", circular=False, miss_draw=miss_draw, gauge=gauge)
+                else: drawThread(k, left_n, right_n, draw_c, final_direction=draw_final_d, circular=True, miss_draw=miss_draw, gauge=gauge) 
 
                 if machine.lower() == "swgn2" and draw_c in in_cs:
                     k.releasehook(*c2cs(draw_c))
-                    tuckPattern(k, first_n=(left_n if draw_init_dir=="+" else right_n), direction=draw_init_dir, c=None) # drop it
+                    tuckPattern(k, first_n=(left_n if draw_init_d=="+" else right_n), direction=draw_init_d, c=None) # drop it
 
-            if initial and interlock_length > 12:
-                if interlock_length < 24:
-                    pause_after = 24-interlock_length
-                    interlock(k, right_n, left_n, pause_after, waste_c, gauge=gauge) # 20 32 (16) #12 interlock_length-8 # 12
+            if initial and interlock_passes > 12:
+                if interlock_passes < 24:
+                    pause_after = 24-interlock_passes
+                    interlock(k, right_n, left_n, pause_after, waste_c, gauge=gauge) # 20 32 (16) #12 interlock_passes-8 # 12
                     if machine.lower() == "kniterate": k.pause("cut yarns")
-                    interlock(k, right_n, left_n, interlock_length-pause_after, waste_c, gauge=gauge) # 8 interlockL 20- (32-20) 20-32 + 20+20
-                else: interlock(k, right_n, left_n, interlock_length, waste_c, gauge=gauge)
+                    interlock(k, right_n, left_n, interlock_passes-pause_after, waste_c, gauge=gauge) # 8 interlockL 20- (32-20) 20-32 + 20+20
+                else: interlock(k, right_n, left_n, interlock_passes, waste_c, gauge=gauge)
             else:
-                interlock(k, right_n, left_n, interlock_length, waste_c, gauge=gauge)
+                interlock(k, right_n, left_n, interlock_passes, waste_c, gauge=gauge)
                 if machine.lower() == "kniterate" and initial: k.pause("cut yarns")
         else:
-            if machine.lower() == "kniterate" and initial and interlock_length <= 24: k.pause("cut yarns")
+            if machine.lower() == "kniterate" and initial and interlock_passes <= 24: k.pause("cut yarns")
             circular(k, right_n, left_n, 8, waste_c, gauge)
         if miss_waste is not None: k.miss("+", f"f{miss_waste}", waste_c)
     else:
-        if machine.lower() == "kniterate" and initial and interlock_length > 24:
+        if machine.lower() == "kniterate" and initial and interlock_passes > 24:
             interlock(k, left_n, right_n, 24, waste_c, gauge=gauge)
             k.pause("cut yarns")
-            interlock(k, left_n, right_n, interlock_length-24, waste_c, gauge=gauge)
+            interlock(k, left_n, right_n, interlock_passes-24, waste_c, gauge=gauge)
         else:
             if machine.lower() == "swgn2" and initial:
                 interlock(k, right_n, left_n, 1.5, waste_c, gauge, releasehook=(machine.lower() == "swgn2" and waste_c in in_cs))
-                interlock_length -= 2
-            interlock(k, left_n, right_n, interlock_length, waste_c, gauge=gauge)
+                interlock_passes -= 2
+            interlock(k, left_n, right_n, interlock_passes, waste_c, gauge=gauge)
 
         if draw_middle:
             if draw_c is not None:
                 if machine.lower() == "swgn2" and draw_c in in_cs:
                     k.inhook(*c2cs(draw_c))
-                    tuckPattern(k, first_n=(left_n if draw_init_dir=="+" else right_n), direction=draw_init_dir, c=draw_c)
+                    tuckPattern(k, first_n=(left_n if draw_init_d=="+" else right_n), direction=draw_init_d, c=draw_c)
                 
-                if draw_init_dir == draw_final_dir: # we need to tuck to get it in the correct position #v
+                if draw_init_d == draw_final_d: # we need to tuck to get it in the correct position #v
                     n_range = range(left_n, right_n+1)
-                    if draw_init_dir == "-": n_range = n_range[::-1] #reverse it #reversed(n_range)
+                    if draw_init_d == "-": n_range = n_range[::-1] #reverse it #reversed(n_range)
                     cs = c2cs(draw_c)
                     for n in n_range:
-                        if n % 2 == 0: k.tuck(draw_init_dir, f"b{n}", *cs)
-                        elif n == n_range[-1]: k.miss(draw_init_dir, f"b{n}", *cs)
+                        if n % 2 == 0: k.tuck(draw_init_d, f"b{n}", *cs)
+                        elif n == n_range[-1]: k.miss(draw_init_d, f"b{n}", *cs)
                     
                     # this is essentially circular
-                    drawThread(k, left_n, right_n, draw_c, final_dir=("-" if draw_final_dir == "+" else "+"), final_bed="f", circular=False, miss_draw=miss_draw, gauge=gauge)
+                    drawThread(k, left_n, right_n, draw_c, final_direction=("-" if draw_final_d == "+" else "+"), final_bed="f", circular=False, miss_draw=miss_draw, gauge=gauge)
                     for n in n_range:
                         if n % 2 == 0: k.drop(f"b{n}")
-                    drawThread(k, left_n, right_n, draw_c, final_dir=draw_final_dir, final_bed="b", circular=False, miss_draw=miss_draw, gauge=gauge)
-                else: drawThread(k, left_n, right_n, draw_c, final_dir=draw_final_dir, circular=True, miss_draw=miss_draw, gauge=gauge) #^
+                    drawThread(k, left_n, right_n, draw_c, final_direction=draw_final_d, final_bed="b", circular=False, miss_draw=miss_draw, gauge=gauge)
+                else: drawThread(k, left_n, right_n, draw_c, final_direction=draw_final_d, circular=True, miss_draw=miss_draw, gauge=gauge) #^
 
                 if machine.lower() == "swgn2" and draw_c in in_cs:
                     k.releasehook(*c2cs(draw_c))
-                    tuckPattern(k, first_n=(left_n if draw_init_dir=="+" else right_n), direction=draw_init_dir, c=None) # drop it
+                    tuckPattern(k, first_n=(left_n if draw_init_d=="+" else right_n), direction=draw_init_d, c=None) # drop it
 
-            if initial and interlock_length > 12:
-                if interlock_length < 24:
-                    pause_after = 24-interlock_length
-                    interlock(k, left_n, right_n, pause_after, waste_c, gauge=gauge) # 20 32 (16) #12 interlock_length-8 # 12
+            if initial and interlock_passes > 12:
+                if interlock_passes < 24:
+                    pause_after = 24-interlock_passes
+                    interlock(k, left_n, right_n, pause_after, waste_c, gauge=gauge) # 20 32 (16) #12 interlock_passes-8 # 12
                     if machine.lower() == "kniterate": k.pause("cut yarns")
-                    interlock(k, left_n, right_n, interlock_length-pause_after, waste_c, gauge=gauge) # 8 interlockL 20- (32-20) 20-32 + 20+20
-                else: interlock(k, left_n, right_n, interlock_length, waste_c, gauge=gauge)
+                    interlock(k, left_n, right_n, interlock_passes-pause_after, waste_c, gauge=gauge) # 8 interlockL 20- (32-20) 20-32 + 20+20
+                else: interlock(k, left_n, right_n, interlock_passes, waste_c, gauge=gauge)
             else:
-                interlock(k, left_n, right_n, interlock_length, waste_c, gauge=gauge)
+                interlock(k, left_n, right_n, interlock_passes, waste_c, gauge=gauge)
                 if initial: k.pause("cut yarns")
         else:
-            if machine.lower() == "kniterate" and initial and interlock_length <= 24: k.pause("cut yarns")
+            if machine.lower() == "kniterate" and initial and interlock_passes <= 24: k.pause("cut yarns")
             circular(k, left_n, right_n, 8, waste_c, gauge)
         if miss_waste is not None: k.miss("-", f"f{miss_waste}", *c2cs(waste_c))
 
@@ -380,35 +381,35 @@ def wasteSection(k, left_n, right_n, closed_caston=True, waste_c="1", draw_c="2"
     if not draw_middle and draw_c is not None:
         if machine.lower() == "swgn2" and draw_c in in_cs:
             k.inhook(*c2cs(draw_c))
-            tuckPattern(k, first_n=(left_n if draw_init_dir=="+" else right_n), direction=draw_init_dir, c=draw_c)
+            tuckPattern(k, first_n=(left_n if draw_init_d=="+" else right_n), direction=draw_init_d, c=draw_c)
 
-        if (closed_caston and draw_init_dir != draw_final_dir) or (not closed_caston and draw_init_dir == draw_final_dir): # we need to tuck to get it in the correct position #v
+        if (closed_caston and draw_init_d != draw_final_d) or (not closed_caston and draw_init_d == draw_final_d): # we need to tuck to get it in the correct position #v
             n_range = range(left_n, right_n+1)
-            if draw_init_dir == "-": n_range = n_range[::-1] # reverse it #reversed(n_range)
+            if draw_init_d == "-": n_range = n_range[::-1] # reverse it #reversed(n_range)
 
             cs = c2cs(draw_c)
             for n in n_range:
-                if n % 2 == 0: k.tuck(draw_init_dir, f"b{n}", *cs)
-                elif n == n_range[-1]: k.miss(draw_init_dir, f"b{n}", *cs)
+                if n % 2 == 0: k.tuck(draw_init_d, f"b{n}", *cs)
+                elif n == n_range[-1]: k.miss(draw_init_d, f"b{n}", *cs)
 
-            if closed_caston: drawFinalDir1 = draw_final_dir
-            else: drawFinalDir1 = ("-" if draw_final_dir == "+" else "+")
+            if closed_caston: draw_final_d1 = draw_final_d
+            else: draw_final_d1 = ("-" if draw_final_d == "+" else "+")
 
-            drawThread(k, left_n, right_n, draw_c, final_dir=drawFinalDir1, final_bed="f", circular=False, miss_draw=miss_draw, gauge=gauge)
+            drawThread(k, left_n, right_n, draw_c, final_direction=draw_final_d1, final_bed="f", circular=False, miss_draw=miss_draw, gauge=gauge)
 
             if not closed_caston: # aka circular
                 # this + above drawThread call is essentially circular
                 for n in n_range:
                     if n % 2 == 0: k.drop(f"b{n}")
-                drawThread(k, left_n, right_n, draw_c, final_dir=draw_final_dir, final_bed="b", circular=False, miss_draw=miss_draw, gauge=gauge)
+                drawThread(k, left_n, right_n, draw_c, final_direction=draw_final_d, final_bed="b", circular=False, miss_draw=miss_draw, gauge=gauge)
             else:
                 for n in n_range:
                     if n % 2 == 0: k.drop(f"b{n}")
-        else: drawThread(k, left_n, right_n, draw_c, final_dir=draw_final_dir, circular=(not closed_caston), miss_draw=miss_draw, gauge=gauge)
+        else: drawThread(k, left_n, right_n, draw_c, final_direction=draw_final_d, circular=(not closed_caston), miss_draw=miss_draw, gauge=gauge)
 
         if machine.lower() == "swgn2" and draw_c in in_cs:
             k.releasehook(*c2cs(draw_c))
-            tuckPattern(k, first_n=(left_n if draw_init_dir=="+" else right_n), direction=draw_init_dir, c=None) # drop it
+            tuckPattern(k, first_n=(left_n if draw_init_d=="+" else right_n), direction=draw_init_d, c=None) # drop it
 
     if speedNumber is not None: k.speedNumber(speedNumber)
     if stitchNumber is not None: k.stitchNumber(stitchNumber)
@@ -671,22 +672,22 @@ def zigzagCaston(k, start_n, end_n, c, gauge=1, inhook=False, releasehook=False,
 # -----------------------
 
 #--- FINISH BY DROP FUNCTION ---
-def dropFinish(k, front_needle_ranges=[], back_needle_ranges=[], out_carriers=[], roll_out=True, avoid_bns={"f": [], "b": []}, direction="+", border_c=None, border_length=16, gauge=1, machine="swgn2"):
+def dropFinish(k, front_needle_ranges=[], back_needle_ranges=[], out_carriers=[], roll_out=True, avoid_bns={"f": [], "b": []}, direction="+", border_c=None, border_passes=16, gauge=1, machine="swgn2"):
     '''
     Finishes knitting by dropping loops (optionally knitting 16 rows of waste yarn prior with `border_c`, and optionally taking carriers listed in `carriers` param out afterwards).
 
     Parameters:
     ----------
-    * k (class instance): the knitout Writer.
-    * front_needle_ranges (list, optional): a list of [left_n, right_n] pairs for needles to drop on the front bed; if multiple sections, can have sub-lists as so: [[leftN1, rightN1], [leftN2, rightN2], ...], or just [left_n, right_n] if only one section. Defaults to [].
-    * back_needle_ranges (list, optional): same as above, but for back bed. Defaults to [].
-    * out_carriers (list, optional): list of carriers to take out (optional, only if you want to take them out using this function). Defaults to [].
-    * roll_out (bool, optional): (for kniterate) an optional boolean parameter indicating whether extra roller advance should be added to roll the piece out. Defaults to True.
-    * empty_needles (list, optional): an optional list of needles that are not currently holding loops (e.g. if using stitch pattern), so don't waste time dropping them. Defaults to [].
-    * direction (str, optional): an optional parameter to indicate which direction the first pass should have (valid values are "+" or "-"). (NOTE: this is an important value to pass if border_c is included, so know which direction to knit first with border_c). Defaults to "+". #TODO: maybe just add a knitout function to find line that last used the border_c carrier
-    * border_c (str, optional): an optional carrier that will knit some rows of waste yarn before dropping, so that there is a border edge on the top to prevent the main piece from unravelling (NOTE: if border_c is None, will not add any border). Defaults to None.
-    * border_length (int, optional): Number of rows for waste border. Defaults to 16.
-    * gauge (int, optional): Gauge of waste border, if applicable. Defaults to 2.
+    * `k` (class instance): the knitout Writer.
+    * `front_needle_ranges` (list, optional): a list of [left_n, right_n] pairs for needles to drop on the front bed; if multiple sections, can have sub-lists as so: [[leftN1, rightN1], [leftN2, rightN2], ...], or just [left_n, right_n] if only one section. Defaults to `[]`.
+    * `back_needle_ranges` (list, optional): same as above, but for back bed. Defaults to `[]`.
+    * `out_carriers` (list, optional): list of carriers to take out (optional, only if you want to take them out using this function). Defaults to `[]`.
+    * `roll_out` (bool, optional): (for kniterate) an optional boolean parameter indicating whether extra roller advance should be added to roll the piece out. Defaults to `True`.
+    * `empty_needles` (list, optional): an optional list of needles that are not currently holding loops (e.g. if using stitch pattern), so don't waste time dropping them. Defaults to `[]`.
+    * `direction` (str, optional): an optional parameter to indicate which direction the first pass should have (valid values are "+" or "-"). (NOTE: this is an important value to pass if border_c is included, so know which direction to knit first with border_c). Defaults to `"+"`. #TODO: maybe just add a knitout function to find line that last used the border_c carrier
+    * `border_c` (str, optional): an optional carrier that will knit some rows of waste yarn before dropping, so that there is a border edge on the top to prevent the main piece from unravelling (NOTE: if border_c is None, will not add any border). Defaults to `None`.
+    * `border_passes` (int, optional): Number of passes for waste border. Defaults to `16`.
+    * `gauge` (int, optional): Gauge of waste border, if applicable. Defaults to `2`.
         * NOTE: if gauge is 2, will knit waste border as a tube. if gauge is 1, will knit flat single bed stitch pattern.
     '''
 
@@ -707,12 +708,8 @@ def dropFinish(k, front_needle_ranges=[], back_needle_ranges=[], out_carriers=[]
 
     def knitBorder(pos_needle_range, pos_bed, neg_needle_range, neg_bed): #v
         # NOTE: if specified `borderStPat`, assumes `pos_needle_range` and `neg_needle_range` are the same
-        beg = 0
-        length = border_length #rows of waste
 
-        if direction == "-":
-            beg += 1
-            length += 1
+        d = direction
 
         def knitBorderPos(needle_range, bed):
             for n in range(needle_range[0], needle_range[1]+1):
@@ -722,9 +719,11 @@ def dropFinish(k, front_needle_ranges=[], back_needle_ranges=[], out_carriers=[]
             for n in range(needle_range[1], needle_range[0]-1, -1):
                 if bnValid(bed, n, gauge) and n not in avoid_bns[bed]: k.knit("-", f"{bed}{n}", *border_cs)
     
-        for r in range(beg, length):
-            if r % 2 == 0: knitBorderPos(pos_needle_range, pos_bed)
+        for p in range(border_passes):
+            if d == "+": knitBorderPos(pos_needle_range, pos_bed)
             else: knitBorderNeg(neg_needle_range, neg_bed)
+            #
+            d = toggleDirection(d)
     #--- end knitBorder func ---#^
 
     if border_c is not None:
