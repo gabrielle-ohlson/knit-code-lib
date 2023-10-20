@@ -41,7 +41,7 @@ def drawThread(k, left_n, right_n, draw_c, final_dir="-", final_bed="f", circula
         for n in range(right_n, left_n-1, -1):
             if bnValid(bed, n, gauge): k.knit("-", f"{bed}{n}", *cs)
             elif n == left_n: k.miss("-", f"{bed}{n}", *cs)
-        if add_miss and miss_draw is not None: k.miss("-", f'{bed}{miss_draw}', *cs)
+        if add_miss and miss_draw is not None: k.miss("-", f"{bed}{miss_draw}", *cs)
 
     k.comment("begin draw thread")
 
@@ -52,7 +52,7 @@ def drawThread(k, left_n, right_n, draw_c, final_dir="-", final_bed="f", circula
         if circular: posDraw(init_bed, False)
         negDraw(final_bed)
 
-    k.comment('end draw thread')
+    k.comment("end draw thread")
 
 
 #--- FUNCTION FOR DOING THE MAIN KNITTING OF CIRCULAR, OPEN TUBES ---
@@ -152,8 +152,8 @@ def catchYarns(k, left_n, right_n, carriers, gauge=1, end_on_right=[], miss_need
                     elif n == left_n: k.miss("-", f"f{n}", c)
 
         if c in miss_needles:
-            if c in end_on_right: k.miss("+", f'f{miss_needles[c]}', c)
-            else: k.miss("-", f'f{miss_needles[c]}', c)
+            if c in end_on_right: k.miss("+", f"f{miss_needles[c]}", c)
+            else: k.miss("-", f"f{miss_needles[c]}", c)
 
 
 def wasteSection(k, left_n, right_n, closed_caston=True, waste_c="1", draw_c="2", in_cs=[], gauge=1, init_dirs={}, end_on_right=[], first_needles={}, catch_max_needles=False, initial=True, draw_middle=False, interlock_length=40, speedNumber=None, stitchNumber=None, rollerAdvance=None, waste_speedNumber=None, waste_stitchNumber=None, machine="swgn2"):
@@ -167,33 +167,33 @@ def wasteSection(k, left_n, right_n, closed_caston=True, waste_c="1", draw_c="2"
 
     Parameters:
     ----------
-    * k (class): the knitout Writer 
-    * left_n (int): the left-most needle to knit on
-    * right_n (int): the right-most needle to knit on
-    * closed_caston (bool, optional): determines what happens with the draw thread (if `True`, drops back-bed needles and knits draw on front-bed; if `False`, doesn't drop and knits draw on both beds). Defaults to True.
-    * waste_c (str, optional): an integer in string form indicating the carrier number to be used for the waste yarn. Defaults to '1'.
-    * draw_c (str, optional): same as above, but for the draw thread carrier. Defaults to '2'.
+    * k (class): the knitout Writer.
+    * left_n (int): the left-most needle to knit on.
+    * right_n (int): the right-most needle to knit on.
+    * closed_caston (bool, optional): determines what happens with the draw thread (if `True`, drops back-bed needles and knits draw on front-bed; if `False`, doesn't drop and knits draw on both beds). Defaults to `True`.
+    * waste_c (str, optional): an integer in string form indicating the carrier number to be used for the waste yarn. Defaults to `1`.
+    * draw_c (str, optional): same as above, but for the draw thread carrier. Defaults to `2`.
     * in_cs (list, optional): an *optional* list of other carriers that should be brought in/positioned with catchYarns (NOTE: leave empty if not initial wasteSection). Defaults to `[]`.
-    * gauge (int, optional): the knitting gauge. Defaults to 1.
+    * gauge (int, optional): the knitting gauge. Defaults to `1`.
     * init_dirs (dict, optional): a dictionary with carriers as keys and directions (`-` or `+`) as values, indicating which direction to start with for a given carrier key. If a carrier that is used in teh waste section isn't included in the dict keys, will default to which ever side the carriers start on for the given machine (left for kniterate and right for swgn2). Defaults to `{}`.
-    * end_on_right (list, optional): an *optional* list of carriers that should be parked on the right side after the wasteSection (**see *NOTE* below for details about what to do if not initial**) — e.g. `end_on_right=['2', '3']`. Defaults to [].
-    * first_needles (dict, optional): an *optional* dictionary with carrier as key and a list of `[<left_n>, <right_n>]` as the value. It indicates the edge-most needles in the first row that the carrier is used in for the main piece. — e.g. `first_needles={'1': [0, 10]}`. Defaults to {}.
-    * catch_max_needles (bool, optional): determines whether or not the maximum number of needles (possible for the given gauge) will be knitted on for *every* carrier (yes if `True`; if `False`, knits on interval determined by number of carriers). Defaults to False.
+    * end_on_right (list, optional): an *optional* list of carriers that should be parked on the right side after the wasteSection (**see *NOTE* below for details about what to do if not initial**) — e.g. `end_on_right=["2", "3"]`. Defaults to `[]`.
+    * first_needles (dict, optional): an *optional* dictionary with carrier as key and a list of `[<left_n>, <right_n>]` as the value. It indicates the edge-most needles in the first row that the carrier is used in for the main piece. — e.g. `first_needles={"1": [0, 10]}`. Defaults to `{}`.
+    * catch_max_needles (bool, optional): determines whether or not the maximum number of needles (possible for the given gauge) will be knitted on for *every* carrier (yes if `True`; if `False`, knits on interval determined by number of carriers). Defaults to `False`.
     * initial (bool, optional): if `True`, indicates that this wasteSection is the very first thing being knitted for the piece; otherwise, if `False`, it's probably a wasteSection to separate samples (and will skip over catchYarns). Defaults to True.
     * draw_middle (bool, optional): if `True`, indicates that a draw thread should be placed in the middle of the waste section (and no draw thread will be added at end, also no circular knitting, so only interlock). Defaults to False.
-    * interlock_length (int, optional): the number of passes of interlock that should be included (note that, if not `draw_middle`, 8 rows of circular will also be added onto the <x-number> of `interlock_length` indicated). Defaults to 40.
+    * interlock_length (int, optional): the number of passes of interlock that should be included (note that, if not `draw_middle`, 8 rows of circular will also be added onto the <x-number> of `interlock_length` indicated). Defaults to `40`.
 
     Returns:
     -------
-    * (dict): `carrier_locs`, which indicates the needle number that each carrier is parked by at the end of the wasteSection — e.g. `carrier_locs={'1': 0, '2': 200}`
+    * (dict): `carrier_locs`, which indicates the needle number that each carrier is parked by at the end of the wasteSection — e.g. `carrier_locs={"1": 0, "2": 200}`
 
     *NOTE:*
     if initial wasteSection, side (prior to this wasteSection) is assumed to be left for all carriers
     if not initial wasteSection, follow these guidelines for positioning:
-        -> waste_c: if currently on right side (prior to this wasteSection), put it in 'end_on_right' list; otherwise, don't
+        -> waste_c: if currently on right side (prior to this wasteSection), put it in `end_on_right` list; otherwise, don't
         -> draw_c:
-            if not draw_middle: if currently on left side, put it in 'end_on_right' list; otherwise, don't
-            else: if currently on right side, put it in 'end_on_right' list; otherwise, don't
+            if not draw_middle: if currently on left side, put it in `end_on_right` list; otherwise, don't
+            else: if currently on right side, put it in `end_on_right` list; otherwise, don't
     '''
 
     carrier_locs = {}
@@ -264,8 +264,8 @@ def wasteSection(k, left_n, right_n, closed_caston=True, waste_c="1", draw_c="2"
 
     if draw_middle: interlock_length //= 2
     
-    if draw_c in end_on_right: draw_final_dir = "+" #drawSide = 'r' # side it ends on (could also do from `finalDirs` or `endDirs`)
-    else: draw_final_dir = "-" #drawSide = 'l'
+    if draw_c in end_on_right: draw_final_dir = "+" #drawSide = "r" # side it ends on (could also do from `finalDirs` or `endDirs`)
+    else: draw_final_dir = "-" #drawSide = "l"
 
     # init dir for draw thread: #TODO: do this for other carriers
     if draw_c in init_dirs:
@@ -274,7 +274,6 @@ def wasteSection(k, left_n, right_n, closed_caston=True, waste_c="1", draw_c="2"
         if machine.lower() == "kniterate": draw_init_dir = "+"
         else: draw_init_dir = "-"
     elif (draw_final_dir == "+" and closed_caston) or (draw_final_dir == "-" and not closed_caston): draw_init_dir = "+"
-    # elif (drawSide == 'r' and closed_caston) or (drawSide == 'l' and not closed_caston): draw_init_dir = "+"
     else: draw_init_dir = "-"
     
     if waste_c in end_on_right: #NOTE: would need to add extra pass if waste_c == draw_c and closed_caston == True (but doesn't really make sense to have same yarn for those)
@@ -322,7 +321,7 @@ def wasteSection(k, left_n, right_n, closed_caston=True, waste_c="1", draw_c="2"
         else:
             if machine.lower() == "kniterate" and initial and interlock_length <= 24: k.pause("cut yarns")
             circular(k, right_n, left_n, 8, waste_c, gauge)
-        if miss_waste is not None: k.miss("+", f'f{miss_waste}', waste_c)
+        if miss_waste is not None: k.miss("+", f"f{miss_waste}", waste_c)
     else:
         if machine.lower() == "kniterate" and initial and interlock_length > 24:
             interlock(k, left_n, right_n, 24, waste_c, gauge=gauge)
@@ -372,12 +371,11 @@ def wasteSection(k, left_n, right_n, closed_caston=True, waste_c="1", draw_c="2"
         else:
             if machine.lower() == "kniterate" and initial and interlock_length <= 24: k.pause("cut yarns")
             circular(k, left_n, right_n, 8, waste_c, gauge)
-        if miss_waste is not None: k.miss("-", f'f{miss_waste}', *c2cs(waste_c))
+        if miss_waste is not None: k.miss("-", f"f{miss_waste}", *c2cs(waste_c))
 
     if closed_caston and not draw_middle:
         for n in range(left_n, right_n+1):
             if bnValid("b", n, gauge): k.drop(f"b{n}")
-            # if (n + 1) % gauge == 0: k.drop(f"b{n}") #remoe
 
     if not draw_middle and draw_c is not None:
         if machine.lower() == "swgn2" and draw_c in in_cs:
@@ -790,14 +788,14 @@ def bindoffTag(k, d, bed, edge_n, c, outhook=False, drop=False):
     else: shift = 1 #will knit the tag to the right of edge_n
 
     for r in range(4):
-        k.knit(d, f'{bed}{edge_n}', *cs)
+        k.knit(d, f"{bed}{edge_n}", *cs)
         if r == 3:
-            k.tuck(d, f'{bed}{edge_n+shift}', *cs)
+            k.tuck(d, f"{bed}{edge_n+shift}", *cs)
         d = toggleDirection(d)
 
-    k.tuck(d, f'{bed}{edge_n+(shift*2)}', *cs)
-    k.knit(d, f'{bed}{edge_n+(shift)}', *cs)
-    k.knit(d, f'{bed}{edge_n}', *cs)
+    k.tuck(d, f"{bed}{edge_n+(shift*2)}", *cs)
+    k.knit(d, f"{bed}{edge_n+(shift)}", *cs)
+    k.knit(d, f"{bed}{edge_n}", *cs)
 
     d = toggleDirection(d)
     if d == "-": # started pos
@@ -850,49 +848,49 @@ def closedBindoff_old(k, count, xfer_needle, c, side="l", double_bed=True, as_de
 
         for x in range(xfer_needle, xfer_needle+count):
             if op == "knit":
-                if f'{bed}{x}' not in empty_needles: k.knit("+", f'{bed}{x}', *cs)
+                if f"{bed}{x}" not in empty_needles: k.knit("+", f"{bed}{x}", *cs)
             elif op == "xfer":
                 receive = "b"
                 if bed == "b": receive = "f"
-                if f'{bed}{x}' not in empty_needles: k.xfer(f'{bed}{x}', f'{receive}{x}')
+                if f"{bed}{x}" not in empty_needles: k.xfer(f"{bed}{x}", f"{receive}{x}")
             else:
                 if x == xfer_needle + count - 1 and not as_dec_method: break
 
                 if xfer_stitchNumber is not None: k.stitchNumber(xfer_stitchNumber)
-                k.xfer(f'b{x}', f'f{x}') #don't have to worry about empty needles here because binding these off
+                k.xfer(f"b{x}", f"f{x}") #don't have to worry about empty needles here because binding these off
                 k.rack(-1)
-                k.xfer(f'f{x}', f'b{x+1}')
+                k.xfer(f"f{x}", f"b{x+1}")
                 k.rack(0)
                 if x != xfer_needle:
                     if machine.lower() == "kniterate":
                         if not as_dec_method and x - xfer_needle == 30: k.rollerAdvance(0)
                         elif x > xfer_needle+3 and (as_dec_method or x - xfer_needle < 30): k.addRollerAdvance(-50)
-                    k.drop(f'b{x-1}')
+                    k.drop(f"b{x-1}")
                 if machine.lower() == "kniterate" and not as_dec_method and x - xfer_needle >= 30: k.addRollerAdvance(50)
                 if stitchNumber is not None: k.stitchNumber(stitchNumber)
-                k.knit("+", f'b{x+1}', *cs)
+                k.knit("+", f"b{x+1}", *cs)
 
-                if as_dec_method and len(empty_needles) and x == xfer_needle+count-1 and f'b{x+1}' in empty_needles: #transfer this to a non-empty needle if at end and applicable
+                if as_dec_method and len(empty_needles) and x == xfer_needle+count-1 and f"b{x+1}" in empty_needles: #transfer this to a non-empty needle if at end and applicable
                     if xfer_stitchNumber is not None: k.stitchNumber(xfer_stitchNumber)
 
-                    if f'f{x+1}' not in empty_needles: k.xfer(f'b{x+1}', f'f{x+1}')
+                    if f"f{x+1}" not in empty_needles: k.xfer(f"b{x+1}", f"f{x+1}")
                     else:
                         for z in range(x+2, x+7): #TODO: check what gauge should be
-                            if f'f{z}' not in empty_needles:
+                            if f"f{z}" not in empty_needles:
                                 k.rack(z-(x+1))
-                                k.xfer(f'b{x+1}', f'f{z}')
+                                k.xfer(f"b{x+1}", f"f{z}")
                                 k.rack(0)
                                 break
-                            elif f'b{z}' not in empty_needles:
-                                k.xfer(f'b{x+1}', f'f{x+1}')
+                            elif f"b{z}" not in empty_needles:
+                                k.xfer(f"b{x+1}", f"f{x+1}")
                                 k.rack((x+1)-z)
-                                k.xfer(f'f{x+1}', f'b{z}')
+                                k.xfer(f"f{x+1}", f"b{z}")
                                 k.rack(0)
                                 break
                 
                 if stitchNumber is not None: k.stitchNumber(stitchNumber)
-                if x < xfer_needle+count-2: k.tuck("-", f'b{x}', *cs)
-                if not as_dec_method and (x == xfer_needle+3 or (x == xfer_needle+count-2 and xfer_needle+3 > xfer_needle+count-2)): k.drop(f'b{xfer_needle-1}')
+                if x < xfer_needle+count-2: k.tuck("-", f"b{x}", *cs)
+                if not as_dec_method and (x == xfer_needle+3 or (x == xfer_needle+count-2 and xfer_needle+3 > xfer_needle+count-2)): k.drop(f"b{xfer_needle-1}")
     #--- end posLoop func ---#^
 
     def negLoop(op=None, bed=None): #v
@@ -901,51 +899,51 @@ def closedBindoff_old(k, count, xfer_needle, c, side="l", double_bed=True, as_de
 
         for x in range(xfer_needle+count-1, xfer_needle-1, -1):
             if op == "knit":
-                if f'{bed}{x}' not in empty_needles: k.knit("-", f'{bed}{x}', *cs)
+                if f"{bed}{x}" not in empty_needles: k.knit("-", f"{bed}{x}", *cs)
             elif op == "xfer":
                 receive = "b"
                 if bed == "b": receive = "f"
-                if f'{bed}{x}' not in empty_needles: k.xfer(f'{bed}{x}', f'{receive}{x}')
+                if f"{bed}{x}" not in empty_needles: k.xfer(f"{bed}{x}", f"{receive}{x}")
             else:
                 if x == xfer_needle and not as_dec_method: break
 
                 if xfer_stitchNumber is not None: k.stitchNumber(xfer_stitchNumber)
-                k.xfer(f'b{x}', f'f{x}')
+                k.xfer(f"b{x}", f"f{x}")
                 k.rack(1)
-                k.xfer(f'f{x}', f'b{x-1}')
+                k.xfer(f"f{x}", f"b{x-1}")
                 k.rack(0)
                 if x != xfer_needle+count-1:
                     if machine.lower() == "kniterate":
                         if not as_dec_method and (xfer_needle+count) - x == 30: k.rollerAdvance(0)
                         elif x < xfer_needle+count-4 and (as_dec_method or (xfer_needle+count) - x < 30): k.addRollerAdvance(-50)
-                    k.drop(f'b{x+1}')
+                    k.drop(f"b{x+1}")
                 if machine.lower() == "kniterate" and not as_dec_method and (xfer_needle+count) - x >= 30: k.addRollerAdvance(50)
                 if stitchNumber is not None: k.stitchNumber(stitchNumber)
-                k.knit("-", f'b{x-1}', *cs)
+                k.knit("-", f"b{x-1}", *cs)
 
-                if as_dec_method and len(empty_needles) and x == xfer_needle-2 and f'b{x-1}' in empty_needles: #transfer this to a non-empty needle if at end and applicable
+                if as_dec_method and len(empty_needles) and x == xfer_needle-2 and f"b{x-1}" in empty_needles: #transfer this to a non-empty needle if at end and applicable
                     if xfer_stitchNumber is not None: k.stitchNumber(xfer_stitchNumber)
-                    if f'f{x-1}' not in empty_needles: k.xfer(f'b{x-1}', f'f{x-1}')
+                    if f"f{x-1}" not in empty_needles: k.xfer(f"b{x-1}", f"f{x-1}")
                     else:
                         for z in range(x-2, x-7, -1): #TODO: check what gauge should be
-                            if f'f{z}' not in empty_needles:
+                            if f"f{z}" not in empty_needles:
                                 k.rack(z-(x+1))
-                                k.xfer(f'b{x-1}', f'f{z}')
+                                k.xfer(f"b{x-1}", f"f{z}")
                                 k.rack(0)
                                 break
-                            elif f'b{z}' not in empty_needles:
-                                k.xfer(f'b{x-1}', f'f{x-1}')
+                            elif f"b{z}" not in empty_needles:
+                                k.xfer(f"b{x-1}", f"f{x-1}")
                                 k.rack((x+1)-z)
-                                k.xfer(f'f{x-1}', f'b{z}')
+                                k.xfer(f"f{x-1}", f"b{z}")
                                 k.rack(0)
                                 break
                 
                 if stitchNumber is not None: k.stitchNumber(stitchNumber)
-                if x > xfer_needle+1: k.tuck("+", f'b{x}', *cs)
-                if not as_dec_method and (x == xfer_needle+count-4 or (x == xfer_needle+1 and xfer_needle+count-4 < xfer_needle+1)): k.drop(f'b{xfer_needle+count}')
+                if x > xfer_needle+1: k.tuck("+", f"b{x}", *cs)
+                if not as_dec_method and (x == xfer_needle+count-4 or (x == xfer_needle+1 and xfer_needle+count-4 < xfer_needle+1)): k.drop(f"b{xfer_needle+count}")
     #--- end negLoop func ---#^
 
-    if side == 'l': # side == 'l', aka binding off in pos direction
+    if side == "l": # side == "l", aka binding off in pos direction
         if not as_dec_method:
             posLoop("knit", "f")
             if double_bed: negLoop("knit", "b")
@@ -957,18 +955,18 @@ def closedBindoff_old(k, count, xfer_needle, c, side="l", double_bed=True, as_de
             k.addRollerAdvance(-50)
         
         if stitchNumber is not None: k.stitchNumber(stitchNumber)
-        if not as_dec_method: k.tuck("-", f'b{xfer_needle-1}', *cs)
-        k.knit("+", f'b{xfer_needle}', *cs)
+        if not as_dec_method: k.tuck("-", f"b{xfer_needle-1}", *cs)
+        k.knit("+", f"b{xfer_needle}", *cs)
         posLoop()
 
         if not as_dec_method:
             if tag: bindoffTag(k, "+", "b", xfer_needle+count-1, cs)
             else:
-                k.miss("-", f'f{xfer_needle}', *cs)
-                k.pause(f'finish {c}')
-                k.drop(f'b{xfer_needle+count-1}')
-                k.miss("+", f'f{xfer_needle+count}', *cs)
-    else: # side == 'r', aka binding off in neg direction
+                k.miss("-", f"f{xfer_needle}", *cs)
+                k.pause(f"finish {c}")
+                k.drop(f"b{xfer_needle+count-1}")
+                k.miss("+", f"f{xfer_needle+count}", *cs)
+    else: # side == "r", aka binding off in neg direction
         xfer_needle = xfer_needle-count + 1
 
         if not as_dec_method:
@@ -981,21 +979,21 @@ def closedBindoff_old(k, count, xfer_needle, c, side="l", double_bed=True, as_de
             k.addRollerAdvance(-50)
         
         if stitchNumber is not None: k.stitchNumber(stitchNumber)
-        if not as_dec_method: k.tuck("+", f'b{xfer_needle+count}', *cs)
-        k.knit("-", f'b{xfer_needle+count-1}', *cs)
+        if not as_dec_method: k.tuck("+", f"b{xfer_needle+count}", *cs)
+        k.knit("-", f"b{xfer_needle+count-1}", *cs)
         negLoop()
 
         if stitchNumber is not None: k.stitchNumber(stitchNumber) #reset it
         if not as_dec_method:
             if tag: bindoffTag(k, "-", "b", xfer_needle, cs)
             else:
-                k.miss("+", f'f{xfer_needle+count}', *cs)
-                k.pause(f'finish {c}')
-                k.drop(f'b{xfer_needle}')
-                k.miss("+", f'f{xfer_needle-1}', *cs)
+                k.miss("+", f"f{xfer_needle+count}", *cs)
+                k.pause(f"finish {c}")
+                k.drop(f"b{xfer_needle}")
+                k.miss("+", f"f{xfer_needle-1}", *cs)
 
-    if not as_dec_method: k.comment('end closed bindoff')
-    else: k.comment('end dec by bindoff')
+    if not as_dec_method: k.comment("end closed bindoff")
+    else: k.comment("end dec by bindoff")
 
 
 def sheetBindoff(k, start_n, end_n, c, bed="f", gauge=1, mod=None, use_sliders=False, add_tag=True, outhook=False, speedNumber=None, stitchNumber=None, xfer_stitchNumber=None): #TODO: #check support for gauge=2 #TODO: add `as_dec_method` option #*
@@ -1053,12 +1051,12 @@ def sheetBindoff(k, start_n, end_n, c, bed="f", gauge=1, mod=None, use_sliders=F
         else:
             if stitchNumber is not None: k.stitchNumber(stitchNumber)
             k.knit(d, f"{bed}{n}", *cs)
-            k.miss(d, f'{bed}{n+shift}', *cs)
+            k.miss(d, f"{bed}{n+shift}", *cs)
             if xfer_stitchNumber is not None: k.stitchNumber(xfer_stitchNumber)
 
-            k.xfer(f"{bed}{n}", f'{bed2}{n}')
+            k.xfer(f"{bed}{n}", f"{bed2}{n}")
             k.rack(R*shift)
-            k.xfer(f'{bed2}{n}', f'{bed}{n+shift}')
+            k.xfer(f"{bed2}{n}", f"{bed}{n+shift}")
             k.rack(0)
 
     if stitchNumber is not None: k.stitchNumber(stitchNumber) #reset
@@ -1161,22 +1159,22 @@ def closedTubeBindoff(k, start_n, end_n, c, gauge=1, bed_mods=None, use_sliders=
             if xfer_stitchNumber is not None: k.stitchNumber(xfer_stitchNumber)
 
             k.rack(R*shift*par)
-            k.xfer(f"{bed}{n}", f'{bed2}{n+shift*par}')
+            k.xfer(f"{bed}{n}", f"{bed2}{n+shift*par}")
             k.rack(0)
 
             if stitchNumber is not None: k.stitchNumber(stitchNumber)
-            k.knit(d, f'{bed2}{n+shift*par}', *cs)
-            k.miss(d2, f'{bed2}{n+shift*par}', *cs)
+            k.knit(d, f"{bed2}{n+shift*par}", *cs)
+            k.miss(d2, f"{bed2}{n+shift*par}", *cs)
 
             if n+shift != last_bn[1]:
                 if xfer_stitchNumber is not None: k.stitchNumber(xfer_stitchNumber)
                 k.rack(-R*(gauge-shift)*par) # -R since we want to flip the rack direction this time
-                k.xfer(f'{bed2}{n+shift*par}', f'{bed}{n+gauge*par}')
+                k.xfer(f"{bed2}{n+shift*par}", f"{bed}{n+gauge*par}")
                 k.rack(0)
 
                 if stitchNumber is not None: k.stitchNumber(stitchNumber)
-                k.knit(d, f'{bed}{n+gauge*par}', *cs)
-                k.miss(d2, f'{bed}{n+gauge*par}', *cs)
+                k.knit(d, f"{bed}{n+gauge*par}", *cs)
+                k.miss(d2, f"{bed}{n+gauge*par}", *cs)
 
     if stitchNumber is not None: k.stitchNumber(stitchNumber) #reset
 
@@ -1340,50 +1338,50 @@ def simultaneousBindoff(k, start_needles, end_needles, carriers, speedNumber=Non
     for fn, bn in zip(needle_range_f, needle_range_b): #TODO: add tag and what not
         if xfer_stitchNumber is not None: k.stitchNumber(xfer_stitchNumber)
         k.rack(rack)
-        k.tuck(bd_t, f'b{bn+rack}', carriers["b"])
-        k.xfer(f'b{bn}', f'f{bn+rack}')
+        k.tuck(bd_t, f"b{bn+rack}", carriers["b"])
+        k.xfer(f"b{bn}", f"f{bn+rack}")
         if fd != bd:
-            k.tuck(fd_t, f'f{fn-rack}', carriers["f"])
-            k.xfer(f'f{fn}', f'b{fn-rack}')
+            k.tuck(fd_t, f"f{fn-rack}", carriers["f"])
+            k.xfer(f"f{fn}", f"b{fn-rack}")
 
         k.rack(2*rack)
-        k.xfer(f'f{bn+rack}', f'b{bn-rack}')
-        if fd != bd: k.xfer(f'b{fn-rack}', f'f{fn+rack}')
+        k.xfer(f"f{bn+rack}", f"b{bn-rack}")
+        if fd != bd: k.xfer(f"b{fn-rack}", f"f{fn+rack}")
 
-        k.drop(f'b{bn+rack}')
+        k.drop(f"b{bn+rack}")
         if xfer_stitchNumber is not None: k.stitchNumber(stitchNumber) # reset it
         k.rack(0)
         if machine == "kniterate": k.addRollerAdvance(100)
-        k.knit(bd, f'b{bn-rack}', carriers["b"])
+        k.knit(bd, f"b{bn-rack}", carriers["b"])
         if fd != bd:
-            k.drop(f'f{fn-rack}')
+            k.drop(f"f{fn-rack}")
             if machine == "kniterate": k.addRollerAdvance(100)
-            k.knit(fd, f'f{fn+rack}', carriers["f"])
+            k.knit(fd, f"f{fn+rack}", carriers["f"])
         else:
             if xfer_stitchNumber is not None: k.stitchNumber(xfer_stitchNumber)
-            k.tuck(fd_t, f'f{fn+rack}', carriers["f"])
-            k.xfer(f'f{fn}', f'b{fn}')
+            k.tuck(fd_t, f"f{fn+rack}", carriers["f"])
+            k.xfer(f"f{fn}", f"b{fn}")
             k.rack(-rack)
-            k.xfer(f'b{fn}', f'f{fn-rack}')
+            k.xfer(f"b{fn}", f"f{fn-rack}")
 
-            k.drop(f'f{fn+rack}')
+            k.drop(f"f{fn+rack}")
             if xfer_stitchNumber is not None: k.stitchNumber(stitchNumber) # reset it
             k.rack(0)
             if machine == "kniterate": k.addRollerAdvance(100)
-            k.knit(fd, f'f{fn-rack}', carriers["f"])
+            k.knit(fd, f"f{fn-rack}", carriers["f"])
 
-    k.miss(bd, f'b{end_needles["b"]-rack}', carriers["b"])
-    if fd == bd: k.miss(fd, f'f{end_needles["f"]-rack}', carriers["f"])
-    else: k.miss(fd, f'f{end_needles["f"]+rack}', carriers["f"])
+    k.miss(bd, f"b{end_needles['b']-rack}", carriers["b"])
+    if fd == bd: k.miss(fd, f"f{end_needles['f']-rack}", carriers["f"])
+    else: k.miss(fd, f"f{end_needles['f']+rack}", carriers["f"])
 
     k.pause("tail?")
 
     if machine == "kniterate": k.rollerAdvance(100)
     for _ in range(6):
-        k.knit(bd, f'b{end_needles["b"]}', carriers["b"])
-        k.knit(bd_t, f'b{end_needles["b"]}', carriers["b"])
+        k.knit(bd, f"b{end_needles['b']}", carriers["b"])
+        k.knit(bd_t, f"b{end_needles['b']}", carriers["b"])
 
-        k.knit(fd, f'f{end_needles["f"]}', carriers["f"])
-        k.knit(fd_t, f'f{end_needles["f"]}', carriers["f"])
+        k.knit(fd, f"f{end_needles['f']}", carriers["f"])
+        k.knit(fd_t, f"f{end_needles['f']}", carriers["f"])
 
     k.comment(f"end double bed simultaneous sheet bindoff")

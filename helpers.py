@@ -53,22 +53,22 @@ def bnValid(b, n, gauge=1):
 #===============================================================================
 #----------------------------------- GETTERS -----------------------------------
 #===============================================================================
-def bnLast(start_n, end_n, gauge, bed_loops={"f": [], "b": []}, avoid_bns={"f": [], "b": []}, return_type=str):
+def bnLast(start_n, end_n, gauge, bn_locs={"f": [], "b": []}, avoid_bns={"f": [], "b": []}, return_type=str):
     bn = None
     if end_n > start_n: step = 1
     else: step = -1
     #
-    if type(bed_loops) == str: bn_locs = {bed_loops: [n for n in range(start_n, end_n+step, step) if bnValid(bed_loops, n, gauge) and n not in avoid_bns.get(bed_loops, [])]}
-    elif not len(bed_loops.get("f", [])) and not len(bed_loops.get("b", [])):
-        bn_locs = {"f": [n for n in range(start_n, end_n+step, step) if bnValid("f", n, gauge) and n not in avoid_bns.get("f", [])], "b": [n for n in range(start_n, end_n+step, step) if bnValid("b", n, gauge) and n not in avoid_bns.get("b", [])]}
-    else: bn_locs = bed_loops.copy()
+    if type(bn_locs) == str: _bn_locs = {bn_locs: [n for n in range(start_n, end_n+step, step) if bnValid(bn_locs, n, gauge) and n not in avoid_bns.get(bn_locs, [])]}
+    elif not len(bn_locs.get("f", [])) and not len(bn_locs.get("b", [])):
+        _bn_locs = {"f": [n for n in range(start_n, end_n+step, step) if bnValid("f", n, gauge) and n not in avoid_bns.get("f", [])], "b": [n for n in range(start_n, end_n+step, step) if bnValid("b", n, gauge) and n not in avoid_bns.get("b", [])]}
+    else: _bn_locs = bn_locs.copy()
     #
     for n in range(end_n, start_n-step, -step):
-        if n in bn_locs.get("f", []):
+        if n in _bn_locs.get("f", []):
             if return_type == str: bn = f"f{n}"
             else: bn = ["f", n]
             break
-        elif n in bn_locs.get("b", []):
+        elif n in _bn_locs.get("b", []):
             if return_type == str: bn = f"b{n}"
             else: bn = ["b", n]
             break
@@ -76,32 +76,32 @@ def bnLast(start_n, end_n, gauge, bed_loops={"f": [], "b": []}, avoid_bns={"f": 
     return bn
 
 
-def bnEdges(left_n, right_n, gauge, bed_loops={"f": [], "b": []}, avoid_bns={"f": [], "b": []}, return_type=str):
+def bnEdges(left_n, right_n, gauge, bn_locs={"f": [], "b": []}, avoid_bns={"f": [], "b": []}, return_type=str):
     # edge_bns = []
     #
-    if type(bed_loops) == str: bn_locs = {bed_loops: [n for n in range(left_n, right_n+1) if bnValid(bed_loops, n, gauge) and n not in avoid_bns.get(bed_loops, [])]}
-    elif not len(bed_loops.get("f", [])) and not len(bed_loops.get("b", [])):
-        bn_locs = {"f": [n for n in range(left_n, right_n+1) if bnValid("f", n, gauge) and n not in avoid_bns.get("f", [])], "b": [n for n in range(left_n, right_n+1) if bnValid("b", n, gauge) and n not in avoid_bns.get("b", [])]}
-    else: bn_locs = bed_loops.copy()
+    if type(bn_locs) == str: _bn_locs = {bn_locs: [n for n in range(left_n, right_n+1) if bnValid(bn_locs, n, gauge) and n not in avoid_bns.get(bn_locs, [])]}
+    elif not len(bn_locs.get("f", [])) and not len(bn_locs.get("b", [])):
+        _bn_locs = {"f": [n for n in range(left_n, right_n+1) if bnValid("f", n, gauge) and n not in avoid_bns.get("f", [])], "b": [n for n in range(left_n, right_n+1) if bnValid("b", n, gauge) and n not in avoid_bns.get("b", [])]}
+    else: _bn_locs = bn_locs.copy()
     #
-    return [bnLast(right_n, left_n, gauge, bn_locs, avoid_bns, return_type), bnLast(left_n, right_n, gauge, bn_locs, avoid_bns, return_type)]
+    return [bnLast(right_n, left_n, gauge, _bn_locs, avoid_bns, return_type), bnLast(left_n, right_n, gauge, _bn_locs, avoid_bns, return_type)]
 
     for n in range(left_n, right_n+1):
-        if n in bn_locs.get("f", []):
+        if n in _bn_locs.get("f", []):
             if return_type == str: edge_bns.append(f"f{n}")
             else: edge_bns.append(["f", n])
             break
-        elif n in bn_locs.get("b", []):
+        elif n in _bn_locs.get("b", []):
             if return_type == str: edge_bns.append(f"b{n}")
             else: edge_bns.append(["b", n])
             break
     #
     for n in range(right_n, left_n-1, -1):
-        if n in bn_locs.get("f", []):
+        if n in _bn_locs.get("f", []):
             if return_type == str: edge_bns.append(f"f{n}")
             else: edge_bns.append(["f", n])
             break
-        elif n in bn_locs.get("b", []):
+        elif n in _bn_locs.get("b", []):
             if return_type == str: edge_bns.append(f"b{n}")
             else: edge_bns.append(["b", n])
             break
