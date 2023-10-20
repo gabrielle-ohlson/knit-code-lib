@@ -776,10 +776,10 @@ def dropFinish(k, front_needle_ranges=[], back_needle_ranges=[], out_carriers=[]
 def bindoffTag(k, d, bed, edge_n, c, outhook=False, drop=False):
     if c is None: #just drop it
         if d == "-": # started pos
-            for n in range(edge_n, edge_n-3, -1):
+            for n in range(edge_n, edge_n+3):
                 k.drop(f"{bed}{n}")
         else:
-            for n in range(edge_n, edge_n+3):
+            for n in range(edge_n, edge_n-3, -1):
                 k.drop(f"{bed}{n}")
         #
         return
