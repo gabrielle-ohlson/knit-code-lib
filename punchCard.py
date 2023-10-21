@@ -1,13 +1,13 @@
 import cv2
 # import matplotlib.pyplot as plt
 
-from .helpers import c2cs, toggleDirection, tuckPattern, flattenIter
+from .helpers import c2cs, toggleDirection, tuckPattern, flattenIter, bnValid
 
 TUCK = 0
 FAIRISLE = 1
 SLIP = 2
 
-def generate(k, start_n, end_n, passes, c, bed, img_path, punch_card_dims=None, setting=TUCK, c2=None, color_change_mod=None, inhook_carriers=[], outhook_carriers=[]):
+def generate(k, start_n, end_n, passes, c, bed, img_path, punch_card_dims=None, setting=TUCK, c2=None, color_change_mod=None, gauge=1, gauge_data=False, inhook_carriers=[], outhook_carriers=[]):
     '''
     Function to emulate a punch card for a domestic knitting machine on an industrial machine (programmed with knitout) using a binary (black and white) image.
 
@@ -24,6 +24,8 @@ def generate(k, start_n, end_n, passes, c, bed, img_path, punch_card_dims=None, 
     * `setting` (int, optional): program constant specifying the setting to use for "punched out" sections (white pixels). Defaults to `FAIRISLE`.
     * `c2` (str or list, optional): a second carrier (or list of carriers, if plating) to use for color-work (NOTE: required if `setting == FAIRISLE or color_change_mod is not None`). Defaults to `None`.
     * `color_change_mod` (int or None, optional): indicates: "change carriers every `color_change_mod` passes". Defaults to `None`.
+    * `gauge` (int, optional): gauge to knit in. Defaults to `1`.
+    * `gauge_data` (bool, optional): whether to scale the punch card data to the gauge (so that each pixel is still knitted). Defaults to `False`.
     * `inhook_carriers` (list, optional): carriers to `inhook` before using for the first time (NOTE: will automatically add `tuckPattern` and releasehook too). Defaults to `[]`.
     * `outhook_carriers` (list, optional): carriers to `outhook` at the end of the function. Defaults to `[]`.
 
@@ -47,6 +49,8 @@ def generate(k, start_n, end_n, passes, c, bed, img_path, punch_card_dims=None, 
         left_n, right_n = end_n, start_n
         step = -1
     #
+    n_ranges = {"-": range(right_n, left_n-1, -1), "+": range(left_n, right_n+1)}
+    #
     cs = c2cs(c)
     #
     if c in inhook_carriers: directions[cs] = None
@@ -68,6 +72,7 @@ def generate(k, start_n, end_n, passes, c, bed, img_path, punch_card_dims=None, 
     if punch_card_dims is not None: img = cv2.resize(img, punch_card_dims, interpolation=cv2.INTER_AREA)
     #
     ret, data = cv2.threshold(img, 127, 255, cv2.THRESH_BINARY)
+    #
     # flip vertically so going from bottom up
     data = cv2.flip(data, 0)
     h, w = data.shape
@@ -76,25 +81,62 @@ def generate(k, start_n, end_n, passes, c, bed, img_path, punch_card_dims=None, 
     # plt.imshow(data)
     # plt.show()
     # #^
+    if gauge_data:
+        def getData(p, n):
+            return data[p%h][(n//gauge)%w] #TODO: #check
+            # if gauge_height: return data[(p//gauge)%h][(n//gauge)%w]
+    else:
+        def getData(p, n):
+            return data[p%h][n%w]
+
+    #
     do_releasehook = False
     #
     for p in range(passes):
         if color_change_mod is not None and p % color_change_mod == (color_change_mod-1): cs, cs2 = cs2, cs
+        #
         row = data[p%h] #TODO: #check
         #
         if directions[cs] is None: #inhook
             k.inhook(*cs)
-            tuckPattern(k, first_n=left_n if d1 == "+" else right_n, direction=d1, c=cs)
+            tuckPattern(k, first_n=start_n, direction=d1, c=cs)
+            # tuckPattern(k, first_n=left_n if d1 == "+" else right_n, direction=d1, c=cs)
             directions[cs] = d1
             do_releasehook = True
         #
+        d = directions[cs]
+        miss_n = n_ranges[d][-1]
+        #
+        for n in n_ranges[d]:
+            if bnValid(bed, n, gauge):
+                # if row[n%w] == 0: k.knit(d, f"{bed}{n}", *cs) #TODO: #check
+                if getData(p, n) == 0: k.knit(d, f"{bed}{n}", *cs) #TODO: #check
+                else:
+                    if setting == TUCK: k.tuck(d, f"{bed}{n}", *cs)
+                    elif setting == SLIP or n == miss_n: k.miss(d, f"{bed}{n}", *cs)
+            elif n == miss_n: k.miss(d, f"{bed}{n}", *cs)
+
+        """
         if directions[cs] == "+":
+            row = data[p%h] #TODO: #check
+            #
+            for n in range(left_n, right_n+1):
+                if bnValid(bed, n, gauge):
+                    if row[n%w] == 0: #TODO: #check
+                        k.knit(directions[cs], f"{bed}{n}", *cs)
+                    else:
+                        if setting == TUCK: k.tuck(directions[cs], f"{bed}{n}", *cs)
+                        elif setting == SLIP or n == right_n: k.miss(directions[cs], f"{bed}{n}", *cs)
+                elif n == right_n: k.miss(directions[cs], f"{bed}{n}", *cs)
+            '''
             for i in row:
                 n = i+left_n
-                if i == 0: k.knit(directions[cs], f"{bed}{n}", *cs)
-                else:
-                    if setting == TUCK: k.tuck(directions[cs], f"{bed}{n}", *cs)
-                    elif setting == SLIP: k.miss(directions[cs], f"{bed}{n}", *cs)
+                if bnValid(bed, n, gauge):
+                    if i == 0: k.knit(directions[cs], f"{bed}{n}", *cs)
+                    else:
+                        if setting == TUCK: k.tuck(directions[cs], f"{bed}{n}", *cs)
+                        elif setting == SLIP: k.miss(directions[cs], f"{bed}{n}", *cs)
+            '''
         else:
             for i in reversed(row):
                 n = i+left_n
@@ -102,9 +144,10 @@ def generate(k, start_n, end_n, passes, c, bed, img_path, punch_card_dims=None, 
                 else:
                     if setting == TUCK: k.tuck(directions[cs], f"{bed}{n}", *cs)
                     elif setting == SLIP: k.miss(directions[cs], f"{bed}{n}", *cs)
+        """
         #
         if do_releasehook:
-            tuckPattern(k, first_n=left_n if d1 == "+" else right_n, direction=d1, c=None) #drop it
+            tuckPattern(k, first_n=start_n, direction=d1, c=None) #drop it
             k.releasehook(*cs)
             do_releasehook = False
         #
@@ -113,21 +156,23 @@ def generate(k, start_n, end_n, passes, c, bed, img_path, punch_card_dims=None, 
         if setting == FAIRISLE:
             if directions[cs2] is None: #inhook
                 k.inhook(*cs2)
-                tuckPattern(k, first_n=left_n if d1 == "+" else right_n, direction=d1, c=cs2)
+                tuckPattern(k, first_n=start_n, direction=d1, c=cs2)
                 directions[cs2] = d1
                 do_releasehook = True
             #
-            if directions[cs2] == "+":
-                for i in row:
-                    n = i+left_n
-                    if i != 0: k.knit(directions[cs2], f"{bed}{n}", *cs2)
-            else:
-                for i in reversed(row):
-                    n = i+left_n
-                    if i != 0: k.knit(directions[cs2], f"{bed}{n}", *cs2)
+            d = directions[cs2]
+            miss_n = n_ranges[d][-1]
+            #
+            for n in n_ranges[d]:
+                if bnValid(bed, n, gauge):
+                    if getData(p, n) == 0: k.knit(d, f"{bed}{n}", *cs2) #TODO: #check
+                    else:
+                        if setting == TUCK: k.tuck(d, f"{bed}{n}", *cs2)
+                        elif setting == SLIP or n == miss_n: k.miss(d, f"{bed}{n}", *cs2)
+                elif n == miss_n: k.miss(d, f"{bed}{n}", *cs2)
             #
             if do_releasehook:
-                tuckPattern(k, first_n=left_n if d1 == "+" else right_n, direction=d1, c=None) #drop it
+                tuckPattern(k, first_n=start_n, direction=d1, c=None) #drop it
                 k.releasehook(*cs2)
                 do_releasehook = False
             #
@@ -138,4 +183,3 @@ def generate(k, start_n, end_n, passes, c, bed, img_path, punch_card_dims=None, 
     #
     if c2 is None: return directions[cs]
     else: return directions[c2cs(c)], directions[c2cs(c2)] #since they could have been toggled
-    
