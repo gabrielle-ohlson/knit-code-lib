@@ -1,13 +1,13 @@
 import cv2
 # import matplotlib.pyplot as plt
 
-from .helpers import c2cs, toggleDirection, tuckPattern
+from .helpers import c2cs, toggleDirection, tuckPattern, flattenIter
 
 TUCK = 0
 FAIRISLE = 1
 SLIP = 2
 
-def generate(k, start_n, end_n, passes, c, bed, img_path="../punch_cards/24X84.png", punch_card_dims=(24, 84), setting=FAIRISLE, c2=None, color_change_mod=None, inhook_carriers=[]):
+def generate(k, start_n, end_n, passes, c, bed, img_path, punch_card_dims=None, setting=TUCK, c2=None, color_change_mod=None, inhook_carriers=[], outhook_carriers=[]):
     '''
     Function to emulate a punch card for a domestic knitting machine on an industrial machine (programmed with knitout) using a binary (black and white) image.
 
@@ -22,6 +22,10 @@ def generate(k, start_n, end_n, passes, c, bed, img_path="../punch_cards/24X84.p
     * `img_path` (str): path to punch card image.
     * `punch_card_dims` (tuple or None, optional): dimensions of punch card in (w, h). Defaults to `None`.
     * `setting` (int, optional): program constant specifying the setting to use for "punched out" sections (white pixels). Defaults to `FAIRISLE`.
+    * `c2` (str or list, optional): a second carrier (or list of carriers, if plating) to use for color-work (NOTE: required if `setting == FAIRISLE or color_change_mod is not None`). Defaults to `None`.
+    * `color_change_mod` (int or None, optional): indicates: "change carriers every `color_change_mod` passes". Defaults to `None`.
+    * `inhook_carriers` (list, optional): carriers to `inhook` before using for the first time (NOTE: will automatically add `tuckPattern` and releasehook too). Defaults to `[]`.
+    * `outhook_carriers` (list, optional): carriers to `outhook` at the end of the function. Defaults to `[]`.
     '''
     directions = {}
     #
@@ -119,3 +123,6 @@ def generate(k, start_n, end_n, passes, c, bed, img_path="../punch_cards/24X84.p
                 do_releasehook = False
             #
             directions[cs2] = toggleDirection(directions[cs2])
+    #
+    for carrier in flattenIter(outhook_carriers):
+        k.outhook(carrier)
