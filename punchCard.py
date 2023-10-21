@@ -26,6 +26,15 @@ def generate(k, start_n, end_n, passes, c, bed, img_path, punch_card_dims=None, 
     * `color_change_mod` (int or None, optional): indicates: "change carriers every `color_change_mod` passes". Defaults to `None`.
     * `inhook_carriers` (list, optional): carriers to `inhook` before using for the first time (NOTE: will automatically add `tuckPattern` and releasehook too). Defaults to `[]`.
     * `outhook_carriers` (list, optional): carriers to `outhook` at the end of the function. Defaults to `[]`.
+
+    Raises:
+    ------
+    * ValueError: if `c2 is None` and `setting == FAIRISLE or color_change_mod is not None`.
+
+    Returns:
+    -------
+    * (str): next direction to knit carrier `c` in.
+    * (str, optional): if `c2 is not None` --- next direction to knit carrier `c2` in.
     '''
     directions = {}
     #
@@ -126,3 +135,7 @@ def generate(k, start_n, end_n, passes, c, bed, img_path, punch_card_dims=None, 
     #
     for carrier in flattenIter(outhook_carriers):
         k.outhook(carrier)
+    #
+    if c2 is None: return directions[cs]
+    else: return directions[c2cs(c)], directions[c2cs(c2)] #since they could have been toggled
+    
