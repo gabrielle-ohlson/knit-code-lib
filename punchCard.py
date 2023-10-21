@@ -9,7 +9,9 @@ MAX_FLOAT_WIDTH = 5
 TUCK = 0 # punch card: tuck on non-punched (white) pixels
 FAIRISLE = 1 # punch card: knit color 2 on punched (black) pixels
 SLIP = 2 # punch card: miss on non-punched (white) pixels
-LACE = 3 # punch card: TODO
+LACE = 3 # punch card: xfer on punched (black) pixels TODO
+# WEAVE = 4 # punch card: TODO
+
 
 # The punched hole is the design stitch, with one exception. For tuck stitch it is the UNPUNCHED hole which tucks, so all the other spaces have to be punched (it was what drove me to buy electronic machines).
 
@@ -52,7 +54,7 @@ def generate(k, start_n, end_n, passes, c, bed, img_path, punch_card_width=24, p
     * (str): next direction to knit carrier `c` in.
     * (str, optional): if `c2 is not None` --- next direction to knit carrier `c2` in.
     '''
-    if setting != TUCK and setting != FAIRISLE and setting != SLIP: raise ValueError(f"Unsupported setting: {setting}.  Supported settings are {TUCK} (tuck), {FAIRISLE} (fairisle), and {SLIP} (slip).")
+    if setting != TUCK and setting != FAIRISLE and setting != SLIP and setting != LACE: raise ValueError(f"Unsupported setting: {setting}.  Supported settings are {TUCK} (tuck), {FAIRISLE} (fairisle), {SLIP} (slip), and {LACE} (lace).")
     #
     #get punch card data
     img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
@@ -62,12 +64,14 @@ def generate(k, start_n, end_n, passes, c, bed, img_path, punch_card_width=24, p
         img = cv2.resize(img, punch_card_dims, interpolation=cv2.INTER_AREA)
         # if punch_card_dims is not None: img = cv2.resize(img, punch_card_dims, interpolation=cv2.INTER_AREA)
     #
-    if setting == FAIRISLE: ret, data = cv2.threshold(img, 127, 255, cv2.THRESH_BINARY_INV) #inverse so that 0 means plain knit with c2
+    if setting == FAIRISLE or setting == LACE: ret, data = cv2.threshold(img, 127, 255, cv2.THRESH_BINARY_INV) #inverse so that 0 means plain knit with c
     else: ret, data = cv2.threshold(img, 127, 255, cv2.THRESH_BINARY) # 0 means plain knit
     #
     # flip vertically so going from bottom up
     data = cv2.flip(data, 0)
     h, w = data.shape
+    #
+    bed2 = "b" if bed == "f" else "f"
     #
     directions = {}
     #
@@ -81,6 +85,8 @@ def generate(k, start_n, end_n, passes, c, bed, img_path, punch_card_width=24, p
         step = -1
     #
     n_ranges = {"-": range(right_n, left_n-1, -1), "+": range(left_n, right_n+1)}
+    #
+    left_edge_bn, right_edge_bn = bnEdges(left_n, right_n, gauge, return_type=list)
     #
     cs = c2cs(c)
     #
@@ -110,8 +116,7 @@ def generate(k, start_n, end_n, passes, c, bed, img_path, punch_card_width=24, p
     #
     if validate_setting:
         print("TODO")
-        if setting == TUCK:
-            left_edge_bn, right_edge_bn = bnEdges(left_n, right_n, gauge, return_type=list)
+        if setting == TUCK or setting == LACE:
             def validate(p, n):
                 if getData(p, n) == 0: return True #not actually a tuck
                 return n != left_edge_bn[1] and n != right_edge_bn[1] and (n-gauge < left_edge_bn[1] or getData(p, n-gauge) == 0) and (n+gauge > right_edge_bn[1] or getData(p, n+gauge) == 0)
@@ -160,6 +165,30 @@ def generate(k, start_n, end_n, passes, c, bed, img_path, punch_card_width=24, p
                 else:
                     if setting == TUCK: k.tuck(d, f"{bed}{n}", *cs)
                     elif setting == SLIP or n == miss_n: k.miss(d, f"{bed}{n}", *cs)
+                    elif setting == LACE: #TODO: #check
+                        if n == left_edge_bn[1] or n == right_edge_bn[1]: k.knit(d, f"{bed}{n}", *cs) # always knit edge-most needles
+                        else:
+                            k.xfer(f"{bed}{n}", f"{bed2}{n}")
+                            if d == "+": #transfer to the left
+                                # find next needle that contains knitting
+                                for n2 in range(n, left_edge_bn[1]-1, -1):
+                                    if bnValid(n2) and getData(p, n2) == 0: break # will default to left_edge_bn[1]
+                                #
+                                if bed2 == "f": k.rack(n-n2)
+                                else: k.rack(n2-n)
+                                #
+                                k.xfer(f"{bed2}{n}", f"{bed}{n2}")
+                                k.rack(0)
+                            else: #transfer to the right
+                                # find next needle that contains knitting
+                                for n2 in range(n, right_edge_bn[1]+1):
+                                    if bnValid(n2) and getData(p, n2) == 0: break # will default to right_edge_bn[1]
+                                #
+                                if bed2 == "f": k.rack(n-n2)
+                                else: k.rack(n2-n)
+                                #
+                                k.xfer(f"{bed2}{n}", f"{bed}{n2}")
+                                k.rack(0)
             elif n == miss_n: k.miss(d, f"{bed}{n}", *cs)
 
         """
