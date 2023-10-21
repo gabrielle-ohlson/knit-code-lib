@@ -81,7 +81,7 @@ def generate(swatches, out_fp, main_c="1", waste_c="2", draw_c="3", sort_by_widt
             if directions[main_cs] == "+": k.miss("-", f"f{left_n}", main_c)
             else: k.miss("+", f"f{dims[0]}", main_c)
         elif not sort_by_width and dims[0] < right_n:
-            knitlib.wasteSection(k, left_n, right_n, closed_aston=(not tube), waste_c=waste_c, draw_c=None, in_cs=[], gauge=gauge, end_on_right=end_on_right, initial=False, draw_middle=False, interlock_passes=10)
+            knitlib.wasteSection(k, left_n, right_n, closed_caston=(not tube), waste_c=waste_c, draw_c=None, in_cs=[], gauge=gauge, end_on_right=end_on_right, initial=False, draw_middle=False, interlock_passes=10)
             knitlib.interlock(k, start_n=right_n, end_n=dims[0]+1, passes=1, c=waste_c, gauge=gauge) # position carrier by new right needle
             for n in range(dims[0]+1, right_n+1):
                 k.drop(f"f{n}")
@@ -231,6 +231,6 @@ def generate(swatches, out_fp, main_c="1", waste_c="2", draw_c="3", sort_by_widt
     if tube: back_needle_ranges=[left_n, right_n]
     else: back_needle_ranges=[]
 
-    knitlib.dropFinish(k, front_needle_ranges=[left_n, right_n], back_needle_ranges=back_needle_ranges, carriers=[main_c, waste_c, draw_c], direction="+", borderC=waste_c, borderLength=20)
+    knitlib.dropFinish(k, front_needle_ranges=[left_n, right_n], back_needle_ranges=back_needle_ranges, carriers=[main_c, waste_c, draw_c], direction="+", border_c=waste_c, border_passes=20)
 
     k.write(out_fp)
