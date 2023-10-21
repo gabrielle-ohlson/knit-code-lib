@@ -19,7 +19,7 @@ LACE = 3 # punch card: TODO
 # The punch card holes will be the plain knit stitch when knitting Tuck - and the plain knit stitch when knitting slip/skip.
 
 
-def generate(k, start_n, end_n, passes, c, bed, img_path, punch_card_width=24, punch_card_height=None, setting=TUCK, c2=None, color_change_mod=None, gauge=1, gauge_data=False, validate_setting=True, inhook_carriers=[], outhook_carriers=[]):
+def generate(k, start_n, end_n, passes, c, bed, img_path, punch_card_width=24, punch_card_height=None, setting=TUCK, c2=None, color_change_mod=None, gauge=1, gauge_data=False, validate_setting=False, inhook_carriers=[], outhook_carriers=[]):
     '''
     Function to emulate a punch card for a domestic knitting machine on an industrial machine (programmed with knitout) using a binary (black and white) image.
 
@@ -39,7 +39,7 @@ def generate(k, start_n, end_n, passes, c, bed, img_path, punch_card_width=24, p
     * `color_change_mod` (int or None, optional): indicates: "change carriers every `color_change_mod` passes". Defaults to `None`.
     * `gauge` (int, optional): gauge to knit in. Defaults to `1`.
     * `gauge_data` (bool, optional): whether to scale the punch card data to the gauge (so that each pixel is still knitted). Defaults to `False`.
-    * `validate_setting` (bool, optional): whether to check to make sure setting operation followings "knitting rules." Defaults to `True`.
+    * `validate_setting` (bool, optional): whether to check to make sure setting operation followings "knitting rules." Defaults to `False`.
     * `inhook_carriers` (list, optional): carriers to `inhook` before using for the first time (NOTE: will automatically add `tuckPattern` and releasehook too). Defaults to `[]`.
     * `outhook_carriers` (list, optional): carriers to `outhook` at the end of the function. Defaults to `[]`.
 
