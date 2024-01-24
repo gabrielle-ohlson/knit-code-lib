@@ -165,7 +165,7 @@ def generate(k, start_n, end_n, passes, c, bed, img_path, punch_card_width=24, p
                 else:
                     if setting == TUCK: k.tuck(d, f"{bed}{n}", *cs)
                     elif setting == SLIP or n == miss_n: k.miss(d, f"{bed}{n}", *cs)
-                    elif setting == LACE: #TODO: #check
+                    elif setting == LACE: #TODO: #check #TODO: have xfer be staggered if multiple needles in lace hole and multiple needles for knitting to the side
                         if n == left_edge_bn[1] or n == right_edge_bn[1]: k.knit(d, f"{bed}{n}", *cs) # always knit edge-most needles
                         else:
                             k.xfer(f"{bed}{n}", f"{bed2}{n}")

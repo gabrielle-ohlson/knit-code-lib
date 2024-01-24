@@ -1227,14 +1227,15 @@ def openTubeBindoff(k, start_n, end_n, c, gauge=1, bed_mods=None, use_sliders=Fa
             if xfer_stitchNumber is not None: k.stitchNumber(xfer_stitchNumber)
             k.xfer(f"f{n}", f"b{n}")
         else:
-            if stitchNumber is not None: k.stitchNumber(stitchNumber)
-            k.knit(d, f"f{n}", *cs)
-            k.miss(d, f"f{n+shifts[0]}", *cs)
-            if xfer_stitchNumber is not None: k.stitchNumber(xfer_stitchNumber)
-            k.xfer(f"f{n}", f"{b2}{n}")
-            k.rack(shifts[0])
-            k.xfer(f"{b2}{n}", f"f{n+shifts[0]}")
-            k.rack(0)
+            if n % gauge == bed_mods["f"]: #TODO: #check
+                if stitchNumber is not None: k.stitchNumber(stitchNumber)
+                k.knit(d, f"f{n}", *cs)
+                k.miss(d, f"f{n+shifts[0]}", *cs)
+                if xfer_stitchNumber is not None: k.stitchNumber(xfer_stitchNumber)
+                k.xfer(f"f{n}", f"{b2}{n}")
+                k.rack(shifts[0])
+                k.xfer(f"{b2}{n}", f"f{n+shifts[0]}")
+                k.rack(0)
 
     # back:
     d = toggleDirection(d)
@@ -1252,14 +1253,15 @@ def openTubeBindoff(k, start_n, end_n, c, gauge=1, bed_mods=None, use_sliders=Fa
             if add_tag: bindoffTag(k, d, "b", n, None) #drop it
             break
         else:
-            if stitchNumber is not None: k.stitchNumber(stitchNumber)
-            k.knit(d, f"b{n}", *cs)
-            k.miss(d, f"b{n+shifts[1]}", *cs)
-            if xfer_stitchNumber is not None: k.stitchNumber(xfer_stitchNumber)
-            k.xfer(f"b{n}", f"{b2}{n}")
-            k.rack(shifts[0]) #still want the same rack, since we've switched beds
-            k.xfer(f"{b2}{n}", f"b{n+shifts[1]}")
-            k.rack(0)
+            if n % gauge == bed_mods["b"]:
+                if stitchNumber is not None: k.stitchNumber(stitchNumber)
+                k.knit(d, f"b{n}", *cs)
+                k.miss(d, f"b{n+shifts[1]}", *cs)
+                if xfer_stitchNumber is not None: k.stitchNumber(xfer_stitchNumber)
+                k.xfer(f"b{n}", f"{b2}{n}")
+                k.rack(shifts[0]) #still want the same rack, since we've switched beds
+                k.xfer(f"{b2}{n}", f"b{n+shifts[1]}")
+                k.rack(0)
 
     if stitchNumber is not None: k.stitchNumber(stitchNumber) #reset
     k.comment("end open tube bindoff")

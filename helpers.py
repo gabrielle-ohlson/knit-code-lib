@@ -320,6 +320,16 @@ def knitPass(k, start_n, end_n, c, bed="f", gauge=1, avoid_bns={"f": [], "b": []
             if f"{bed}{n}" not in avoid_bns_list and bnValid(bed, n, gauge): k.knit("-", f"{bed}{n}", *cs)
             elif n == end_n: k.miss("-", f"{bed}{n}", *cs)
 
+
+def rackedXfer(k, from_bn, to_bn):
+    bn1, bn2 = bnFormat([from_bn, to_bn], sort=False, return_type=list)
+    if bn1[0][0] == "f": k.rack(bn1[1]-bn2[1])
+    else: k.rack(bn2[1]-bn1[1])
+    #
+    k.xfer(f"{bn1[0]}{bn1[1]}", f"{bn2[0]}{bn2[1]}")
+    k.rack(0)
+
+
 #-------------------------------------------------------------------------------
 
 
