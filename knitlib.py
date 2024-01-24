@@ -1182,7 +1182,7 @@ def closedTubeBindoff(k, start_n, end_n, c, gauge=1, bed_mods=None, use_sliders=
     return last_bn #in case we want to move it since it should be empty etc.
 
 
-def openTubeBindoff(k, start_n, end_n, c, gauge=1, bed_mods=None, use_sliders=False, add_tag=True, outhook=False, speedNumber=None, stitchNumber=None, xfer_stitchNumber=None): #TODO: add code for gauge 2
+def openTubeBindoff(k, start_n, end_n, c, gauge=1, bed_mods=None, use_sliders=False, add_tag=True, outhook=False, speedNumber=None, stitchNumber=None, xfer_stitchNumber=None):
     # https://github.com/textiles-lab/knitout-examples/blob/master/J-30.js
     cs = c2cs(c) # ensure tuple type
 
@@ -1196,6 +1196,8 @@ def openTubeBindoff(k, start_n, end_n, c, gauge=1, bed_mods=None, use_sliders=Fa
     if end_n > start_n: # carrier is parked on the left side (start pos)
         d = "+"
         left_n, right_n = start_n, end_n
+
+        first_n_b = right_n-((right_n-bed_mods["b"])%gauge)
         
         last_n_f = right_n-((right_n-bed_mods["f"])%gauge) #shift over so ending on needle that we'll knit
         last_n_b = left_n+(-(left_n-bed_mods["b"])%gauge) #shift over so starting on needle that we'll knit
@@ -1204,6 +1206,8 @@ def openTubeBindoff(k, start_n, end_n, c, gauge=1, bed_mods=None, use_sliders=Fa
     else: # carrier is parked on the right side (start neg)
         d = "-"
         left_n, right_n = end_n, start_n
+
+        first_n_b = left_n+(-(left_n-bed_mods["b"])%gauge)
 
         last_n_f = left_n+(-(left_n-bed_mods["f"])%gauge) #shift over so starting on needle that we'll knit
         last_n_b = right_n-((right_n-bed_mods["b"])%gauge) #shift over so ending on needle that we'll knit
@@ -1225,9 +1229,12 @@ def openTubeBindoff(k, start_n, end_n, c, gauge=1, bed_mods=None, use_sliders=Fa
             k.knit(d, f"f{n}", *cs)
             k.tuck(d, f"f{n+shifts[0]}", *cs) # extra loop to help hold things up
             if xfer_stitchNumber is not None: k.stitchNumber(xfer_stitchNumber)
-            k.xfer(f"f{n}", f"b{n}")
+            k.rack(n-first_n_b)
+            k.xfer(f"f{n}", f"b{first_n_b}")
+            k.rack(0)
+            k.drop(f"f{n+shifts[0]}")
         else:
-            if n % gauge == bed_mods["f"]: #TODO: #check
+            if n % gauge == bed_mods["f"]:
                 if stitchNumber is not None: k.stitchNumber(stitchNumber)
                 k.knit(d, f"f{n}", *cs)
                 k.miss(d, f"f{n+shifts[0]}", *cs)
