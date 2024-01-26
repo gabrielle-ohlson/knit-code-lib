@@ -643,7 +643,7 @@ def zigzagCaston(k, start_n, end_n, c, gauge=1, inhook=False, releasehook=False,
         b1, b2 = "f", "b"
     else:
         d = "-"
-        n_range = range(end_n, start_n-1, -1)
+        n_range = range(start_n, end_n-1, -1)
         b1, b2 = "b", "f"
     
     if inhook:

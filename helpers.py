@@ -1,6 +1,8 @@
 import numpy as np
 import regex
 
+import cv2
+
 #===============================================================================
 #-------------------------------- MISC HELPERS ---------------------------------
 #===============================================================================
@@ -37,6 +39,45 @@ def flattenIter(l): #TODO: add support for dict and other iters
     if type(l) == list: return out
     elif type(l) == tuple: return tuple(out)
     else: raise ValueError(f"type {type(l)} not support yet. TODO")
+
+
+def processImg(img_path : str, cs_cols : dict, resize_dims : tuple=()) -> tuple: #TODO: #check
+    '''
+    Parameters:
+    ----------
+    * `img_path` (str): relative or absolute path of image to process.
+    * `cs_cols` (dict): a dictionary with carriers (cs) as keys, and the colors they should map to as values.
+    * `resize_dims` (tuple[int, int], optional): dimensions of resize width and height. Defaults to `()` (aka don't resize).
+
+    Returns:
+    -------
+    * (tuple): (arr: numpy array with respective carrier at each needle that it knits with, cs: list of carriers).
+    '''
+    img = cv2.imread(img_path)
+    h, w, _ = img.shape
+    if len(resize_dims): img = cv2.resize(img, resize_dims, interpolation=cv2.INTER_NEAREST)
+
+    cols = np.unique(img.reshape(-1, img.shape[-1]), axis=0)
+
+    cs = [int(c) for c in cs_cols.keys()]
+    if len(cols) != len(cs_cols):
+        unassigned = [col for col in cols.tolist() if col not in cs_cols.values()] #cols, list(cs_cols.values()))
+        c = 1
+        for col in unassigned:
+            while c in cs:
+                c += 1
+            
+            cs_cols[c] = col
+            cs.append(c)
+            c += 1
+    
+    arr = np.zeros((h,w), dtype=int)
+    for i, col in enumerate(cs_cols.values()):
+        mask = np.all(img == col, axis=-1)
+        arr[mask] = i 
+
+    arr = cv2.flip(arr, 0)
+    return arr, cs
 
 #-------------------------------------------------------------------------------
 
