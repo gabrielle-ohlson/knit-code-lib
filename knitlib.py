@@ -462,7 +462,7 @@ def altTuckCaston(k, start_n, end_n, c, bed, gauge=1, inhook=False, releasehook=
 
     mods = modsHalveGauge(gauge, bed)
 
-    last_n = None
+    if abs(mods[1]-start_n%(gauge*2)) < abs(mods[0]-start_n%(gauge*2)): mods = mods[::-1] #so don't start knitting on most recently tucked needle
 
     if inhook:
         k.inhook(*cs)
@@ -475,7 +475,6 @@ def altTuckCaston(k, start_n, end_n, c, bed, gauge=1, inhook=False, releasehook=
     for n in n_range2:
         if n % (gauge*2) == mods[1]:
             k.tuck(d2, f"{bed}{n}", *cs)
-            last_n = n #keep updating this
         elif n == n_range2[-1]: k.miss(d2, f"{bed}{n}", *cs)
 
     if releasehook:
@@ -486,7 +485,7 @@ def altTuckCaston(k, start_n, end_n, c, bed, gauge=1, inhook=False, releasehook=
         if knit_stitchNumber is not None: k.stitchNumber(knit_stitchNumber)
         # 2 passes to get the knitting going (and to ensure the last needle we tucked on is skipped)
         for n in n_range1:
-            if n != last_n and n % gauge == mods[0]: k.knit(d1, f"{bed}{n}", *cs)
+            if n % gauge == mods[0]: k.knit(d1, f"{bed}{n}", *cs)
 
         for n in n_range2:
             if n % gauge == mods[0]: k.knit(d2, f"{bed}{n}", *cs)
@@ -508,24 +507,50 @@ def altTuckClosedCaston(k, start_n, end_n, c, gauge=2):
         n_range1 = range(start_n, end_n+1) 
         n_range2 = range(end_n, start_n-1) 
         d2 = "-"
-
+    
     last_n = None
 
-    for n in n_range1:
-        if bnValid("f", n, gauge):
-            k.tuck(d1, f"f{n}", *cs)
-            last_n = n #keep updating this
-        elif bnValid("b", n, gauge):
-            k.tuck(d1, f"b{n}", *cs)
-            last_n = n #keep updating this
-    
     if gauge == 1:
+        for n in n_range1:
+            if n % 2 == 0: k.tuck(d1, f"f{n}", *cs)
+            else: k.tuck(d1, f"b{n}", *cs)
+        
         for n in n_range2:
-            if n % gauge == 0: k.tuck(d2, f"b{n}", *cs)
+            if n % 2 == 0: k.tuck(d2, f"b{n}", *cs)
             else: k.tuck(d2, f"f{n}", *cs)
     else:
+        for n in n_range1:
+            if bnValid("f", n, gauge):
+                k.tuck(d1, f"f{n}", *cs)
+                last_n = n #keep updating this
+            elif bnValid("b", n, gauge):
+                k.tuck(d1, f"b{n}", *cs)
+                last_n = n #keep updating this
+
+        prev_n = None #TODO: #check this stuff
+        
+        if bnValid("f", last_n, gauge):
+            if d1 == "-": prev_n = last_n+(gauge//2)
+            else: prev_n = last_n-gauge+(gauge//2)
+            #
+            k.knit(d2, f"b{prev_n}", *cs)
+            k.miss(d1, f"f{last_n}", *cs)
+        else:
+            if d1 == "-": prev_n = last_n+gauge-(gauge//2)
+            else: prev_n = last_n-(gauge//2)
+            #
+            k.knit(d2, f"f{prev_n}", *cs)
+            k.miss(d1, f"b{last_n}", *cs)
+
+        # if (bnValid("f", last_n, gauge) and d2 == "-") or (bnValid("b", last_n, gauge) and d2 == "+"):
+        #     k.rack(1.25)
+        # else:
+        # # elif (bnValid("f", last_n, gauge) and d2 == "+") or (bnValid("b", last_n, gauge) and d2 == "-"):
+        #     k.rack(-1.25) #TODO: #check (-1.75 #?)
+    
         for n in n_range2:
-            if n == last_n: continue # skip first needle that we just knitted
+            # if n == last_n: continue # skip first needle that we just knitted #remove
+            if n == prev_n: continue # skip first needle that we just knitted
             if bnValid("f", n, gauge): k.knit(d2, f"f{n}", *cs)
             elif bnValid("b", n, gauge): k.knit(d2, f"b{n}", *cs)
             elif n == n_range2[-1]: k.miss(d2, f"f{n}", *cs)
@@ -534,7 +559,7 @@ def altTuckClosedCaston(k, start_n, end_n, c, gauge=2):
 
 
 #--- FUNCTION FOR CASTING ON OPEN TUBES ---
-def altTuckOpenTubeCaston(k, start_n, end_n, c, gauge=1, inhook=False, releasehook=False, tuck_pattern=False, speedNumber=None, stitchNumber=None):
+def altTuckOpenTubeCaston(k, start_n, end_n, c, gauge=1, inhook=False, releasehook=False, tuck_pattern=False, speedNumber=None, stitchNumber=None, knit_after=True):
     '''
     Function for an open-tube cast-on, tucking on alternate needles circularly.
 
@@ -606,22 +631,23 @@ def altTuckOpenTubeCaston(k, start_n, end_n, c, gauge=1, inhook=False, releaseho
         # if (gauge == 1 or n % gauge != 0) and ((((n-1)/gauge) % 2) != 0): k.knit(dir2, f"b{n}", *cs)
         # elif n == start_n: k.miss(dir2, f"b{n}", *cs)
 
-    #two final passes now that loops are secure
-    for n in needle_range1:
-        if bnValid("f", n, gauge): k.knit(d1, f"f{n}", *cs)
-        # if n % gauge == 0: k.knit(dir1, f"f{n}", *cs)
-        elif n == end_n: k.miss(d1, f"f{n}", *cs)
+    if knit_after:
+        #two final passes now that loops are secure
+        for n in needle_range1:
+            if bnValid("f", n, gauge): k.knit(d1, f"f{n}", *cs)
+            # if n % gauge == 0: k.knit(dir1, f"f{n}", *cs)
+            elif n == end_n: k.miss(d1, f"f{n}", *cs)
 
-    for n in needle_range2:
-        if bnValid("b", n, gauge): k.knit(d2, f"b{n}", *cs)
-        # if (n+1) % gauge == 0: k.knit(dir2, f"b{n}", *cs)
-        elif n == start_n: k.miss(d2, f"b{n}", *cs)
+        for n in needle_range2:
+            if bnValid("b", n, gauge): k.knit(d2, f"b{n}", *cs)
+            # if (n+1) % gauge == 0: k.knit(dir2, f"b{n}", *cs)
+            elif n == start_n: k.miss(d2, f"b{n}", *cs)
 
     k.comment("end open tube cast-on")
 
 
 #--- FUNCTION FOR CASTING ON CLOSED TUBES (zig-zag) ---
-def zigzagCaston(k, start_n, end_n, c, gauge=1, inhook=False, releasehook=False, tuck_pattern=True): #TODO: adjust for gauge
+def zigzagCaston(k, start_n, end_n, c, gauge=1, inhook=False, releasehook=False, tuck_pattern=True): #TODO: adjust for gauge TODO: indicate that most recent needle needs to be skipped, or do something to secure it (such as `knit_after` param)
     '''
     * k is the knitout Writer
     * start_n is the initial needle to cast-on
