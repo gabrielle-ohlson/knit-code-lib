@@ -2,7 +2,7 @@ import os
 import sys
 sys.path.insert(0, os.getcwd())
 
-from .helpers import tuckPattern, c2cs, flattenIter, halveGauge, bnValid, toggleDirection, bnLast
+from .helpers import tuckPattern, c2cs, flattenIter, modsHalveGauge, bnValid, toggleDirection, bnLast
 from .stitchPatterns import interlock
 
 
@@ -460,7 +460,7 @@ def altTuckCaston(k, start_n, end_n, c, bed, gauge=1, inhook=False, releasehook=
         n_range1 = range(start_n, end_n-1, -1)
         n_range2 = range(end_n, start_n+1)
 
-    mods = halveGauge(gauge, bed)
+    mods = modsHalveGauge(gauge, bed)
 
     last_n = None
 
@@ -575,8 +575,8 @@ def altTuckOpenTubeCaston(k, start_n, end_n, c, gauge=1, inhook=False, releaseho
         k.inhook(*cs)
         if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=cs)
 
-    mods_f = halveGauge(gauge, "f")
-    mods_b = halveGauge(gauge, "b")
+    mods_f = modsHalveGauge(gauge, "f")
+    mods_b = modsHalveGauge(gauge, "b")
 
     for n in needle_range1:
         if n % (gauge*2) == mods_f[0]: k.knit(d1, f"f{n}", *cs)
@@ -650,7 +650,7 @@ def zigzagCaston(k, start_n, end_n, c, gauge=1, inhook=False, releasehook=False,
         k.inhook(*cs)
         if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d, c=cs)
 
-    # mods = {b1: halveGauge(gauge, b1), b2: halveGauge(gauge, b2)}
+    # mods = {b1: modsHalveGauge(gauge, b1), b2: modsHalveGauge(gauge, b2)}
     k.rack(0.25)
     for n in n_range:
         if bnValid(b1, n, gauge): k.knit(d, f"{b1}{n}", *cs)
@@ -1019,8 +1019,7 @@ def sheetBindoff(k, start_n, end_n, c, bed="f", gauge=1, mod=None, use_sliders=F
     else: # carrier is parked on the right side (start neg)
         right_n = start_n-((start_n-mod)%gauge) #shift over so starting on needle that we'll knit
         left_n = end_n+(-(end_n-mod)%gauge) #shift over so ending on needle that we'll knit
-
-        left_n, right_n = end_n, start_n
+        # left_n, right_n = end_n, start_n #check
         d = "-"
         needle_range = range(right_n, left_n-1, -gauge)
 

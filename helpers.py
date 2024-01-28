@@ -1,3 +1,5 @@
+from typing import Union, Optional, Tuple, List, Dict
+
 import numpy as np
 import regex
 
@@ -6,22 +8,22 @@ import cv2
 #===============================================================================
 #-------------------------------- MISC HELPERS ---------------------------------
 #===============================================================================
-def parityRound(num, parity="even"):
+def parityRound(num: int, parity: str="even") -> int:
     if parity == "even": return round(num/2)*2
     else: return int(np.floor(num/2))*2 + 1
 
 
-def toList(el):
+def toList(el) -> list:
     if isinstance(el, str): return [el]
     else: return list(el)
 
 
-def toTuple(el):
+def toTuple(el) -> tuple:
     if hasattr(el, "__iter__") and not isinstance(el, str): return tuple(el)
     else: return (el,)
 
 
-def flattenList(l):
+def flattenList(l: list) -> list:
     out = []
     for item in l:
         if hasattr(item, "__iter__") and not isinstance(item, str):
@@ -30,7 +32,7 @@ def flattenList(l):
     return out
 
 
-def flattenIter(l): #TODO: add support for dict and other iters
+def flattenIter(l: Union[list, tuple]) -> Union[list, tuple]: #TODO: add support for dict and other iters
     out = []
     for item in l:
         if hasattr(item, "__iter__") and not isinstance(item, str): out.extend(flattenIter(item))
@@ -41,7 +43,7 @@ def flattenIter(l): #TODO: add support for dict and other iters
     else: raise ValueError(f"type {type(l)} not support yet. TODO")
 
 
-def processImg(img_path : str, cs_cols : dict, resize_dims : tuple=()) -> tuple: #TODO: #check
+def processImg(img_path: str, cs_cols: dict, resize_dims: Tuple[int,int]=()) -> Tuple[np.ndarray, List[int]]: #TODO: #check
     '''
     Parameters:
     ----------
@@ -85,7 +87,7 @@ def processImg(img_path : str, cs_cols : dict, resize_dims : tuple=()) -> tuple:
 #===============================================================================
 #----------------------------- VALIDATION HELPERS ------------------------------
 #===============================================================================
-def bnValid(b, n, gauge=1):
+def bnValid(b: str, n: int, gauge: int=1) -> bool:
     return (b == "f" and n % gauge == 0) or (b == "b" and n % gauge == (gauge//2))
 
 #-------------------------------------------------------------------------------
@@ -94,7 +96,7 @@ def bnValid(b, n, gauge=1):
 #===============================================================================
 #----------------------------------- GETTERS -----------------------------------
 #===============================================================================
-def bnLast(start_n, end_n, gauge, bn_locs={"f": [], "b": []}, avoid_bns={"f": [], "b": []}, return_type=str):
+def bnLast(start_n: int, end_n: int, gauge: int, bn_locs: Union[str, Dict[str,List[int]]]={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, return_type: type=str) -> Union[str, tuple, list]:
     bn = None
     if end_n > start_n: step = 1
     else: step = -1
@@ -107,17 +109,21 @@ def bnLast(start_n, end_n, gauge, bn_locs={"f": [], "b": []}, avoid_bns={"f": []
     for n in range(end_n, start_n-step, -step):
         if n in _bn_locs.get("f", []):
             if return_type == str: bn = f"f{n}"
-            else: bn = ["f", n]
+            elif return_type == tuple: bn = ("f", n)
+            elif return_type == list: bn = ["f", n]
+            else: raise ValueError("unsupported return_type requested.")
             break
         elif n in _bn_locs.get("b", []):
             if return_type == str: bn = f"b{n}"
-            else: bn = ["b", n]
+            elif return_type == tuple: bn = ("b", n)
+            elif return_type == list: bn = ["b", n]
+            else: raise ValueError("unsupported return_type requested.")
             break
     #
     return bn
 
 
-def bnEdges(left_n, right_n, gauge, bn_locs={"f": [], "b": []}, avoid_bns={"f": [], "b": []}, return_type=str):
+def bnEdges(left_n: int, right_n: int, gauge: int, bn_locs: Union[str, Dict[str,List[int]]]={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, return_type: type=str) -> Union[Tuple[str,str], Tuple[tuple,tuple], Tuple[list,list]]:
     # edge_bns = []
     #
     if type(bn_locs) == str: _bn_locs = {bn_locs: [n for n in range(left_n, right_n+1) if bnValid(bn_locs, n, gauge) and n not in avoid_bns.get(bn_locs, [])]}
@@ -125,8 +131,8 @@ def bnEdges(left_n, right_n, gauge, bn_locs={"f": [], "b": []}, avoid_bns={"f": 
         _bn_locs = {"f": [n for n in range(left_n, right_n+1) if bnValid("f", n, gauge) and n not in avoid_bns.get("f", [])], "b": [n for n in range(left_n, right_n+1) if bnValid("b", n, gauge) and n not in avoid_bns.get("b", [])]}
     else: _bn_locs = bn_locs.copy()
     #
-    return [bnLast(right_n, left_n, gauge, _bn_locs, avoid_bns, return_type), bnLast(left_n, right_n, gauge, _bn_locs, avoid_bns, return_type)]
-
+    return (bnLast(right_n, left_n, gauge, _bn_locs, avoid_bns, return_type), bnLast(left_n, right_n, gauge, _bn_locs, avoid_bns, return_type))
+    """
     for n in range(left_n, right_n+1):
         if n in _bn_locs.get("f", []):
             if return_type == str: edge_bns.append(f"f{n}")
@@ -148,6 +154,7 @@ def bnEdges(left_n, right_n, gauge, bn_locs={"f": [], "b": []}, avoid_bns={"f": 
             break
     #
     return edge_bns
+    """
 
 
 
@@ -157,7 +164,7 @@ def bnEdges(left_n, right_n, gauge, bn_locs={"f": [], "b": []}, avoid_bns={"f": 
 #===============================================================================
 #----------------------------- FORMATTING HELPERS ------------------------------
 #===============================================================================
-def c2cs(c):
+def c2cs(c: Union[str, Tuple[str], List[str]]) -> Tuple[str]:
     '''
     Ensures carriers are in the program's conventional form (always tuple, even if passed as string).
 
@@ -173,39 +180,39 @@ def c2cs(c):
     else: return (c,)
 
 
-def toggleDirection(d):
+def toggleDirection(d: str) -> str:
     if d == "-": return "+"
     else: return "-"
 
 
-def bnHalfG(b, n):
+def bnHalfG(b: str, n: int) -> int:
     if b == "f": return n*2
     else: return (n*2)+1
 
 
-def bnGauged(b, n, gauge=2):
+def bnGauged(b: str, n: int, gauge: int=2) -> int:
     if b == "f": return n*gauge
     else: return (n*gauge)+(gauge//2)
 
 
-def halveGauge(gauge, mod): # usage: n % (gauge*2) == mods[0] or n % (gauge*2) == mods[1]
+def modsHalveGauge(gauge: int, mod: Union[int, str]) -> Tuple[int,int]: # usage: n % (gauge*2) == mods[0] or n % (gauge*2) == mods[1]
     if type(mod) == str: #passed bed for it
         if mod == "f": mod = 0
         else: mod = gauge//2 # -1 #if gauge=1, this is 0 no matter what so works
     #
-    return [mod, mod+gauge]
+    return (mod, mod+gauge)
 
 
-def bnSplit(bns):
+def bnSplit(bns: Union[str,List[str],Tuple[str]]) -> Union[Tuple[str,int], List[Tuple[str,int]]]:
     if type(bns) == str:
         i = regex.search(r"[a-z]+", bns).end()
-        return [bns[:i], int(bns[i:])]
+        return (bns[:i], int(bns[i:]))
     else:
         split_idxs = [regex.search(r"[a-z]+", val).end() for val in bns]
-        return [[val[:i], int(val[i:])] for (val, i) in zip(bns, split_idxs)]
+        return [(val[:i], int(val[i:])) for (val, i) in zip(bns, split_idxs)]
 
 
-def bnSort(bn_list=[], direction="+", unique=True):
+def bnSort(bn_list: List[str]=[], direction: str="+", unique: bool=True) -> List[Tuple[str,int]]:
     '''
     *TODO
     must be in list with strings format, e.g., ["f0", "b0", "f10"]
@@ -219,7 +226,7 @@ def bnSort(bn_list=[], direction="+", unique=True):
     else: return sorted_bns # bed `b` comes first
 
 
-def bnFormat(needles, bed=None, gauge=2, sort=True, unique=True, return_type=list): #TODO: #check and test this #*
+def bnFormat(needles: Union[str, List[str], Tuple[str], Dict[str,int]], bed: Union[str, None]=None, gauge: int=2, sort: bool=True, unique: bool=True, return_type: type=list) -> Union[List[str], Tuple[str], Dict[str,int]]: #TODO: #check and test this #*
     '''
     Converts iterable of needles to uniform format that this program likes to work with.
     e.g.: `bnFormat([1, 2, "f4", CarrierTracker(c, start_n=5), range(0, 10)])`
@@ -272,6 +279,7 @@ def bnFormat(needles, bed=None, gauge=2, sort=True, unique=True, return_type=lis
     elif unique: out = list(set(out))
     #
     if return_type == list: return out
+    elif return_type == tuple: return tuple(out)
     elif return_type == dict:
         d_out = {}
         for val in out:
@@ -283,7 +291,7 @@ def bnFormat(needles, bed=None, gauge=2, sort=True, unique=True, return_type=lis
     else: raise ValueError(f"Return type {return_type} not yet supported.")
 
 
-def rollSequence(seq_str, i):
+def rollSequence(seq_str: str, i: int) -> str:
     return seq_str[i%len(seq_str):]+seq_str[:i%len(seq_str)]
 
 #-------------------------------------------------------------------------------
@@ -292,7 +300,7 @@ def rollSequence(seq_str, i):
 #===============================================================================
 #-------------- KNITTING STUFF (here to prevent circular imports) --------------
 #===============================================================================
-def tuckPattern(k, first_n, direction, c=None, bed="f", machine="swgn2"): #remember to drop after (aka pass `c=None`)
+def tuckPattern(k, first_n: int, direction: str, c: Optional[Union[str, List[str], Tuple[str]]]=None, bed: str="f", machine: str="swgn2") -> None: #remember to drop after (aka pass `c=None`)
     '''
     for securing yarn after inhook before knitting (to be dropped after releasehook)
 
@@ -335,7 +343,7 @@ def tuckPattern(k, first_n, direction, c=None, bed="f", machine="swgn2"): #remem
                 elif n == first_n+1: k.miss("-", f"{bed}{n}", *cs)
 
         
-def knitPass(k, start_n, end_n, c, bed="f", gauge=1, avoid_bns={"f": [], "b": []}):
+def knitPass(k, start_n: int, end_n: int, c: Union[str, List[str], Tuple[str]], bed: str="f", gauge: int=1, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}) -> None:
     '''
     Plain knit a pass
 
@@ -362,7 +370,7 @@ def knitPass(k, start_n, end_n, c, bed="f", gauge=1, avoid_bns={"f": [], "b": []
             elif n == end_n: k.miss("-", f"{bed}{n}", *cs)
 
 
-def rackedXfer(k, from_bn, to_bn):
+def rackedXfer(k, from_bn: Union[str, Tuple[str,int]], to_bn: Union[str, Tuple[str,int]]) -> None:
     bn1, bn2 = bnFormat([from_bn, to_bn], sort=False, return_type=list)
     if bn1[0][0] == "f": k.rack(bn1[1]-bn2[1])
     else: k.rack(bn2[1]-bn1[1])
