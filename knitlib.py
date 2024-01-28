@@ -528,7 +528,7 @@ def altTuckClosedCaston(k, start_n, end_n, c, gauge=2):
                 last_n = n #keep updating this
 
         prev_n = None #TODO: #check this stuff
-        
+
         if bnValid("f", last_n, gauge):
             if d1 == "-": prev_n = last_n+(gauge//2)
             else: prev_n = last_n-gauge+(gauge//2)
@@ -1207,9 +1207,13 @@ def closedTubeBindoff(k, start_n, end_n, c, gauge=1, bed_mods=None, use_sliders=
     return last_bn #in case we want to move it since it should be empty etc.
 
 
-def openTubeBindoff(k, start_n, end_n, c, gauge=1, bed_mods=None, use_sliders=False, add_tag=True, outhook=False, speedNumber=None, stitchNumber=None, xfer_stitchNumber=None):
+def openTubeBindoff(k, start_n, end_n, c, gauge=2, bed_mods=None, use_sliders=False, add_tag=True, outhook=False, speedNumber=None, stitchNumber=None, xfer_stitchNumber=None):
     # https://github.com/textiles-lab/knitout-examples/blob/master/J-30.js
     cs = c2cs(c) # ensure tuple type
+
+    if gauge == 1 and use_sliders == False:
+        print("WARNING: toggling `use_sliders` to `True`, since `gauge == 1`, and otherwise, bindoff won't be open.")
+        use_sliders = True
 
     if bed_mods is None: bed_mods = {"f": 0, "b": gauge//2} #just use default
 
