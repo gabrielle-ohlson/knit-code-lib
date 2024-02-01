@@ -343,7 +343,7 @@ def tuckPattern(k, first_n: int, direction: str, c: Optional[Union[str, List[str
                 elif n == first_n+1: k.miss("-", f"{bed}{n}", *cs)
 
         
-def knitPass(k, start_n: int, end_n: int, c: Union[str, List[str], Tuple[str]], bed: str="f", gauge: int=1, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}) -> None:
+def knitPass(k, start_n: int, end_n: int, c: Union[str, List[str], Tuple[str]], bed: str="f", gauge: int=1, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, init_direction: Optional[str]=None) -> None:
     '''
     Plain knit a pass
 
@@ -356,11 +356,12 @@ def knitPass(k, start_n: int, end_n: int, c: Union[str, List[str], Tuple[str]], 
     * `bed` (str, optional): _description_. Defaults to `"f"`.
     * `gauge` (int, optional): _description_. Defaults to `1`.
     * `avoid_bns` (dict or list, optional): _description_. Defaults to `[]`.
+    * `init_direction` (str, optional): in *rare* cases (i.e., when only one needle is being knit), the initial pass direction might not be able to be inferred by the values of `start_n` and `end_n`.  In this case, one can specify the direction using this parameter (otherwise, can leave it as the default value, `None`, which indicates that the direction should/can be inferred).
     '''
     cs = c2cs(c) # ensure tuple type
     avoid_bns_list = bnFormat(avoid_bns, gauge=gauge, return_type=list)
     #
-    if end_n > start_n: #pass is pos
+    if end_n > start_n or init_direction == "+": #pass is pos
         for n in range(start_n, end_n+1):
             if f"{bed}{n}" not in avoid_bns_list and bnValid(bed, n, gauge): k.knit("+", f"{bed}{n}", *cs) 
             elif n == end_n: k.miss("+", f"{bed}{n}", *cs)
@@ -387,7 +388,7 @@ def rackedXfer(k, from_bn: Union[str, Tuple[str,int]], to_bn: Union[str, Tuple[s
 #===============================================================================
 class BedNeedle:
     _b_re = r"^[f|b]s?$"
-    _n_re = r"^\d+$"
+    _n_re = r"^-?\d+$"
     _cs_re = r"^(([1-9]|10)\b ?)+$"
     def __init__(self, b, n, cs=None):
         self.bed = b

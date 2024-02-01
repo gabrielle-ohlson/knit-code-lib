@@ -83,7 +83,7 @@ def jersey(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], L
             pass_start_n = end_n
             pass_end_n = start_n
 
-        knitPass(k, start_n=pass_start_n, end_n=pass_end_n, c=c, bed=bed, gauge=gauge, avoid_bns=avoid_bns)
+        knitPass(k, start_n=pass_start_n, end_n=pass_end_n, c=c, bed=bed, gauge=gauge, avoid_bns=avoid_bns, init_direction=init_direction)
 
         if p == rh_p:
             k.releasehook(*cs)
