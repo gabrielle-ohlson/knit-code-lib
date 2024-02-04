@@ -283,12 +283,17 @@ class KnitObject:
     @knitPass.register
     def knitPass(self, bed: Optional[str], needle_range: Optional[Tuple[int,int]], *cs: str, **kwargs) -> None: #TODO: make sure still works with *cs before pattern
         self.knitPass(StitchPattern.JERSEY, bed, needle_range, *cs, **kwargs)
-
-    def bindoff(self, bed: str, needle_range: Tuple[int, int]=None, method: Union[BindoffMethod, int]=BindoffMethod.CLOSED, *cs: str) -> None: #TODO
+    
+    @multimethod
+    def bindoff(self, method: Union[BindoffMethod, int], bed: str, needle_range: Optional[Tuple[int, int]], *cs: str) -> None: #TODO
         method = BindoffMethod.parse(method) #check
         #
         if needle_range is None: needle_range = self.getNeedleRange(bed, *cs)
         raise NotImplementedError
+    
+    @bindoff.register
+    def bindoff(self, method: Union[BindoffMethod, int], bed: str, *cs: str) -> None: #TODO
+        self.bindoff(method, bed, None, *cs)
 
     def isEndNeedle(self, direction: str, bed: str, needle: int) -> bool:
         if direction == "-": #
@@ -559,37 +564,38 @@ class KnitObject:
     #TODO: add other extensions + ops
     
     @multimethod
-    def decrease(self, from_bn: Tuple[str, int], to_bn: Tuple[str, int], method: Union[DecreaseMethod, int]=DecreaseMethod.EDGE):
+    def decrease(self, method: Union[DecreaseMethod, int], from_bn: Tuple[str, int], to_bn: Tuple[str, int]):
         method = DecreaseMethod.parse(method) #check
         # if isinstance(method, int): method = DecreaseMethod._value2member_map_[method] #remove
         DEC_FUNCS[method](self, from_bn, to_bn)
 
     @decrease.register
-    def decrease(self, from_bn: str, to_bn: str, method: Union[DecreaseMethod, int]=DecreaseMethod.EDGE):
+    def decrease(self, method: Union[DecreaseMethod, int], from_bn: str, to_bn: str):
         method = DecreaseMethod.parse(method) #check
         DEC_FUNCS[method](self, getBedNeedle(from_bn), getBedNeedle(to_bn))
     
-    def decreaseLeft(self, bed: str, count: int, method: Union[DecreaseMethod, int]=DecreaseMethod.EDGE): #TODO: add default method stuff
+    def decreaseLeft(self,  method: Union[DecreaseMethod, int], bed: str, count: int): #TODO: add default method stuff
         method = DecreaseMethod.parse(method) #check
         min_n = self.getMinNeedle(bed[0])
         self.decrease((bed, min_n), (bed, min_n+count), method)
 
-    def decreaseRight(self, bed: str, count: int, method: Union[DecreaseMethod, int]=DecreaseMethod.EDGE): #TODO: add default method stuff
+    def decreaseRight(self, method: Union[DecreaseMethod, int], bed: str, count: int): #TODO: add default method stuff
         method = DecreaseMethod.parse(method) #check
         max_n = self.getMaxNeedle(bed[0])
         self.decrease((bed, max_n), (bed, max_n-count), method)
 
     @multimethod
-    def increase(self, from_bn: Tuple[str, int], to_bn: Tuple[str, int], method: Union[IncreaseMethod, int]=IncreaseMethod.EDGE):
+    def increase(self, method: Union[IncreaseMethod, int], from_bn: Tuple[str, int], to_bn: Tuple[str, int]):
         method = IncreaseMethod.parse(method) #check
         INC_FUNCS[method](self, from_bn, to_bn)
 
     @increase.register
-    def increase(self, from_bn: str, to_bn: str, method: Union[IncreaseMethod, int]=IncreaseMethod.EDGE):
+    def increase(self, method: Union[IncreaseMethod, int], from_bn: str, to_bn: str):
         method = IncreaseMethod.parse(method) #check
         INC_FUNCS[method](self, getBedNeedle(from_bn), getBedNeedle(to_bn))
 
-    def increaseLeft(self, bed: str, count: int, method: Union[IncreaseMethod, int]=IncreaseMethod.DEFAULT):
+    @multimethod
+    def increaseLeft(self, method: Union[IncreaseMethod, int], bed: str, count: int):
         method = IncreaseMethod.parse(method) #check
         min_n = self.getMinNeedle(bed[0])
         max_n = self.getMaxNeedle(bed[0])
@@ -601,7 +607,12 @@ class KnitObject:
         #
         self.increase((bed, min_n), (bed, min_n-count), method)
 
-    def increaseRight(self, bed: str, count: int, method: Union[IncreaseMethod, int]=IncreaseMethod.DEFAULT):
+    @increaseLeft.register
+    def increaseLeft(self, bed: str, count: int):
+        self.increaseLeft(IncreaseMethod.DEFAULT, bed, count)
+
+    @multimethod
+    def increaseRight(self, method: Union[IncreaseMethod, int], bed: str, count: int):
         method = IncreaseMethod.parse(method) #check
         min_n = self.getMinNeedle(bed[0])
         max_n = self.getMaxNeedle(bed[0])
@@ -612,6 +623,10 @@ class KnitObject:
             else: method = IncreaseMethod.SCHOOL_BUS
         #
         self.increase((bed, max_n), (bed, max_n+count), method)
+    
+    @increaseRight.register
+    def increaseRight(self, bed: str, count: int):
+        self.increaseRight(IncreaseMethod.DEFAULT, bed, count)
     
     def findNextValidNeedle(self, bed: Optional[str], needle: int, d: str=None, in_limits: bool=True) -> Tuple[str, int]: #TODO: add code for in_limits=False (aka can search outside of limits with min_n and max_n)
         min_ns = {"f": self.getMinNeedle("f"), "b": self.getMinNeedle("b")}
