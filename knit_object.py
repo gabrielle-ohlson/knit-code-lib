@@ -214,7 +214,8 @@ class KnitObject:
         if len(not_in_cs): self.k.releasehook(*not_in_cs)
 
     # def knitPass(self, cs: Union[str, Carrier, List[Carrier], CarrierSet, CarrierMap], bed: Optional[str], needle_range: Optional[Tuple[int,int]]=None, pattern: Union[StitchPattern, int, Callable]=StitchPattern.JERSEY, **kwargs) -> None:
-    def knitPass(self, bed: Optional[str], needle_range: Optional[Tuple[int,int]]=None, *cs: str, pattern: Union[StitchPattern, int, Callable]=StitchPattern.JERSEY, **kwargs) -> None: #TODO: make sure still works with *cs before pattern
+    @multimethod
+    def knitPass(self, bed: Optional[str], needle_range: Optional[Tuple[int,int]], *cs: str, pattern: Union[StitchPattern, int, Callable]=StitchPattern.JERSEY, **kwargs) -> None: #TODO: make sure still works with *cs before pattern
         if needle_range is None: needle_range = self.getNeedleRange(bed, *cs)
         #
         if needle_range[1] > needle_range[0]: d = "+"
@@ -270,6 +271,10 @@ class KnitObject:
             func(**func_args)
             #
             self.twistedStitch(d, twisted_stitch, *cs) #TODO: handle splits too
+
+    @knitPass.register
+    def knitPass(self, bed: Optional[str], *cs: str, pattern: Union[StitchPattern, int, Callable]=StitchPattern.JERSEY, **kwargs) -> None: #TODO: make sure still works with *cs before pattern
+        self.knitPass(bed, None, *cs, pattern, **kwargs)
 
     def bindoff(self, bed: str, needle_range: Tuple[int, int]=None, method: Union[BindoffMethod, int]=BindoffMethod.CLOSED, *cs: str) -> None: #TODO
         method = BindoffMethod.parse(method) #check
