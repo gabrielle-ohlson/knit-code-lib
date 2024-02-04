@@ -162,18 +162,13 @@ class KnitObject:
         self.MAX_RACK = 4
 
     def getMinNeedle(self, bed=None) -> Union[int,float]:
-        try:
-            if bed is not None: return min(self.k.bn_locs[bed])
-            else: return min(min(self.k.bn_locs[b]) for b in self.k.bn_locs.keys())
-        except ValueError:
-            return float("inf") #TODO: return None instead #?
+        if bed is not None: return min(self.k.bn_locs[bed], default=float("inf"))
+        else: return min(min(self.k.bn_locs[b], default=float("inf")) for b in self.k.bn_locs.keys())
+
 
     def getMaxNeedle(self, bed=None) -> Union[int,float]:
-        try:
-            if bed is not None: return max(self.k.bn_locs[bed])
-            else: return max(max(self.k.bn_locs[b]) for b in self.k.bn_locs.keys())
-        except ValueError:
-            return float("-inf")
+        if bed is not None: return max(self.k.bn_locs[bed], default=float("-inf"))
+        else: return max(max(self.k.bn_locs[b], default=float("-inf")) for b in self.k.bn_locs.keys())
 
     @property
     def row_ct(self):
@@ -223,7 +218,7 @@ class KnitObject:
 
         func_args = deepcopy(self.pat_args) # pat_args
 
-        func_args["k"] = self
+        func_args["k"] = self.k
         func_args["c"] = cs
         func_args["bed"] = bed
         func_args["gauge"] = self.gauge
