@@ -364,7 +364,7 @@ class KnitObject:
                     d = carrier.direction
                     if d == "-" and (start_n is None or carrier.needle < start_n):
                         if bed is not None and carrier.bed != bed and 0 < bed_max_n-carrier.needle < self.gauge: self.k.miss("+", bed, bed_max_n, c) #TODO: #check
-                        start_n = c.position.needle
+                        start_n = carrier.needle
                     elif d == "+" and (start_n is None or carrier.needle > start_n):
                         if bed is not None and carrier.bed != bed and 0 < carrier.needle-bed_min_n < self.gauge: self.k.miss("-", bed, bed_min_n, c) #TODO: #check
                         start_n = carrier.needle
