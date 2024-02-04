@@ -190,9 +190,14 @@ def bnHalfG(b: str, n: int) -> int:
     else: return (n*2)+1
 
 
-def bnGauged(b: str, n: int, gauge: int=2) -> int:
+def gauged(b: str, n: int, gauge: int=2) -> int:
     if b == "f": return n*gauge
     else: return (n*gauge)+(gauge//2)
+
+
+def bnGauged(b: str, n: int, gauge: int=2) -> str:
+    if b == "f": return f"f{n*gauge}"
+    else: return f"b{(n*gauge)+(gauge//2)}"
 
 
 def modsHalveGauge(gauge: int, mod: Union[int, str]) -> Tuple[int,int]: # usage: n % (gauge*2) == mods[0] or n % (gauge*2) == mods[1]

@@ -1,0 +1,653 @@
+from __future__ import annotations #so we don't have to worry about situations that would require forward declarations
+from multimethod import multimethod
+from collections.abc import MutableMapping
+import warnings
+# from functools import singledispatchmethod
+from typing import Union, Optional, Dict, Tuple, List, Callable
+from enum import Enum
+from os import path
+from copy import deepcopy
+
+"""
+TODO:
+- [x] isEndNeedle
+- [x] getNeedleRange
+- [x] knitPass
+- [x] twistedStitch
+- [x] updateCarriers
+- [x] caston
+- [x] twistNeedleRanges
+- [x] DEC_FUNCS/INC_FUNCS
+- [x] findNextValidNeedle
+- [x] xfer
+- [x] rack
+
+- [x] twist_bns
+- [x] avoid_bns
+- [x] active_bns (remove this)
+- [x] min_n/max_n (remove and replace with function to bed min/max)
+- [x] carriers
+- [x] rack_value
+
+
+add something for knitPass at a rack (or a "rackedSort" function)
+- [ ] add check for when needle is holding loop and hasn't been knitting for a while
+- [ ] add check for when skip over a lot of needles
+- [ ] implement basketTubes using this
+- [ ] fmt warnings
+"""
+
+from knitlib import zigzagCaston, sheetBindoff, altTuckCaston, altTuckClosedCaston, altTuckOpenTubeCaston
+from .helpers import gauged, toggleDirection
+from .stitchPatterns import jersey, interlock, rib, garter, seed
+# from .helpers import multidispatchmethod
+
+from .knitlib_knitout import getBedNeedle
+from .shaping import decEdge, decSchoolBus, decBindoff, incEdge, incSchoolBus, incCaston, incSplit
+
+
+class StitchPattern(Enum):
+    JERSEY = 0
+    INTERLOCK = 1
+    RIB = 2
+    GARTER = 3
+    SEED = 4
+    #
+    @classmethod
+    def parse(self, val):
+        if isinstance(val, self): return val
+        elif isinstance(val, int): return self._value2member_map_[val]
+        else: raise ValueError
+
+
+class CastonMethod(Enum):
+    ALT_TUCK_CLOSED = 0
+    ALT_TUCK_OPEN = 1
+    ZIGZAG = 2
+    #TODO: add e-wrap/twisted stitch
+    #
+    @classmethod
+    def parse(self, val):
+        if isinstance(val, self): return val
+        elif isinstance(val, int): return self._value2member_map_[val]
+        else: raise ValueError
+
+
+class BindoffMethod(Enum):
+    CLOSED = 0
+    OPEN = 1
+    DROP = 2
+    #
+    @classmethod
+    def parse(self, val):
+        if isinstance(val, self): return val
+        elif isinstance(val, int): return self._value2member_map_[val]
+        else: raise ValueError
+
+
+#TODO: have a rack limit
+class DecreaseMethod(Enum):
+    DEFAULT = 0
+    EDGE = 1
+    SCHOOL_BUS = 2
+    BINDOFF = 3
+    #
+    @classmethod
+    def parse(self, val):
+        if isinstance(val, self): return val
+        elif isinstance(val, int): return self._value2member_map_[val]
+        else: raise ValueError
+
+
+class IncreaseMethod(Enum):
+    DEFAULT = 0
+    EDGE = 1
+    SCHOOL_BUS = 2
+    CASTON = 3
+    SPLIT = 4
+    #
+    @classmethod
+    def parse(self, val):
+        if isinstance(val, self): return val
+        elif isinstance(val, int): return self._value2member_map_[val]
+        else: raise ValueError
+
+
+DEC_FUNCS = {
+    DecreaseMethod.EDGE: decEdge,
+    DecreaseMethod.SCHOOL_BUS: decSchoolBus,
+    DecreaseMethod.BINDOFF: decBindoff
+}
+
+
+INC_FUNCS = {
+    IncreaseMethod.EDGE: incEdge,
+    IncreaseMethod.SCHOOL_BUS: incSchoolBus,
+    IncreaseMethod.CASTON: incCaston,
+    IncreaseMethod.SPLIT: incSplit
+}
+
+
+class KnitObject:
+    def __init__(self, k, gauge=1, machine="swgn2"):
+        self.k = k
+        self.gauge = gauge
+        self.machine = machine
+        #
+        # self.min_n = {"f": float("inf"), "b": float("inf")}
+        # self.max_n = {"f": float("-inf"), "b": float("-inf")}
+        #
+        self.active_carrier = None #TODO
+        self.hook_active = False #remove #?
+        self.avoid_bns = {"f": [], "b": []}
+        self.twist_bns = list()
+        self.st_cts = {} #?
+        #
+        self._row_ct = 0 #TODO
+        #
+        self.pat_args = {
+            "k": None, #self
+            "start_n": None, #*
+            "end_n": None, #*
+            "passes": 1,
+            "c": None, #*
+            "bed": None, #*
+            "gauge": self.gauge, #will *not* be a reference (should be updated each time in case it changes)
+            # "sequence": None, #*
+            # "bn_locs"
+            # "avoid_bns": {"f": [], "b": []}
+        }
+
+
+        self.MAX_RACK = 4
+
+    def getMinNeedle(self, bed=None) -> Union[int,float]:
+        try:
+            if bed is not None: return min(self.k.bn_locs[bed])
+            else: return min(min(self.k.bn_locs[b]) for b in self.k.bn_locs.keys())
+        except ValueError:
+            return float("inf") #TODO: return None instead #?
+
+    def getMaxNeedle(self, bed=None) -> Union[int,float]:
+        try:
+            if bed is not None: return max(self.k.bn_locs[bed])
+            else: return max(max(self.k.bn_locs[b]) for b in self.k.bn_locs.keys())
+        except ValueError:
+            return float("-inf")
+
+    @property
+    def row_ct(self):
+        return self._row_ct
+
+    @row_ct.setter
+    def row_ct(self, value: int):
+        self.comment(f"row: {value}")
+        self._row_ct = value
+
+    def caston(self, bed: Optional[str], needle_range: Tuple[int, int], method: Union[CastonMethod, int], *cs: str) -> None:
+        method = CastonMethod.parse(method) #check
+        #
+        not_in_cs = [c for c in cs if c not in self.k.in_carriers] #check
+        if len(not_in_cs):
+            self.k.inhook(*not_in_cs)
+        #
+        if method == CastonMethod.ALT_TUCK_CLOSED:
+            if bed != "f" and bed != "b": altTuckClosedCaston(self, needle_range[0], needle_range[1], c=cs, gauge=self.gauge)
+            else: altTuckCaston(self, needle_range[0], needle_range[1], c=cs, bed=bed, gauge=self.gauge)
+        elif method == CastonMethod.ALT_TUCK_OPEN:
+            assert bed != "f" and bed != "b", "ALT_TUCK_OPEN only valid for double bed knitting."
+            altTuckOpenTubeCaston(self, needle_range[0], needle_range[1], c=cs, gauge=self.gauge)
+        elif method == CastonMethod.ZIGZAG:
+            zigzagCaston(self, needle_range[0], needle_range[1], c=cs, gauge=self.gauge)
+            if needle_range[1] > needle_range[0]: xfer_range = range(needle_range[0], needle_range[1]+1)
+            else: xfer_range = range(needle_range[0], needle_range[1]-1, -1)
+            if bed == "f":
+                for n in xfer_range:
+                    self.xfer(("f", gauged("f", n//self.gauge, self.gauge)), ("b", gauged("b", n//self.gauge, self.gauge)), reset_rack=False)
+                self.rack(0)
+            elif bed == "b":
+                for n in xfer_range:
+                    self.xfer(("b", gauged("b", n//self.gauge, self.gauge)), ("f", gauged("f", n//self.gauge, self.gauge)), reset_rack=False)
+                self.rack(0)
+        else: raise ValueError("unsupported caston method")
+        #
+        if len(not_in_cs): self.k.releasehook(*not_in_cs)
+
+    # def knitPass(self, cs: Union[str, Carrier, List[Carrier], CarrierSet, CarrierMap], bed: Optional[str], needle_range: Optional[Tuple[int,int]]=None, pattern: Union[StitchPattern, int, Callable]=StitchPattern.JERSEY, **kwargs) -> None:
+    def knitPass(self, bed: Optional[str], needle_range: Optional[Tuple[int,int]]=None, *cs: str, pattern: Union[StitchPattern, int, Callable]=StitchPattern.JERSEY, **kwargs) -> None: #TODO: make sure still works with *cs before pattern
+        if needle_range is None: needle_range = self.getNeedleRange(bed, *cs)
+        #
+        if needle_range[1] > needle_range[0]: d = "+"
+        else: d = "-"
+
+        func_args = deepcopy(self.pat_args) # pat_args
+
+        func_args["k"] = self
+        func_args["c"] = cs
+        func_args["bed"] = bed
+        func_args["gauge"] = self.gauge
+        func_args["init_direction"] = d
+        #
+        func = None
+        if isinstance(pattern, StitchPattern) or isinstance(pattern, int):
+            pattern = StitchPattern.parse(pattern) #check
+            #
+            if pattern == StitchPattern.JERSEY:
+                assert bed is not None, "'bed' is a required parameter for the 'jersey' function."
+                func = jersey
+            elif pattern == StitchPattern.INTERLOCK:
+                if "sequence" in kwargs: assert kwargs["sequence"] == "01" or kwargs["sequence"] == "10", f"'{kwargs['sequence']}' is an invalid sequence value for the 'interlock' function (must be either '01' or '10')."
+                func = interlock
+            elif pattern == StitchPattern.RIB:
+                if "sequence" in kwargs: assert all(char == "f" or char == "b" for char in kwargs["sequence"]), f"'{kwargs['sequence']}' is an invalid sequence value for the 'rib' function (must contain only 'f' and 'b' characters)."
+                func = rib
+            elif pattern == StitchPattern.GARTER:
+                if "sequence" in kwargs: assert all(char == "f" or char == "b" for char in kwargs["sequence"]), f"'{kwargs['sequence']}' is an invalid sequence value for the 'garter' function (must contain only 'f' and 'b' characters)."
+                func = garter
+            elif pattern == StitchPattern.SEED:
+                if "sequence" in kwargs: assert all(char == "f" or char == "b" for char in kwargs["sequence"]), f"'{kwargs['sequence']}' is an invalid sequence value for the 'seed' function (must contain only 'f' and 'b' characters)."
+                func = seed
+            else: raise ValueError("unsupported stitch pattern")
+        else:
+            assert callable(pattern)
+            func = pattern
+            #
+            for key in func_args.keys():
+                assert key in func.__code__.co_varnames, f"'{func.__name__}' function does not use required parameter, '{key}'."
+        #
+        for key, val in kwargs.items():
+            if key in func.__code__.co_varnames: func_args[key] = val
+            else: warnings.warn(f"kwarg '{key}' not a valid parameter for '{func.__name__}' function.")
+
+        if "avoid_bns" in func.__code__.co_varnames:
+            func_args["avoid_bns"] = deepcopy(self.avoid_bns)
+        #
+        needle_ranges, twisted_stitches = self.twistNeedleRanges(needle_range, bed)
+        for n_range, twisted_stitch in zip(needle_ranges, twisted_stitches):
+            func_args["start_n"] = n_range[0]
+            func_args["end_n"] = n_range[1]
+            #
+            func(**func_args)
+            #
+            self.twistedStitch(d, twisted_stitch, *cs) #TODO: handle splits too
+
+    def bindoff(self, bed: str, needle_range: Tuple[int, int]=None, method: Union[BindoffMethod, int]=BindoffMethod.CLOSED, *cs: str) -> None: #TODO
+        method = BindoffMethod.parse(method) #check
+        #
+        if needle_range is None: needle_range = self.getNeedleRange(bed, *cs)
+        raise NotImplementedError
+
+    def isEndNeedle(self, direction: str, bed: str, needle: int) -> bool:
+        if direction == "-": #
+            min_n = self.getMinNeedle(bed[0])
+            return (gauged(bed, needle//self.gauge, self.gauge) <= gauged(bed, min_n//self.gauge, self.gauge))
+        elif direction == "+":
+            max_n = self.getMaxNeedle(bed[0])
+            return (gauged(bed, needle//self.gauge, self.gauge) >= gauged(bed, max_n//self.gauge, self.gauge))
+        else: return False
+
+    def setRowCount(self) -> None:
+        cts = list(set(list(self.st_cts.values())))
+        if len(cts):
+            ct = max(cts)
+            if ct > self.row_ct:
+                # res = dict(reversed(sorted(self.st_cts.items(), key=lambda item: (-int(item[0][1:]),item[0][0])))) #debug
+                self.row_ct = ct
+
+    # @multimethod
+    def updateCarriers(self, direction: str, bed: str, needle: int, *cs: str) -> None:
+        row_counted = direction is None
+        #
+        for c in cs:
+            if not row_counted and self.k.carrier_map[c].direction != direction:
+                self.setRowCount()
+                row_counted = True
+            self.k.carrier_map[c].update(direction, bed, needle)
+    
+    """
+    @multimethod
+    def getNeedleRange(self, bed: Optional[str], *cs: str) -> Tuple[int, int]:
+        for c in cs:
+            carrier = self.k.carrier_map[c]
+            #
+            if type(bed) == str and (bed[0] == "f" or bed[0] == "b"):
+                other_bed = "b" if bed[0] == "f" else "f"
+                if self.min_n[other_bed] < self.min_n[bed[0]] and self.min_n[bed[0]]-self.min_n[other_bed] < self.gauge: min_n = self.min_n[other_bed] #TODO: #check
+                else: min_n = self.min_n[bed[0]]
+                #
+                if self.max_n[other_bed] > self.max_n[bed[0]] and self.max_n[other_bed]-self.max_n[bed[0]] < self.gauge: max_n = self.max_n[other_bed] #TODO: #check
+                else: max_n = self.max_n[bed[0]]
+            else: min_n, max_n = min(self.min_n["f"], self.min_n["b"]), max(self.max_n["f"], self.max_n["b"])
+            #
+            if self.isEndNeedle(carrier.direction, carrier.bed, carrier.needle):
+                self.updateCarriers(c, toggleDirection(carrier.direction))
+                if carrier.direction == "-":
+                    if bed is not None and c.position.bed != bed and 0 < max_n-c.position.needle < self.gauge: self.k.miss("+", bed, max_n, c) #TODO: #check
+                    return min(carrier.needle, max_n), min_n
+                elif carrier.direction == "+":
+                    if bed is not None and carrier.bed != bed and 0 < carrier.needle-min_n < self.gauge: self.k.miss("-", bed, min_n, c) #TODO: #check
+                    return max(carrier.needle, min_n), max_n
+                else: raise ValueError(f"cannot getNeedleRange for carrier '{c}' with no recorded direction.")
+            else:
+                if carrier.direction == "-": return min(carrier.needle-1, max_n), min_n
+                elif carrier.direction == "+": return max(carrier.needle+1, min_n), max_n
+                else: raise ValueError(f"cannot getNeedleRange for carrier '{c}' with no recorded direction.")
+
+    @getNeedleRange.register
+    """
+    def getNeedleRange(self, bed: Optional[str], *cs: str) -> Tuple[int, int]:
+        min_n = self.getMinNeedle()
+        max_n = self.getMaxNeedle()
+        #
+        bed_min_n, bed_max_n = None, None
+        # if type(bed) == str and (bed[0] == "f" or bed[0] == "b"):
+        if bed is not None:
+            bed_min_n = self.getMinNeedle(bed[0])
+            if bed_min_n-min_n >= self.gauge: min_n = bed_min_n
+            #
+            bed_max_n = self.getMaxNeedle(bed[0])
+            if max_n-bed_max_n >= self.gauge: max_n = bed_max_n
+        #
+        d = None
+        # NOTE: if d is "-": we want min start_n
+        start_n = None
+        for c in cs:
+            carrier = self.k.carrier_map[c]
+            if self.isEndNeedle(carrier.direction, carrier.bed, carrier.needle):
+                self.updateCarriers(toggleDirection(carrier.direction), None, None, c)
+                if carrier.direction is not None:
+                    d = carrier.direction
+                    if d == "-" and (start_n is None or carrier.needle < start_n):
+                        if bed is not None and carrier.bed != bed and 0 < bed_max_n-carrier.needle < self.gauge: self.k.miss("+", bed, bed_max_n, c) #TODO: #check
+                        start_n = c.position.needle
+                    elif d == "+" and (start_n is None or carrier.needle > start_n):
+                        if bed is not None and carrier.bed != bed and 0 < carrier.needle-bed_min_n < self.gauge: self.k.miss("-", bed, bed_min_n, c) #TODO: #check
+                        start_n = carrier.needle
+            elif carrier.direction is not None:
+                d = carrier.direction
+                if d == "-" and (start_n is None or carrier.needle-1 < start_n): start_n = carrier.needle-1
+                elif d == "+" and (start_n is None or carrier.needle+1 > start_n): start_n = carrier.needle+1
+        #
+        assert all([self.k.carrier_map[c].direction == d or self.k.carrier_map[c].direction is None for c in cs])
+        #
+        if d == "-":
+            start_n = min(start_n, max_n)
+            end_n = min_n
+        elif d == "+":
+            start_n = max(start_n, min_n)
+            end_n = max_n
+        else: raise ValueError(f"cannot getNeedleRange for carrier set with no recorded direction.")
+        #
+        return start_n, end_n
+
+    def twistNeedleRanges(self, needle_range: Tuple[int, int], bed: Union[str, None]=None) -> Tuple[List[Tuple[int, int]], List[Union[None, str, List[str]]]]:
+        n_ranges = []
+        twisted_stitches = []
+        if needle_range[1] > needle_range[0]:
+            n0 = needle_range[0]
+            for n in range(needle_range[0], needle_range[1]+1):
+                done = False
+                if bed != "b" and f"f{n}" in self.twist_bns:
+                    twisted_stitches.append(f"f{n}")
+                    done = True
+                    n_ranges.append((n0, n-1))
+                    n0 = n+1
+                #
+                if bed != "f" and f"b{n}" in self.twist_bns:
+                    if done:
+                        twisted_stitches[-1] = [twisted_stitches[-1], f"b{n}"]
+                    else:
+                        twisted_stitches.append(f"b{n}")
+                        done = True
+                        n_ranges.append((n0, n-1))
+                        n0 = n+1
+                #
+                if not done and n == needle_range[1]:
+                    n_ranges.append((n0, n))
+                    twisted_stitches.append(None)
+        else:
+            n0 = needle_range[0]
+            for n in range(needle_range[0], needle_range[1]-1, -1):
+                done = False
+                if bed != "b" and f"f{n}" in self.twist_bns:
+                    twisted_stitches.append(f"f{n}")
+                    done = True
+                    n_ranges.append((n0, n+1))
+                    n0 = n-1
+                #
+                if bed != "f" and f"b{n}" in self.twist_bns:
+                    if done:
+                        twisted_stitches[-1] = [twisted_stitches[-1], f"b{n}"]
+                    else:
+                        twisted_stitches.append(f"b{n}")
+                        done = True
+                        n_ranges.append((n0, n+1))
+                        n0 = n-1
+                #
+                if not done and n == needle_range[1]:
+                    n_ranges.append((n0, n))
+                    twisted_stitches.append(None)
+        #
+        if not len(n_ranges):
+            n_ranges.append(needle_range)
+            twisted_stitches.append(None)
+        #
+        return n_ranges, twisted_stitches
+    
+    @multimethod
+    def twistedStitch(self, d: str, bn: str, *cs: str) -> None:
+        self.comment("begin twisted stitch")
+        d2 = toggleDirection(d)
+        #
+        self.k.miss(d, bn, *cs)
+        self.k.knit(d2, bn, *cs)
+        self.k.miss(d, bn, *cs)
+        self.comment("end twisted stitch")
+        #
+        bed, needle = getBedNeedle(bn) #TODO: move this to updateCarriers instead #?
+        self.updateCarriers(d, bed, needle, *cs)
+        #
+        if bn not in self.st_cts: self.st_cts[bn] = 0 #means there is a loop there, but not a full stitch
+        else: self.st_cts[bn] += 1
+        #
+        self.twist_bns.remove(bn) #TODO: decide what should go in twist_bns (str or tuple?)
+
+    @twistedStitch.register
+    def twistedStitch(self, d: str, bns: List[str], *cs: str) -> None:
+        d2 = toggleDirection(d)
+        for bn in bns:
+            self.comment("begin twisted stitch")
+            self.k.miss(d, bn, *cs)
+            self.k.knit(d2, bn, *cs)
+            self.k.miss(d, bn, *cs)
+            self.comment("end twisted stitch")
+            #
+            # bed, needle = getBedNeedle(bn)
+            # self.updateCarriers(d, bed, needle, *cs) #go back! #?
+            #
+            if bn not in self.st_cts: self.st_cts[bn] = 0 #means there is a loop there, but not a full stitch
+            else: self.st_cts[bn] += 1
+            #
+            self.twist_bns.remove(bn)
+
+    @twistedStitch.register
+    def twistedStitch(self, d: str, bn: None, *cs: str) -> None:
+        return
+
+    def rack(self, r: Union[int,float]) -> None:
+        if self.k.rack_value != r: #no need to do it if we're already at this value
+            self.k.rack(r)
+        
+    @multimethod
+    def xfer(self, from_bn: Tuple[str, int], to_bn: Tuple[str, int], reset_rack=True):
+        from_bed, from_needle = from_bn
+        to_bed, to_needle = to_bn
+        #
+        ct = from_needle-to_needle
+        if from_bed.startswith("f"):
+            par = 1
+            if to_bed == "bs": xto_bed = "bs"
+            else: xto_bed = "b"
+        else:
+            par = -1
+            if to_bed == "fs": xto_bed = "fs"
+            else: xto_bed = "f"
+        #
+        next_bed, next_needle = xto_bed, to_needle
+        #
+        if next_needle in self.avoid_bns[next_bed]:
+            if to_bed is None:
+                next_bed = from_bed
+                assert not next_needle in self.avoid_bns[next_bed]
+            else:
+                assert not to_bn != (next_bed, next_needle), "requesting to transfer to an invalid needle (specified as to-avoid)"
+                (next_bed, next_needle) = self.findNextValidNeedle(xto_bed, next_needle)
+                assert next_needle is not None
+                ct = from_needle-next_needle
+        #
+        self.rack(par*ct)
+        self.k.xfer(from_bed, from_needle, next_bed, next_needle)
+        if reset_rack: self.rack(0)
+        #
+        if to_bed is None: to_bed = next_bed #TODO: #check to make sure this actually changes it
+        #
+        if next_bed != to_bed:
+            if next_needle == to_needle:
+                if not reset_rack: self.rack(0)
+                self.k.xfer(next_bed, next_needle, to_bed, to_needle)
+            else:
+                ct = next_needle-to_needle
+                self.rack(-1*par*ct)
+                self.k.xfer(next_bed, next_needle, to_bed, to_needle)
+                if reset_rack: self.rack(0)
+        #
+        from_bn_key = f"{from_bed}{from_needle}"
+        to_bn_key = f"{to_bed}{to_needle}"
+        #
+        if from_bn_key in self.st_cts:
+            if to_bn_key not in self.st_cts:
+                self.st_cts[to_bn_key] = self.st_cts[from_bn_key]
+            else: self.st_cts[to_bn_key] = max(self.st_cts[to_bn_key], self.st_cts[from_bn_key]) #TODO: #check
+            #
+            del self.st_cts[from_bn_key]
+    
+    @xfer.register
+    def xfer(self, from_bn: str, to_bn: str, reset_rack=True):
+        self.xfer(getBedNeedle(from_bn), getBedNeedle(to_bn), reset_rack)
+
+    def write(self, out_fn: str):
+        if len(self.k.carrier_map.keys()):
+            _carriers = list(self.k.carrier_map.keys())
+            for c in _carriers:
+                self.k.outhook(c)
+        self.k.write(path.join(path.dirname(path.dirname( path.abspath(__file__))), f"knitout_files/{out_fn}.k"))
+
+    #TODO: add other extensions + ops
+    
+    @multimethod
+    def decrease(self, from_bn: Tuple[str, int], to_bn: Tuple[str, int], method: Union[DecreaseMethod, int]=DecreaseMethod.EDGE):
+        method = DecreaseMethod.parse(method) #check
+        # if isinstance(method, int): method = DecreaseMethod._value2member_map_[method] #remove
+        DEC_FUNCS[method](self, from_bn, to_bn)
+
+    @decrease.register
+    def decrease(self, from_bn: str, to_bn: str, method: Union[DecreaseMethod, int]=DecreaseMethod.EDGE):
+        method = DecreaseMethod.parse(method) #check
+        DEC_FUNCS[method](self, getBedNeedle(from_bn), getBedNeedle(to_bn))
+    
+    def decreaseLeft(self, bed: str, count: int, method: Union[DecreaseMethod, int]=DecreaseMethod.EDGE): #TODO: add default method stuff
+        method = DecreaseMethod.parse(method) #check
+        min_n = self.getMinNeedle(bed[0])
+        self.decrease((bed, min_n), (bed, min_n+count), method)
+
+    def decreaseRight(self, bed: str, count: int, method: Union[DecreaseMethod, int]=DecreaseMethod.EDGE): #TODO: add default method stuff
+        method = DecreaseMethod.parse(method) #check
+        max_n = self.getMaxNeedle(bed[0])
+        self.decrease((bed, max_n), (bed, max_n-count), method)
+
+    @multimethod
+    def increase(self, from_bn: Tuple[str, int], to_bn: Tuple[str, int], method: Union[IncreaseMethod, int]=IncreaseMethod.EDGE):
+        method = IncreaseMethod.parse(method) #check
+        INC_FUNCS[method](self, from_bn, to_bn)
+
+    @increase.register
+    def increase(self, from_bn: str, to_bn: str, method: Union[IncreaseMethod, int]=IncreaseMethod.EDGE):
+        method = IncreaseMethod.parse(method) #check
+        INC_FUNCS[method](self, getBedNeedle(from_bn), getBedNeedle(to_bn))
+
+    def increaseLeft(self, bed: str, count: int, method: Union[IncreaseMethod, int]=IncreaseMethod.DEFAULT):
+        method = IncreaseMethod.parse(method) #check
+        min_n = self.getMinNeedle(bed[0])
+        max_n = self.getMaxNeedle(bed[0])
+        #
+        if method == IncreaseMethod.DEFAULT:
+            if min_n+count > max_n: method = IncreaseMethod.CASTON
+            elif count <= self.gauge: method = IncreaseMethod.EDGE
+            else: method = IncreaseMethod.SCHOOL_BUS
+        #
+        self.increase((bed, min_n), (bed, min_n-count), method)
+
+    def increaseRight(self, bed: str, count: int, method: Union[IncreaseMethod, int]=IncreaseMethod.DEFAULT):
+        method = IncreaseMethod.parse(method) #check
+        min_n = self.getMinNeedle(bed[0])
+        max_n = self.getMaxNeedle(bed[0])
+        #
+        if method == IncreaseMethod.DEFAULT:
+            if max_n-count < min_n: method = IncreaseMethod.CASTON
+            elif count <= self.gauge: method = IncreaseMethod.EDGE
+            else: method = IncreaseMethod.SCHOOL_BUS
+        #
+        self.increase((bed, max_n), (bed, max_n+count), method)
+    
+    def findNextValidNeedle(self, bed: Optional[str], needle: int, d: str=None, in_limits: bool=True) -> Tuple[str, int]: #TODO: add code for in_limits=False (aka can search outside of limits with min_n and max_n)
+        min_ns = {"f": self.getMinNeedle("f"), "b": self.getMinNeedle("b")}
+        max_ns = {"f": self.getMaxNeedle("f"), "b": self.getMaxNeedle("b")}
+        if bed is not None: min_n, max_n = min_ns[bed[0]], max_ns[bed[0]]
+        else: min_n, max_n = min(min_ns["f"], min_ns["b"]), max(max_ns["f"], max_ns["b"])
+        #
+        n_1, n1 = needle, needle
+        if d is None:
+            for n_1, n1 in zip(range(needle, min_n-1, -1), range(needle, max_n+1)):
+                if bed != "f" and n_1 >= min_ns["b"] and not n_1 in self.avoid_bns["b"]:
+                    return ("b", n_1)
+                elif bed != "b" and n_1 >= min_ns["f"] and not n_1 in self.avoid_bns["f"]:
+                    return ("f", n_1)
+                elif bed != "b" and n1 <= max_ns["f"] and not n1 in self.avoid_bns["f"]:
+                    return ("f", n1)
+                elif bed != "f" and n1 <= max_ns["b"] and not n1 in self.avoid_bns["b"]:
+                    return ("b", n1)
+        else: assert d == "-" or d == "+"
+        #
+        if d == "-" or n_1 != min_n:
+            for n_1 in range(n_1, min_n-1, -1):
+                if bed != "f" and n_1 >= min_ns["b"] and not n_1 in self.avoid_bns["b"]:
+                    return ("b", n_1)
+                elif bed != "b" and n_1 >= min_ns["f"] and not n_1 in self.avoid_bns["f"]:
+                    return ("f", n_1)
+        #
+        if d == "+" or n1 != max_n:
+            for n1 in range(n1, max_n+1):
+                if bed != "b" and n1 <= max_ns["f"] and not n1 in self.avoid_bns["f"]:
+                    return ("f", n1)
+                elif bed != "f" and n1 <= max_ns["b"] and not n1 in self.avoid_bns["b"]:
+                    return ("b", n1)
+        #
+        return (None, None)
+    
+    def bnIsActive(self, bed: str, needle: int) -> bool:
+        return needle in self.k.bn_locs[bed]
+    
+    def bnIsEmpty(self, bed: str, needle: int) -> bool:
+        return not needle in self.k.bn_locs[bed]
+    
+    def bnStackCount(self, bed: str, needle: int) -> int:
+        return self.k.stacked_bns[bed].count(needle)+1
+
+
+#===============================================================================
+
+
+
+
+
+
