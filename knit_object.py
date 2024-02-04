@@ -187,7 +187,7 @@ class KnitObject:
     def caston(self, bed: Optional[str], needle_range: Tuple[int, int], method: Union[CastonMethod, int], *cs: str) -> None:
         method = CastonMethod.parse(method) #check
         #
-        not_in_cs = [c for c in cs if c not in self.k.in_carriers] #check
+        not_in_cs = [c for c in cs if c not in self.k.carrier_map.keys()] #check
         if len(not_in_cs):
             self.k.inhook(*not_in_cs)
         #
