@@ -1,4 +1,5 @@
-from knitout import Writer, shiftDirection #check
+import knitout
+from knitout import shiftDirection #check
 import re
 import warnings
 
@@ -71,7 +72,7 @@ class Carrier:
         if needle is not None: self.needle = needle
 
 
-class KnitlibWriter(Writer):
+class Writer(knitout.Writer):
     def __init__(self, cs):
         super().__init__(cs)
         #
