@@ -192,13 +192,13 @@ class KnitObject:
             self.k.inhook(*not_in_cs)
         #
         if method == CastonMethod.ALT_TUCK_CLOSED:
-            if bed != "f" and bed != "b": altTuckClosedCaston(self, needle_range[0], needle_range[1], c=cs, gauge=self.gauge)
-            else: altTuckCaston(self, needle_range[0], needle_range[1], c=cs, bed=bed, gauge=self.gauge)
+            if bed != "f" and bed != "b": altTuckClosedCaston(self.k, needle_range[0], needle_range[1], c=cs, gauge=self.gauge)
+            else: altTuckCaston(self.k, needle_range[0], needle_range[1], c=cs, bed=bed, gauge=self.gauge)
         elif method == CastonMethod.ALT_TUCK_OPEN:
             assert bed != "f" and bed != "b", "ALT_TUCK_OPEN only valid for double bed knitting."
-            altTuckOpenTubeCaston(self, needle_range[0], needle_range[1], c=cs, gauge=self.gauge)
+            altTuckOpenTubeCaston(self.k, needle_range[0], needle_range[1], c=cs, gauge=self.gauge)
         elif method == CastonMethod.ZIGZAG:
-            zigzagCaston(self, needle_range[0], needle_range[1], c=cs, gauge=self.gauge)
+            zigzagCaston(self.k, needle_range[0], needle_range[1], c=cs, gauge=self.gauge)
             if needle_range[1] > needle_range[0]: xfer_range = range(needle_range[0], needle_range[1]+1)
             else: xfer_range = range(needle_range[0], needle_range[1]-1, -1)
             if bed == "f":
@@ -540,7 +540,8 @@ class KnitObject:
             _carriers = list(self.k.carrier_map.keys())
             for c in _carriers:
                 self.k.outhook(c)
-        self.k.write(path.join(path.dirname(path.dirname( path.abspath(__file__))), f"knitout_files/{out_fn}.k"))
+        print(path.dirname(path.dirname( path.abspath(__file__)))) #remove #debug
+        self.k.write(path.join(path.dirname(path.dirname( path.abspath(__file__))), f"knitout_files/{out_fn}.k")) #TODO: #check
 
     #TODO: add other extensions + ops
     
