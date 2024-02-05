@@ -561,13 +561,12 @@ class KnitObject:
     @multimethod
     def decrease(self, method: Union[DecreaseMethod, int], from_bn: Tuple[str, int], to_bn: Tuple[str, int]):
         method = DecreaseMethod.parse(method) #check
-        # if isinstance(method, int): method = DecreaseMethod._value2member_map_[method] #remove
+        assert method != DecreaseMethod.DEFAULT, "TODO: deal with this"
         DEC_FUNCS[method](self, from_bn, to_bn)
 
     @decrease.register
     def decrease(self, method: Union[DecreaseMethod, int], from_bn: str, to_bn: str):
-        method = DecreaseMethod.parse(method) #check
-        DEC_FUNCS[method](self, getBedNeedle(from_bn), getBedNeedle(to_bn))
+        self.decrease(method, getBedNeedle(from_bn), getBedNeedle(to_bn))
     
     @multimethod
     def decreaseLeft(self,  method: Union[DecreaseMethod, int], bed: str, count: int):
@@ -606,18 +605,26 @@ class KnitObject:
     @multimethod
     def increase(self, method: Union[IncreaseMethod, int], from_bn: Tuple[str, int], to_bn: Tuple[str, int]):
         method = IncreaseMethod.parse(method) #check
+        assert method != IncreaseMethod.DEFAULT, "TODO: deal with this"
+        #
+        if method != IncreaseMethod.CASTON and method != IncreaseMethod.SPLIT:
+            for c, info in self.k.carrier_map.items():
+                if info.needle == from_bn[1]: self.k.miss(info.direction, f"{info.bed}{to_bn[1]}", c) #check
+        #
         INC_FUNCS[method](self, from_bn, to_bn)
 
     @increase.register
     def increase(self, method: Union[IncreaseMethod, int], from_bn: str, to_bn: str):
-        method = IncreaseMethod.parse(method) #check
-        INC_FUNCS[method](self, getBedNeedle(from_bn), getBedNeedle(to_bn))
+        self.increase(method, getBedNeedle(from_bn), getBedNeedle(to_bn))
 
     @multimethod
     def increaseLeft(self, method: Union[IncreaseMethod, int], bed: str, count: int):
         method = IncreaseMethod.parse(method) #check
         min_n = self.getMinNeedle(bed[0])
         max_n = self.getMaxNeedle(bed[0])
+        #
+        # for c, info in self.k.carrier_map.items():
+        #     if info.needle == min_n: self.k.miss("-", f"{info.bed}{min_n-count}", c)
         #
         if method == IncreaseMethod.DEFAULT:
             if min_n+count > max_n: method = IncreaseMethod.CASTON
@@ -633,8 +640,11 @@ class KnitObject:
     @multimethod
     def increaseRight(self, method: Union[IncreaseMethod, int], bed: str, count: int):
         method = IncreaseMethod.parse(method) #check
-        min_n = self.getMinNeedle(bed[0])
         max_n = self.getMaxNeedle(bed[0])
+        min_n = self.getMinNeedle(bed[0])
+        #
+        # for c, info in self.k.carrier_map.items():
+        #     if info.needle == max_n: self.k.miss("+", f"{info.bed}{max_n+count}", c)
         #
         if method == IncreaseMethod.DEFAULT:
             if max_n-count < min_n: method = IncreaseMethod.CASTON
