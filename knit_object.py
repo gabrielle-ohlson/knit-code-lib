@@ -580,7 +580,7 @@ class KnitObject:
             elif count <= self.gauge: method = DecreaseMethod.EDGE
             else: method = DecreaseMethod.SCHOOL_BUS
         #
-        self.decrease((bed, min_n), (bed, min_n+count), method)
+        self.decrease(method, (bed, min_n), (bed, min_n+count))
 
     @decreaseLeft.register
     def decreaseLeft(self, bed: str, count: int):
@@ -597,7 +597,7 @@ class KnitObject:
             elif count <= self.gauge: method = DecreaseMethod.EDGE
             else: method = DecreaseMethod.SCHOOL_BUS
         #
-        self.decrease((bed, max_n), (bed, max_n-count), method)
+        self.decrease(method, (bed, max_n), (bed, max_n-count))
 
     @decreaseRight.register
     def decreaseRight(self, bed: str, count: int):
@@ -624,7 +624,7 @@ class KnitObject:
             elif count <= self.gauge: method = IncreaseMethod.EDGE
             else: method = IncreaseMethod.SCHOOL_BUS
         #
-        self.increase((bed, min_n), (bed, min_n-count), method)
+        self.increase(method, (bed, min_n), (bed, min_n-count))
 
     @increaseLeft.register
     def increaseLeft(self, bed: str, count: int):
@@ -641,7 +641,7 @@ class KnitObject:
             elif count <= self.gauge: method = IncreaseMethod.EDGE
             else: method = IncreaseMethod.SCHOOL_BUS
         #
-        self.increase((bed, max_n), (bed, max_n+count), method)
+        self.increase(method, (bed, max_n), (bed, max_n+count))
     
     @increaseRight.register
     def increaseRight(self, bed: str, count: int):
