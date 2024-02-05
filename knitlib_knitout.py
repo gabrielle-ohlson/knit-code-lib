@@ -1,8 +1,33 @@
 import knitout
 from knitout import shiftDirection #check
+
+from typing import Union, Tuple, List
 import re
 import warnings
+from enum import Enum
 
+from .knitout_helpers import Carrier, InactiveCarrierWarning, UnalignedNeedlesWarning, StackedLoopWarning, HeldLoopWarning, UnstableLoopWarning, FloatWarning
+    
+
+class KnitoutException(Enum):
+    INACTIVE_CARRIER = InactiveCarrierWarning
+    #TODO: add double inhook carrier too
+    UNALIGNED_NEEDLES = UnalignedNeedlesWarning
+    FLOAT = FloatWarning
+    STACKED_LOOP = StackedLoopWarning
+    HELD_LOOP = HeldLoopWarning #TODO
+    UNSTABLE_LOOP = UnstableLoopWarning #TODO
+    
+
+
+# # ou can utilize the handy warnings.simplefilter() method using the 1st parameter in [‘error’, ‘ignore’, ‘default’, ‘module’, ‘always’, ‘once’] to control how all warnings are dealt with or using a second parameter Category in order to only have the simplefilter() method controls only some warnings. For example:
+# # adding a single entry into warnings filter 
+# warnings.simplefilter("error", StackedLoopWarning) 
+
+# warnings.filterwarnings("ignore") #start out by ignoring all warnings
+# # warnings.warn("", StackedLoopWarning)
+
+  
 
 reg = re.compile(r"^([f|b]s?)(-?\d+)?$") #TODO: decide if should keep as compile #?
 
@@ -60,18 +85,6 @@ def shiftBedNeedle(args):
     return bed+str(needle), (bed, needle)
 
 
-class Carrier:
-    def __init__(self, direction=None, bed=None, needle=None):
-        self.direction = direction
-        self.bed = bed
-        self.needle = needle
-    #
-    def update(self, direction=None, bed=None, needle=None):
-        if direction is not None: self.direction = direction
-        if bed is not None: self.bed = bed
-        if needle is not None: self.needle = needle
-
-
 class Writer(knitout.Writer):
     def __init__(self, cs):
         super().__init__(cs)
@@ -81,18 +94,38 @@ class Writer(knitout.Writer):
         self.carrier_map = dict()
         self.stacked_bns = {"f": [], "b": [], "fs": [], "bs": []} #keep #?
         self.bn_locs = {"f": [], "b": [], "fs": [], "bs": []}
+
+        self.setExceptionHandling(enabled_warnings=(KnitoutException.FLOAT, KnitoutException.STACKED_LOOP, KnitoutException.HELD_LOOP, KnitoutException.UNSTABLE_LOOP), enabled_errors=(KnitoutException.INACTIVE_CARRIER, KnitoutException.UNALIGNED_NEEDLES)) #default (can be changed by calling it again with different values) (NOTE: any KnitoutExceptions not included in `enabled_warnings` or `enabled_errors` are ignored by default)
     
     # def verifyCarriers(self, carriers) -> None:
     #     for c in carriers:
     #         if c not in self.in_carriers: raise ValueError("Carrier not already in", c)
+
+    # def enableAllWarnings(self):
+
+    def setExceptionHandling(self, enabled_warnings: Union[Tuple[KnitoutException], List[KnitoutException], KnitoutException], enabled_errors: Union[Tuple[KnitoutException], List[KnitoutException], KnitoutException]):
+        if isinstance(enabled_warnings, KnitoutException): enabled_warnings = [enabled_warnings]
+        else: assert isinstance(enabled_warnings, (Tuple[KnitoutException], List[KnitoutException])), "'enabled_warnings' parameter must be of type Tuple[KnitoutException], List[KnitoutException], or KnitoutException." #check
+        #
+        if isinstance(enabled_errors, KnitoutException): enabled_errors = [enabled_errors]
+        else: assert isinstance(enabled_errors, (Tuple[KnitoutException], List[KnitoutException])), "'enabled_errors' parameter must be of type Tuple[KnitoutException], List[KnitoutException], or KnitoutException." #check
+        #
+        for w in KnitoutException:
+            if w in enabled_errors: warnings.simplefilter("error", w.value)
+            elif w in enabled_warnings: warnings.simplefilter("default", w.value)
+            else: warnings.simplefilter("ignore", w.value)
+            # print('{:15} = {}'.format(w.name, w.value)) #remove
+
 
     def setLoc(self, bed, needle, is_tuck=False):
         if needle not in self.bn_locs[bed]: self.bn_locs[bed].append(needle)
         else:
             if is_tuck:
                 self.stacked_bns[bed].append(needle)
-                stack_ct = self.stacked_bns[bed].count(needle)
-                if stack_ct > 1: warnings.warn(f"{stack_ct} loops stacked on '{bed}{needle}'")
+                #
+                StackedLoopWarning.check(warnings, self.stacked_bns, bed, needle) #check
+                # stack_ct = self.stacked_bns[bed].count(needle)
+                # if stack_ct > 1: warnings.warn(StackedLoopWarning(f"{bed}{needle}", stack_ct)) #warnings.warn(f"{stack_ct} loops stacked on '{bed}{needle}'")
             else: self.stacked_bns[bed] = [n for n in self.stacked_bns[bed] if n != needle] #filter out all occurrences
     
     def unsetLoc(self, bed, needle):
@@ -116,8 +149,9 @@ class Writer(knitout.Writer):
                     self.stacked_bns[bed].remove(needle)
                     self.stacked_bns[bed2].append(needle2)
             #
-            stack_ct = self.stacked_bns[bed2].count(needle2)
-            if stack_ct > 1: warnings.warn(f"{stack_ct} loops stacked on '{bed2}{needle2}'")
+            StackedLoopWarning.check(warnings, self.stacked_bns, bed2, needle2) #check
+            # stack_ct = self.stacked_bns[bed2].count(needle2)
+            # if stack_ct > 1:  warnings.warn(StackedLoopWarning(f"{bed2}{needle2}", stack_ct)) #warnings.warn(f"{stack_ct} loops stacked on '{bed2}{needle2}'")
         #
         # if is_split and needle2 in bed2_stacked:
         #     for n in bed2_stacked:
@@ -158,8 +192,9 @@ class Writer(knitout.Writer):
         cs, carriers = shiftCarrierSet(argl, self.carriers)
         #
         for c in carriers:
-            if c not in self.carrier_map: raise ValueError("Attempting to 'outhook' carrier that is not already in", c)
-            else: del self.carrier_map[c] #check #self.in_carriers.remove(c)
+            if not InactiveCarrierWarning.check(warnings, self.carrier_map, c, op="outhook"): del self.carrier_map[c] #check 
+            # if c not in self.carrier_map: warnings.warn(InactiveCarrierWarning(c, "outhook")) #raise ValueError("Attempting to 'outhook' carrier that is not already in", c)
+            # else: del self.carrier_map[c] #check #self.in_carriers.remove(c)
         #
         self.operations.append('outhook ' + cs)
 
@@ -169,8 +204,9 @@ class Writer(knitout.Writer):
         cs, carriers = shiftCarrierSet(argl, self.carriers)
         #
         for c in carriers:
-            if c not in self.carrier_map: raise ValueError("Attempting to 'out' carrier that is not already in", c)
-            else: del self.carrier_map[c] 
+            if not InactiveCarrierWarning.check(warnings, self.carrier_map, c, op="out"): del self.carrier_map[c] #check 
+            # if c not in self.carrier_map: warnings.warn(InactiveCarrierWarning(c, "out")) #raise ValueError("Attempting to 'out' carrier that is not already in", c)
+            # else: del self.carrier_map[c] 
         self.operations.append('out ' + cs)
 
     def releasehook(self, *args):
@@ -178,7 +214,8 @@ class Writer(knitout.Writer):
         cs, carriers = shiftCarrierSet(argl, self.carriers)
         #
         for c in carriers:
-            if c not in self.carrier_map: raise ValueError("Attempting to 'releasehook' carrier that is not already in", c)
+            InactiveCarrierWarning.check(warnings, self.carrier_map, c, op="releasehook")
+            # if c not in self.carrier_map: warnings.warn(InactiveCarrierWarning(c, "releasehook")) #raise ValueError("Attempting to 'releasehook' carrier that is not already in", c)
         #
         self.operations.append('releasehook ' + cs)
     
@@ -193,8 +230,12 @@ class Writer(knitout.Writer):
         cs, carriers = shiftCarrierSet(argl, self.carriers)
         #
         for c in carriers:
-            if c not in self.carrier_map: raise ValueError("Attempting to 'knit' with carrier that is not already in", c)
+            FloatWarning.check(warnings, self.carrier_map, c, needle)
+            #
+            if InactiveCarrierWarning.check(warnings, self.carrier_map, c, op="knit"): self.carrier_map[c] = Carrier(direction, bed, needle) #warning raised, but not error level
             else: self.carrier_map[c].update(direction, bed, needle)
+            # if c not in self.carrier_map: warnings.warn(InactiveCarrierWarning(c, "knit")) #raise ValueError("Attempting to 'knit' with carrier that is not already in", c)
+            # else: self.carrier_map[c].update(direction, bed, needle)
         #
         self.operations.append('knit ' + direction + ' ' + bn + ' ' + cs)
         #
@@ -210,8 +251,12 @@ class Writer(knitout.Writer):
         cs, carriers = shiftCarrierSet(argl, self.carriers)
         #
         for c in carriers:
-            if c not in self.carrier_map: raise ValueError("Attempting to 'tuck' with carrier that is not already in", c)
+            FloatWarning.check(warnings, self.carrier_map, c, needle)
+            #
+            if InactiveCarrierWarning.check(warnings, self.carrier_map, c, op="tuck"): self.carrier_map[c] = Carrier(direction, bed, needle) #warning raised, but not error level
             else: self.carrier_map[c].update(direction, bed, needle)
+            # if c not in self.carrier_map:warnings.warn(InactiveCarrierWarning(c, "tuck")) #raise ValueError("Attempting to 'tuck' with carrier that is not already in", c)
+            # else: self.carrier_map[c].update(direction, bed, needle)
         #
         self.operations.append('tuck ' + direction + ' ' + bn + ' ' + cs)
         #
@@ -221,6 +266,14 @@ class Writer(knitout.Writer):
         argl = list(args)
         bn_from, (bed, needle) = shiftBedNeedle(argl)
         bn_to, (bed2, needle2) = shiftBedNeedle(argl)
+        #
+        UnalignedNeedlesWarning.check(warnings, self.rack_value, bed, needle, bed2, needle2)
+        # assert bed[0] != bed2[0], f"can't xfer to/from to same bed ({bed} -> {bed2})"
+        # if bed[0] == "f":
+        #     if needle-needle2 != self.rack_value: warnings.warn(UnalignedRackWarning(self.rack_value, bn_from, bn_to))
+        # else:
+        #     if needle2-needle != self.rack_value: warnings.warn(UnalignedRackWarning(self.rack_value, bn_from, bn_to))
+        #
         self.operations.append('xfer ' + bn_from + ' ' + bn_to)
         #
         self.xferLoc(bed, needle, bed2, needle2)
@@ -235,9 +288,20 @@ class Writer(knitout.Writer):
         bn_to, (bed2, needle2) = shiftBedNeedle(argl)
         cs, carriers = shiftCarrierSet(argl, self.carriers)
         #
+        UnalignedNeedlesWarning.check(warnings, self.rack_value, bed, needle, bed2, needle2)
+        # assert bed[0] != bed2[0], f"can't split to/from to same bed ({bed} -> {bed2})"
+        # if bed[0] == "f":
+        #     if needle-needle2 != self.rack_value: warnings.warn(UnalignedRackWarning(self.rack_value, bn_from, bn_to))
+        # else:
+        #     if needle2-needle != self.rack_value: warnings.warn(UnalignedRackWarning(self.rack_value, bn_from, bn_to))
+        #
         for c in carriers:
-            if c not in self.carrier_map: raise ValueError("Attempting to 'split' with carrier that is not already in", c)
+            FloatWarning.check(warnings, self.carrier_map, c, needle)
+            #
+            if InactiveCarrierWarning.check(warnings, self.carrier_map, c, op="split"): self.carrier_map[c] = Carrier(direction, bed, needle) #warning raised, but not error level
             else: self.carrier_map[c].update(direction, bed, needle)
+            # if c not in self.carrier_map: warnings.warn(InactiveCarrierWarning(c, "split")) #raise ValueError("Attempting to 'split' with carrier that is not already in", c)
+            # else: self.carrier_map[c].update(direction, bed, needle)
         #
         self.operations.append('split '+ direction + ' '  + bn_from + ' ' + bn_to + ' ' + cs)
         #
@@ -251,8 +315,10 @@ class Writer(knitout.Writer):
         cs, carriers = shiftCarrierSet(argl, self.carriers)
         #
         for c in carriers:
-            if c not in self.carrier_map: raise ValueError("Attempting to 'miss' with carrier that is not already in", c)
+            if InactiveCarrierWarning.check(warnings, self.carrier_map, c, op="miss"): self.carrier_map[c] = Carrier(direction, bed, needle) #warning raised, but not error level
             else: self.carrier_map[c].update(direction, bed, needle)
+            # if c not in self.carrier_map: warnings.warn(InactiveCarrierWarning(c, "miss")) #raise ValueError("Attempting to 'miss' with carrier that is not already in", c)
+            # else: self.carrier_map[c].update(direction, bed, needle)
         #
         self.operations.append('miss ' + direction + ' ' + bn + ' ' + cs)
     
