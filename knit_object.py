@@ -569,15 +569,39 @@ class KnitObject:
         method = DecreaseMethod.parse(method) #check
         DEC_FUNCS[method](self, getBedNeedle(from_bn), getBedNeedle(to_bn))
     
-    def decreaseLeft(self,  method: Union[DecreaseMethod, int], bed: str, count: int): #TODO: add default method stuff
+    @multimethod
+    def decreaseLeft(self,  method: Union[DecreaseMethod, int], bed: str, count: int):
         method = DecreaseMethod.parse(method) #check
         min_n = self.getMinNeedle(bed[0])
+        max_n = self.getMaxNeedle(bed[0])
+        #
+        if method == DecreaseMethod.DEFAULT:
+            if min_n-count > max_n: method = DecreaseMethod.BINDOFF #check
+            elif count <= self.gauge: method = DecreaseMethod.EDGE
+            else: method = DecreaseMethod.SCHOOL_BUS
+        #
         self.decrease((bed, min_n), (bed, min_n+count), method)
 
+    @decreaseLeft.register
+    def decreaseLeft(self, bed: str, count: int):
+        self.decreaseLeft(DecreaseMethod.DEFAULT, bed, count)
+
+    @multimethod
     def decreaseRight(self, method: Union[DecreaseMethod, int], bed: str, count: int): #TODO: add default method stuff
         method = DecreaseMethod.parse(method) #check
         max_n = self.getMaxNeedle(bed[0])
+        min_n = self.getMinNeedle(bed[0])
+        #
+        if method == DecreaseMethod.DEFAULT:
+            if max_n-count < min_n: method = DecreaseMethod.BINDOFF #check
+            elif count <= self.gauge: method = DecreaseMethod.EDGE
+            else: method = DecreaseMethod.SCHOOL_BUS
+        #
         self.decrease((bed, max_n), (bed, max_n-count), method)
+
+    @decreaseRight.register
+    def decreaseRight(self, bed: str, count: int):
+        self.decreaseRight(DecreaseMethod.DEFAULT, bed, count)
 
     @multimethod
     def increase(self, method: Union[IncreaseMethod, int], from_bn: Tuple[str, int], to_bn: Tuple[str, int]):
