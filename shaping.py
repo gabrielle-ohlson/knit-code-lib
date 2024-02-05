@@ -124,12 +124,12 @@ def incEdge(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], int]):
         for i in range(0, to_needle-from_needle+2, 2):
             obj.xfer((from_bed, from_needle-i//2), (to_bed, to_needle-i), reset_rack=False)
             #
-            obj.twist_bns.append(f"{to_bed}{to_needle-i-1}") #TODO
+            obj.twist_bns.append(f"{to_bed}{to_needle-i-1}")
     else:
-        for i in range(from_needle-to_needle+2, 2):
+        for i in range(0, from_needle-to_needle+2, 2):
             obj.xfer((from_bed, from_needle+i//2), (to_bed, to_needle+i), reset_rack=False)
             #
-            obj.twist_bns.append(f"{to_bed}{to_needle+i+1}") #TODO
+            obj.twist_bns.append(f"{to_bed}{to_needle+i+1}")
     obj.rack(0)
     # obj.xfer(from_bn, to_bn)
     # obj.twist_bns.append(from_bn) #TODO
