@@ -176,7 +176,7 @@ class KnitObject:
 
     @row_ct.setter
     def row_ct(self, value: int):
-        self.comment(f"row: {value}")
+        self.k.comment(f"row: {value}")
         self._row_ct = value
 
     def caston(self, method: Union[CastonMethod, int], bed: Optional[str], needle_range: Tuple[int, int], *cs: str) -> None:
@@ -449,13 +449,13 @@ class KnitObject:
     
     @multimethod
     def twistedStitch(self, d: str, bn: str, *cs: str) -> None:
-        self.comment("begin twisted stitch")
+        self.k.comment("begin twisted stitch")
         d2 = toggleDirection(d)
         #
         self.k.miss(d, bn, *cs)
         self.k.knit(d2, bn, *cs)
         self.k.miss(d, bn, *cs)
-        self.comment("end twisted stitch")
+        self.k.comment("end twisted stitch")
         #
         bed, needle = getBedNeedle(bn) #TODO: move this to updateCarriers instead #?
         self.updateCarriers(d, bed, needle, *cs)
@@ -469,11 +469,11 @@ class KnitObject:
     def twistedStitch(self, d: str, bns: List[str], *cs: str) -> None:
         d2 = toggleDirection(d)
         for bn in bns:
-            self.comment("begin twisted stitch")
+            self.k.comment("begin twisted stitch")
             self.k.miss(d, bn, *cs)
             self.k.knit(d2, bn, *cs)
             self.k.miss(d, bn, *cs)
-            self.comment("end twisted stitch")
+            self.k.comment("end twisted stitch")
             #
             # bed, needle = getBedNeedle(bn)
             # self.updateCarriers(d, bed, needle, *cs) #go back! #?
