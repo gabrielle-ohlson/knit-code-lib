@@ -139,7 +139,7 @@ class KnitObject:
         #
         self.active_carrier = None #TODO
         self.hook_active = False #remove #?
-        self.avoid_bns = {"f": [], "b": []}
+        self.avoid_bns = {"f": [], "b": []} #, "fs": [], "bs": []}
         self.twist_bns = list()
         self.st_cts = {} #?
         #
@@ -508,10 +508,10 @@ class KnitObject:
         #
         next_bed, next_needle = xto_bed, to_needle
         #
-        if next_needle in self.avoid_bns[next_bed]:
+        if next_needle in self.avoid_bns[next_bed[0]]:
             if to_bed is None:
                 next_bed = from_bed
-                assert not next_needle in self.avoid_bns[next_bed]
+                assert not next_needle in self.avoid_bns[next_bed[0]]
             else:
                 assert not to_bn != (next_bed, next_needle), "requesting to transfer to an invalid needle (specified as to-avoid)"
                 (next_bed, next_needle) = self.findNextValidNeedle(xto_bed, next_needle)
