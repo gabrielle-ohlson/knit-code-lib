@@ -522,7 +522,7 @@ class KnitObject:
         self.k.xfer(from_bed, from_needle, next_bed, next_needle)
         if reset_rack: self.rack(0)
         #
-        if to_bed is None: to_bed = next_bed #TODO: #check to make sure this actually changes it
+        if to_bed is None: to_bed = next_bed
         #
         if next_bed != to_bed:
             if next_needle == to_needle:
@@ -553,10 +553,7 @@ class KnitObject:
             _carriers = list(self.k.carrier_map.keys())
             for c in _carriers:
                 self.k.outhook(c)
-        print(path.dirname(path.dirname( path.abspath(__file__)))) #remove #debug
-        self.k.write(path.join(path.dirname(path.dirname( path.abspath(__file__))), f"knitout_files/{out_fn}.k")) #TODO: #check
-
-    #TODO: add other extensions + ops
+        self.k.write(path.join(path.dirname(path.dirname( path.abspath(__file__))), f"knitout_files/{out_fn}.k"))
     
     @multimethod
     def decrease(self, method: Union[DecreaseMethod, int], from_bn: Tuple[str, int], to_bn: Tuple[str, int]):

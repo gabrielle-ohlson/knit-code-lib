@@ -28,6 +28,7 @@ def decSchoolBus(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], int]
     #
     if from_needle > to_needle: #right side
         ct = from_needle-to_needle
+        obj.k.comment(f"decrease {ct} on right") #debug
         if from_bed.startswith("f"):
             xto_bed = "bs"
         else:
@@ -64,6 +65,7 @@ def decSchoolBus(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], int]
             raise RuntimeError(f"not enough working needles to decrease by {ct} using the school-bus method.")
     else: #left side
         ct = to_needle-from_needle
+        obj.k.comment(f"decrease {ct} on left") #debug
         if from_bed.startswith("f"):
             xto_bed = "bs"
         else:
@@ -141,6 +143,7 @@ def incSchoolBus(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], int]
     #
     if from_needle < to_needle: #right side
         ct = to_needle-from_needle
+        obj.k.comment(f"increase {ct} on right") #debug
         if from_bed.startswith("f"):
             xto_bed = "bs"
         else:
@@ -174,6 +177,7 @@ def incSchoolBus(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], int]
             raise RuntimeError(f"not enough working needles to increase by {ct} using the school-bus method.")
     else: #left side
         ct = from_needle-to_needle
+        obj.k.comment(f"increase {ct} on left") #debug
         if from_bed.startswith("f"):
             xto_bed = "bs"
         else:
