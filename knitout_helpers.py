@@ -1,3 +1,7 @@
+from typing import Optional, Tuple
+import re
+
+
 class Carrier:
     def __init__(self, direction=None, bed=None, needle=None):
         self.direction = direction
@@ -8,6 +12,122 @@ class Carrier:
         if direction is not None: self.direction = direction
         if bed is not None: self.bed = bed
         if needle is not None: self.needle = needle
+
+
+def getBedNeedle(bn: str):
+    res = re.match(r"^([f|b]s?)(-?\d+)$", bn)
+    if res is not None:
+        bed, needle = res.group(1), int(res.group(2))
+        return bed, needle
+    else: raise ValueError(f"'{bn}' is not a valid bed-needle string.")
+
+def findNextValidNeedle(self, bed: Optional[str], needle: int, d: str=None, in_limits: bool=True) -> Tuple[str, int]: #TODO: add code for in_limits=False (aka can search outside of limits with min_n and max_n)
+    min_ns = {"f": self.getMinNeedle("f"), "b": self.getMinNeedle("b")} #NOTE: must have `getMinNeedle` and `getMaxNeedle` attributes to use this method
+    max_ns = {"f": self.getMaxNeedle("f"), "b": self.getMaxNeedle("b")}
+    if bed is not None: min_n, max_n = min_ns[bed[0]], max_ns[bed[0]]
+    else: min_n, max_n = min(min_ns["f"], min_ns["b"]), max(max_ns["f"], max_ns["b"])
+    #
+    n_1, n1 = needle, needle
+    if d is None:
+        for n_1, n1 in zip(range(needle, min_n-1, -1), range(needle, max_n+1)):
+            if bed != "f" and n_1 >= min_ns["b"] and not n_1 in self.avoid_bns.get("b", []):
+                return ("b", n_1)
+            elif bed != "b" and n_1 >= min_ns["f"] and not n_1 in self.avoid_bns.get("f", []):
+                return ("f", n_1)
+            elif bed != "b" and n1 <= max_ns["f"] and not n1 in self.avoid_bns.get("f", []):
+                return ("f", n1)
+            elif bed != "f" and n1 <= max_ns["b"] and not n1 in self.avoid_bns.get("b", []):
+                return ("b", n1)
+    else: assert d == "-" or d == "+"
+    #
+    if d == "-" or n_1 != min_n:
+        for n_1 in range(n_1, min_n-1, -1):
+            if bed != "f" and n_1 >= min_ns["b"] and not n_1 in self.avoid_bns.get("b", []):
+                return ("b", n_1)
+            elif bed != "b" and n_1 >= min_ns["f"] and not n_1 in self.avoid_bns.get("f", []):
+                return ("f", n_1)
+    #
+    if d == "+" or n1 != max_n:
+        for n1 in range(n1, max_n+1):
+            if bed != "b" and n1 <= max_ns["f"] and not n1 in self.avoid_bns.get("f", []):
+                return ("f", n1)
+            elif bed != "f" and n1 <= max_ns["b"] and not n1 in self.avoid_bns.get("b", []):
+                return ("b", n1)
+    #
+    return (None, None)
+
+
+def rackedXfer(self, from_bed: str, from_needle: int, to_bed: str, to_needle: int, reset_rack: bool=True): #TODO: deal with if no sliders on machine
+    ct = from_needle-to_needle
+    if from_bed.startswith("f"):
+        par = 1
+        if to_needle in self.avoid_bns.get("b", []): #NOTE: must have `avoid_bns` attribute to use this method
+            assert to_bed != "b", f"requesting to transfer to an invalid needle, '{to_needle}' (specified as to-avoid on to_bed, '{to_bed}')"
+            xto_bed = "bs"
+            if to_bed is None:
+                assert to_needle not in self.avoid_bns.get("f", []), f"requesting to transfer to an invalid needle, '{to_needle}' (specified as to-avoid on both beds)"
+                to_bed = "f"
+        else:
+            if to_bed is None:
+                to_bed = "b"
+                xto_bed = "b"
+            elif to_bed == "bs" or to_bed.startswith("f"): xto_bed = "bs"
+            else: xto_bed = "b"
+    else: #startswith("b")
+        par = -1
+        if to_needle in self.avoid_bns.get("f", []):
+            assert to_bed != "f", f"requesting to transfer to an invalid needle, '{to_needle}' (specified as to-avoid on to_bed, '{to_bed}')"
+            xto_bed = "fs"
+            if to_bed is None:
+                assert to_needle not in self.avoid_bns.get("b", []), f"requesting to transfer to an invalid needle, '{to_needle}' (specified as to-avoid on both beds)"
+                to_bed = "b"
+        else:
+            if to_bed is None:
+                to_bed = "f"
+                xto_bed = "f"
+            elif to_bed == "fs" or to_bed.startswith("b"): xto_bed = "fs"
+            else: xto_bed = "f"
+    #
+    """
+    next_bed, next_needle = xto_bed, to_needle
+    #
+    if next_needle in self.avoid_bns.get(next_bed[0], []): #NOTE: must have `avoid_bns` attribute to use this method
+        if to_bed is None:
+            next_bed = from_bed
+            assert not next_needle in self.avoid_bns.get(next_bed[0], [])
+        else:
+            assert not (to_bed, to_needle) != (next_bed, next_needle), "requesting to transfer to an invalid needle (specified as to-avoid)"
+            (next_bed, next_needle) = findNextValidNeedle(self, xto_bed, next_needle)
+            assert next_needle is not None
+            ct = from_needle-next_needle
+    #
+    self.k.rack(par*ct)
+    self.k.xfer(from_bed, from_needle, next_bed, next_needle)
+    if reset_rack: self.k.rack(0)
+    #
+    if to_bed is None: to_bed = next_bed
+    #
+    if next_bed != to_bed:
+        if next_needle == to_needle:
+            if not reset_rack: self.k.rack(0)
+            self.k.xfer(next_bed, next_needle, to_bed, to_needle)
+        else:
+            ct = next_needle-to_needle
+            self.k.rack(-1*par*ct)
+            self.k.xfer(next_bed, next_needle, to_bed, to_needle)
+            if reset_rack: self.k.rack(0)
+    """
+    #
+    self.k.rack(par*ct)
+    self.k.xfer(from_bed, from_needle, xto_bed, to_needle)
+    if reset_rack: self.k.rack(0)
+    #
+    # if to_bed is None: to_bed = next_bed
+    #
+    if xto_bed != to_bed:
+        assert xto_bed[0] != to_bed[0] #sanity check
+        if not reset_rack: self.k.rack(0)
+        self.k.xfer(xto_bed, to_needle, to_bed, to_needle)
 
 
 class InactiveCarrierWarning(UserWarning):
@@ -38,7 +158,7 @@ class UnalignedNeedlesWarning(UserWarning):
             print(f"can't xfer to/from to same bed ({bed} -> {bed2})")
             warnings.warn(UnalignedNeedlesWarning(rack_value, f"{bed}{needle}", f"{bed2}{needle2}"))
             return True
-        elif (bed[0] == "f" and needle-needle2 != rack_value) or (bed[0] == "b" and needle2-needle != self.rack_value):
+        elif (bed[0] == "f" and needle-needle2 != rack_value) or (bed[0] == "b" and needle2-needle != rack_value):
             warnings.warn(UnalignedNeedlesWarning(rack_value, f"{bed}{needle}", f"{bed2}{needle2}"))
         else: return False
 
@@ -96,7 +216,7 @@ class FloatWarning(UserWarning):
     @classmethod
     def check(self, warnings, carrier_map, c, needle) -> bool:
         prev_needle = carrier_map[c].needle
-        if abs(needle-prev_needle) < self.MIN_FLOAT_LEN: return False
+        if prev_needle is None or abs(needle-prev_needle) < self.MIN_FLOAT_LEN: return False
         else:
             warnings.warn(FloatWarning(c, prev_needle, needle))
             return True

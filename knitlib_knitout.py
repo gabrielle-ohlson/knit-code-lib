@@ -6,6 +6,17 @@ import re
 import warnings
 from enum import Enum
 
+
+import sys
+from pathlib import Path
+
+## Standalone boilerplate before relative imports
+if not __package__: #remove #?
+    DIR = Path(__file__).resolve().parent
+    sys.path.insert(0, str(DIR.parent))
+    __package__ = DIR.name
+
+
 from .knitout_helpers import Carrier, InactiveCarrierWarning, UnalignedNeedlesWarning, StackedLoopWarning, HeldLoopWarning, UnstableLoopWarning, FloatWarning
     
 
@@ -30,14 +41,6 @@ class KnitoutException(Enum):
   
 
 reg = re.compile(r"^([f|b]s?)(-?\d+)?$") #TODO: decide if should keep as compile #?
-
-def getBedNeedle(bn: str):
-    res = re.match(r"^([f|b]s?)(-?\d+)$", bn)
-    if res is not None:
-        bed, needle = res.group(1), int(res.group(2))
-        return bed, needle
-    else: raise ValueError(f"'{bn}' is not a valid bed-needle string.")
-
 
 def shiftCarrierSet(args, carriers):
     if len(args) == 0:
@@ -94,6 +97,7 @@ class Writer(knitout.Writer):
         self.carrier_map = dict()
         self.stacked_bns = {"f": [], "b": [], "fs": [], "bs": []} #keep #?
         self.bn_locs = {"f": [], "b": [], "fs": [], "bs": []}
+        self.hook_active = False
 
         self.setExceptionHandling(enabled_warnings=(KnitoutException.FLOAT, KnitoutException.STACKED_LOOP, KnitoutException.HELD_LOOP, KnitoutException.UNSTABLE_LOOP), enabled_errors=(KnitoutException.INACTIVE_CARRIER, KnitoutException.UNALIGNED_NEEDLES)) #default (can be changed by calling it again with different values) (NOTE: any KnitoutExceptions not included in `enabled_warnings` or `enabled_errors` are ignored by default)
     
@@ -105,10 +109,10 @@ class Writer(knitout.Writer):
 
     def setExceptionHandling(self, enabled_warnings: Union[Tuple[KnitoutException], List[KnitoutException], KnitoutException], enabled_errors: Union[Tuple[KnitoutException], List[KnitoutException], KnitoutException]):
         if isinstance(enabled_warnings, KnitoutException): enabled_warnings = [enabled_warnings]
-        else: assert isinstance(enabled_warnings, (Tuple[KnitoutException], List[KnitoutException])), "'enabled_warnings' parameter must be of type Tuple[KnitoutException], List[KnitoutException], or KnitoutException." #check
+        else: assert isinstance(enabled_warnings, (tuple, list)) and isinstance(enabled_warnings[0], KnitoutException), "'enabled_warnings' parameter must be of type Tuple[KnitoutException], List[KnitoutException], or KnitoutException." #check
         #
         if isinstance(enabled_errors, KnitoutException): enabled_errors = [enabled_errors]
-        else: assert isinstance(enabled_errors, (Tuple[KnitoutException], List[KnitoutException])), "'enabled_errors' parameter must be of type Tuple[KnitoutException], List[KnitoutException], or KnitoutException." #check
+        else: assert isinstance(enabled_errors,  (tuple, list)) and isinstance(enabled_errors[0], KnitoutException), "'enabled_errors' parameter must be of type Tuple[KnitoutException], List[KnitoutException], or KnitoutException." #check
         #
         for w in KnitoutException:
             if w in enabled_errors: warnings.simplefilter("error", w.value)
@@ -171,10 +175,12 @@ class Writer(knitout.Writer):
         cs, carriers = shiftCarrierSet(argl, self.carriers)
         #
         for c in carriers:
-            if c in self.carrier_map: raise ValueError("Attempting to 'inhook' carrier that's already in", c)
+            if c in self.carrier_map: raise ValueError("Attempting to 'inhook' carrier that's already in", c) #TODO: make this a KnitoutException type
             else: self.carrier_map[c] = Carrier() # self.in_carriers.append(c)
         # self.in_carriers.extend(carriers)
         #
+        assert not self.hook_active, f"Can't inhook carrier(s) '{cs}' since the hook is still holding another yarn." #TODO: improve/make this a KnitoutException
+        self.hook_active = True
         self.operations.append('inhook ' + cs)
     
     def incarrier(self, *args): #NOTE: can't name func `in` since that is a keyword in python
@@ -195,6 +201,8 @@ class Writer(knitout.Writer):
             if not InactiveCarrierWarning.check(warnings, self.carrier_map, c, op="outhook"): del self.carrier_map[c] #check 
             # if c not in self.carrier_map: warnings.warn(InactiveCarrierWarning(c, "outhook")) #raise ValueError("Attempting to 'outhook' carrier that is not already in", c)
             # else: del self.carrier_map[c] #check #self.in_carriers.remove(c)
+        #
+        assert not self.hook_active, f"Can't outhook carrier(s) '{cs}' since the hook is still holding another yarn." #TODO: improve/make this a KnitoutException #TODO: check if this is truly an invalid thing to do
         #
         self.operations.append('outhook ' + cs)
 
@@ -217,11 +225,15 @@ class Writer(knitout.Writer):
             InactiveCarrierWarning.check(warnings, self.carrier_map, c, op="releasehook")
             # if c not in self.carrier_map: warnings.warn(InactiveCarrierWarning(c, "releasehook")) #raise ValueError("Attempting to 'releasehook' carrier that is not already in", c)
         #
+        assert self.hook_active, f"Can't releasehook carrier(s) '{cs}' since the hook is not holding yarn." #TODO: improve/make this a KnitoutException
+        self.hook_active = False
+        #
         self.operations.append('releasehook ' + cs)
     
-    def rack(self, r):
-        super().rack(r)
-        self.rack_value = r
+    def rack(self, r: Union[int,float]):
+        if self.rack_value != r: #keep #?
+            super().rack(r)
+            self.rack_value = r
 
     def knit(self, *args):
         argl = list(args)

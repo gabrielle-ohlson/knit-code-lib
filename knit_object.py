@@ -37,12 +37,12 @@ add something for knitPass at a rack (or a "rackedSort" function)
 - [ ] fmt warnings
 """
 
-from knitlib import zigzagCaston, sheetBindoff, altTuckCaston, altTuckClosedCaston, altTuckOpenTubeCaston
+from knitlib import zigzagCaston, sheetBindoff, altTuckCaston, altTuckClosedCaston, altTuckOpenTubeCaston #check import
 from .helpers import gauged, toggleDirection
 from .stitchPatterns import jersey, interlock, rib, garter, seed
 # from .helpers import multidispatchmethod
 
-from .knitlib_knitout import getBedNeedle
+from .knitout_helpers import getBedNeedle, rackedXfer #, findNextValidNeedle
 from .shaping import decEdge, decSchoolBus, decBindoff, incEdge, incSchoolBus, incCaston, incSplit
 
 
@@ -130,6 +130,10 @@ INC_FUNCS = {
 
 class KnitObject:
     def __init__(self, k, gauge=1, machine="swgn2"):
+        rack_value_op = getattr(k, "rack_value", None)
+        print(type(k)) #remove #debug
+        assert rack_value_op is not None, "'k' must come from the 'knitlib_knitout' module" #debug
+        #
         self.k = k
         self.gauge = gauge
         self.machine = machine
@@ -137,8 +141,7 @@ class KnitObject:
         # self.min_n = {"f": float("inf"), "b": float("inf")}
         # self.max_n = {"f": float("-inf"), "b": float("-inf")}
         #
-        self.active_carrier = None #TODO
-        self.hook_active = False #remove #?
+        self.active_carrier = None #TODO #*
         self.avoid_bns = {"f": [], "b": []} #, "fs": [], "bs": []}
         self.twist_bns = list()
         self.st_cts = {} #?
@@ -146,14 +149,14 @@ class KnitObject:
         self._row_ct = 0 #TODO
         #
         self.pat_args = {
-            "k": None, #self
-            "start_n": None, #*
-            "end_n": None, #*
+            "k": None,
+            "start_n": None,
+            "end_n": None,
             "passes": 1,
-            "c": None, #*
-            "bed": None, #*
+            "c": None,
+            "bed": None,
             "gauge": self.gauge, #will *not* be a reference (should be updated each time in case it changes)
-            # "sequence": None, #*
+            # "sequence": None,
             # "bn_locs"
             # "avoid_bns": {"f": [], "b": []}
         }
@@ -164,7 +167,6 @@ class KnitObject:
     def getMinNeedle(self, bed=None) -> Union[int,float]:
         if bed is not None: return min(self.k.bn_locs[bed], default=float("inf"))
         else: return min(min(self.k.bn_locs[b], default=float("inf")) for b in self.k.bn_locs.keys())
-
 
     def getMaxNeedle(self, bed=None) -> Union[int,float]:
         if bed is not None: return max(self.k.bn_locs[bed], default=float("-inf"))
@@ -198,12 +200,12 @@ class KnitObject:
             else: xfer_range = range(needle_range[0], needle_range[1]-1, -1)
             if bed == "f":
                 for n in xfer_range:
-                    self.xfer(("f", gauged("f", n//self.gauge, self.gauge)), ("b", gauged("b", n//self.gauge, self.gauge)), reset_rack=False)
-                self.rack(0)
+                    self.rackedXfer("f", gauged("f", n//self.gauge, self.gauge), "b", gauged("b", n//self.gauge, self.gauge), reset_rack=False)
+                self.k.rack(0)
             elif bed == "b":
                 for n in xfer_range:
-                    self.xfer(("b", gauged("b", n//self.gauge, self.gauge)), ("f", gauged("f", n//self.gauge, self.gauge)), reset_rack=False)
-                self.rack(0)
+                    self.rackedXfer("b", gauged("b", n//self.gauge, self.gauge), "f", gauged("f", n//self.gauge, self.gauge), reset_rack=False)
+                self.k.rack(0)
         else: raise ValueError("unsupported caston method")
         #
         if len(not_in_cs): self.k.releasehook(*not_in_cs)
@@ -486,16 +488,11 @@ class KnitObject:
     @twistedStitch.register
     def twistedStitch(self, d: str, bn: None, *cs: str) -> None:
         return
-
-    def rack(self, r: Union[int,float]) -> None:
-        if self.k.rack_value != r: #no need to do it if we're already at this value
-            self.k.rack(r)
         
     @multimethod
-    def xfer(self, from_bn: Tuple[str, int], to_bn: Tuple[str, int], reset_rack=True):
-        from_bed, from_needle = from_bn
-        to_bed, to_needle = to_bn
-        #
+    def rackedXfer(self, from_bed: str, from_needle: int, to_bed: str, to_needle: int, reset_rack: bool=True):
+        rackedXfer(self, from_bed, from_needle, to_bed, to_needle, reset_rack)
+        """
         ct = from_needle-to_needle
         if from_bed.startswith("f"):
             par = 1
@@ -513,26 +510,27 @@ class KnitObject:
                 next_bed = from_bed
                 assert not next_needle in self.avoid_bns[next_bed[0]]
             else:
-                assert not to_bn != (next_bed, next_needle), "requesting to transfer to an invalid needle (specified as to-avoid)"
+                assert not (to_bed, to_needle) != (next_bed, next_needle), "requesting to transfer to an invalid needle (specified as to-avoid)"
                 (next_bed, next_needle) = self.findNextValidNeedle(xto_bed, next_needle)
                 assert next_needle is not None
                 ct = from_needle-next_needle
         #
-        self.rack(par*ct)
+        self.k.rack(par*ct)
         self.k.xfer(from_bed, from_needle, next_bed, next_needle)
-        if reset_rack: self.rack(0)
+        if reset_rack: self.k.rack(0)
         #
         if to_bed is None: to_bed = next_bed
         #
         if next_bed != to_bed:
             if next_needle == to_needle:
-                if not reset_rack: self.rack(0)
+                if not reset_rack: self.k.rack(0)
                 self.k.xfer(next_bed, next_needle, to_bed, to_needle)
             else:
                 ct = next_needle-to_needle
-                self.rack(-1*par*ct)
+                self.k.rack(-1*par*ct)
                 self.k.xfer(next_bed, next_needle, to_bed, to_needle)
-                if reset_rack: self.rack(0)
+                if reset_rack: self.k.rack(0)
+        """
         #
         from_bn_key = f"{from_bed}{from_needle}"
         to_bn_key = f"{to_bed}{to_needle}"
@@ -544,9 +542,13 @@ class KnitObject:
             #
             del self.st_cts[from_bn_key]
     
-    @xfer.register
-    def xfer(self, from_bn: str, to_bn: str, reset_rack=True):
-        self.xfer(getBedNeedle(from_bn), getBedNeedle(to_bn), reset_rack)
+    @rackedXfer.register
+    def rackedXfer(self, from_bn: Tuple[str,int], to_bn: Tuple[str,int], reset_rack: bool=True):
+        self.rackedXfer(*from_bn, *to_bn, reset_rack)
+
+    @rackedXfer.register
+    def rackedXfer(self, from_bn: str, to_bn: str, reset_rack: bool=True):
+        self.rackedXfer(*getBedNeedle(from_bn), *getBedNeedle(to_bn), reset_rack)
 
     def write(self, out_fn: str):
         if len(self.k.carrier_map.keys()):
@@ -654,7 +656,10 @@ class KnitObject:
     def increaseRight(self, bed: str, count: int):
         self.increaseRight(IncreaseMethod.DEFAULT, bed, count)
     
+    # findNextValidNeedle = findNextValidNeedle
+    """
     def findNextValidNeedle(self, bed: Optional[str], needle: int, d: str=None, in_limits: bool=True) -> Tuple[str, int]: #TODO: add code for in_limits=False (aka can search outside of limits with min_n and max_n)
+
         min_ns = {"f": self.getMinNeedle("f"), "b": self.getMinNeedle("b")}
         max_ns = {"f": self.getMaxNeedle("f"), "b": self.getMaxNeedle("b")}
         if bed is not None: min_n, max_n = min_ns[bed[0]], max_ns[bed[0]]
@@ -688,7 +693,8 @@ class KnitObject:
                     return ("b", n1)
         #
         return (None, None)
-    
+    """
+
     def bnIsActive(self, bed: str, needle: int) -> bool:
         return needle in self.k.bn_locs[bed]
     
