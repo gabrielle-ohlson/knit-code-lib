@@ -96,7 +96,7 @@ class BedNeedleList(list):
         return bn.stitch_ct
     
     def getRowCt(self) -> int:
-        return max(bn.stitch_ct for bn in self)
+        return max([bn.stitch_ct for bn in self], default=0)
     
     # def getLastRow(self, item: Union[BedNeedle, Tuple[str,int], str]):
     #     bn = self.get(item)

@@ -144,7 +144,7 @@ class KnitObject:
         self.active_carrier = None #TODO #*
         self.avoid_bns = {"f": [], "b": []} #, "fs": [], "bs": []}
         self.twist_bns = list()
-        self.st_cts = {} #?
+        # self.st_cts = {} #?
         #
         self._row_ct = 0 #TODO
         #
@@ -167,14 +167,10 @@ class KnitObject:
     def getMinNeedle(self, bed=None) -> Union[int,float]:
         try: return self.k.bns.min(bed)
         except: return float("inf")
-        # if bed is not None: return min(self.k.bn_locs[bed], default=float("inf"))
-        # else: return min(min(self.k.bn_locs[b], default=float("inf")) for b in self.k.bn_locs.keys())
 
     def getMaxNeedle(self, bed=None) -> Union[int,float]:
         try: return self.k.bns.max(bed)
         except: return float("-inf")
-        # if bed is not None: return max(self.k.bn_locs[bed], default=float("-inf"))
-        # else: return max(max(self.k.bn_locs[b], default=float("-inf")) for b in self.k.bn_locs.keys())
 
     @property
     def row_ct(self):
@@ -306,12 +302,14 @@ class KnitObject:
         else: return False
 
     def setRowCount(self) -> None:
-        cts = list(set(list(self.st_cts.values())))
-        if len(cts):
-            ct = max(cts)
-            if ct > self.row_ct:
-                # res = dict(reversed(sorted(self.st_cts.items(), key=lambda item: (-int(item[0][1:]),item[0][0])))) #debug
-                self.row_ct = ct
+        ct = self.k.row_ct
+        if ct > self.row_ct: self.row_ct = ct #check
+        # cts = list(set(list(self.st_cts.values())))
+        # if len(cts):
+        #     ct = max(cts)
+        #     if ct > self.row_ct:
+        #         # res = dict(reversed(sorted(self.st_cts.items(), key=lambda item: (-int(item[0][1:]),item[0][0])))) #debug
+        #         self.row_ct = ct
 
     # @multimethod
     def updateCarriers(self, direction: str, bed: str, needle: int, *cs: str) -> None:
@@ -465,9 +463,9 @@ class KnitObject:
         #
         bed, needle = getBedNeedle(bn) #TODO: move this to updateCarriers instead #?
         self.updateCarriers(d, bed, needle, *cs)
-        #
-        if bn not in self.st_cts: self.st_cts[bn] = 0 #means there is a loop there, but not a full stitch
-        else: self.st_cts[bn] += 1
+        # #
+        # if bn not in self.st_cts: self.st_cts[bn] = 0 #means there is a loop there, but not a full stitch #remove
+        # else: self.st_cts[bn] += 1
         #
         self.twist_bns.remove(bn) #TODO: decide what should go in twist_bns (str or tuple?)
 
@@ -484,8 +482,8 @@ class KnitObject:
             # bed, needle = getBedNeedle(bn)
             # self.updateCarriers(d, bed, needle, *cs) #go back! #?
             #
-            if bn not in self.st_cts: self.st_cts[bn] = 0 #means there is a loop there, but not a full stitch
-            else: self.st_cts[bn] += 1
+            # if bn not in self.st_cts: self.st_cts[bn] = 0 #means there is a loop there, but not a full stitch #remove
+            # else: self.st_cts[bn] += 1
             #
             self.twist_bns.remove(bn)
 
@@ -496,55 +494,17 @@ class KnitObject:
     @multimethod
     def rackedXfer(self, from_bed: str, from_needle: int, to_bed: str, to_needle: int, reset_rack: bool=True):
         rackedXfer(self, from_bed, from_needle, to_bed, to_needle, reset_rack)
-        """
-        ct = from_needle-to_needle
-        if from_bed.startswith("f"):
-            par = 1
-            if to_bed == "bs": xto_bed = "bs"
-            else: xto_bed = "b"
-        else:
-            par = -1
-            if to_bed == "fs": xto_bed = "fs"
-            else: xto_bed = "f"
         #
-        next_bed, next_needle = xto_bed, to_needle
-        #
-        if next_needle in self.avoid_bns[next_bed[0]]:
-            if to_bed is None:
-                next_bed = from_bed
-                assert not next_needle in self.avoid_bns[next_bed[0]]
-            else:
-                assert not (to_bed, to_needle) != (next_bed, next_needle), "requesting to transfer to an invalid needle (specified as to-avoid)"
-                (next_bed, next_needle) = self.findNextValidNeedle(xto_bed, next_needle)
-                assert next_needle is not None
-                ct = from_needle-next_needle
-        #
-        self.k.rack(par*ct)
-        self.k.xfer(from_bed, from_needle, next_bed, next_needle)
-        if reset_rack: self.k.rack(0)
-        #
-        if to_bed is None: to_bed = next_bed
-        #
-        if next_bed != to_bed:
-            if next_needle == to_needle:
-                if not reset_rack: self.k.rack(0)
-                self.k.xfer(next_bed, next_needle, to_bed, to_needle)
-            else:
-                ct = next_needle-to_needle
-                self.k.rack(-1*par*ct)
-                self.k.xfer(next_bed, next_needle, to_bed, to_needle)
-                if reset_rack: self.k.rack(0)
-        """
-        #
-        from_bn_key = f"{from_bed}{from_needle}"
-        to_bn_key = f"{to_bed}{to_needle}"
-        #
-        if from_bn_key in self.st_cts:
-            if to_bn_key not in self.st_cts:
-                self.st_cts[to_bn_key] = self.st_cts[from_bn_key]
-            else: self.st_cts[to_bn_key] = max(self.st_cts[to_bn_key], self.st_cts[from_bn_key]) #TODO: #check
-            #
-            del self.st_cts[from_bn_key]
+        #remove #v
+        # from_bn_key = f"{from_bed}{from_needle}"
+        # to_bn_key = f"{to_bed}{to_needle}"
+        # #
+        # if from_bn_key in self.st_cts:
+        #     if to_bn_key not in self.st_cts:
+        #         self.st_cts[to_bn_key] = self.st_cts[from_bn_key]
+        #     else: self.st_cts[to_bn_key] = max(self.st_cts[to_bn_key], self.st_cts[from_bn_key]) #TODO: #check
+        #     #
+        #     del self.st_cts[from_bn_key]
     
     @rackedXfer.register
     def rackedXfer(self, from_bn: Tuple[str,int], to_bn: Tuple[str,int], reset_rack: bool=True):

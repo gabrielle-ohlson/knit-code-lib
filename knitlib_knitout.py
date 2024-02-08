@@ -97,19 +97,14 @@ class Writer(knitout.Writer):
         # self.in_carriers = list()
         self.carrier_map = dict()
         self.bns = BedNeedleList()
-        # self.stacked_bns = {"f": [], "b": [], "fs": [], "bs": []} #keep #? #TODO: replace with st_cts
-        # self.bn_locs = {"f": [], "b": [], "fs": [], "bs": []}
-        # self.st_cts = {} #new #*
-        self.row_ct = 0 #?
+        # self.row_ct = 0 #?
         self.hook_active = False
 
         self.setExceptionHandling(enabled_warnings=(KnitoutException.FLOAT, KnitoutException.STACKED_LOOP, KnitoutException.HELD_LOOP, KnitoutException.UNSTABLE_LOOP), enabled_errors=(KnitoutException.INACTIVE_CARRIER, KnitoutException.UNALIGNED_NEEDLES)) #default (can be changed by calling it again with different values) (NOTE: any KnitoutExceptions not included in `enabled_warnings` or `enabled_errors` are ignored by default)
     
-    # def verifyCarriers(self, carriers) -> None:
-    #     for c in carriers:
-    #         if c not in self.in_carriers: raise ValueError("Carrier not already in", c)
-
-    # def enableAllWarnings(self):
+    @property
+    def row_ct(self):
+        return self.bns.getRowCt()
 
     def setExceptionHandling(self, enabled_warnings: Union[Tuple[KnitoutException], List[KnitoutException], KnitoutException], enabled_errors: Union[Tuple[KnitoutException], List[KnitoutException], KnitoutException]):
         if isinstance(enabled_warnings, KnitoutException): enabled_warnings = [enabled_warnings]
@@ -123,62 +118,6 @@ class Writer(knitout.Writer):
             elif w in enabled_warnings: warnings.simplefilter("default", w.value)
             else: warnings.simplefilter("ignore", w.value)
             # print('{:15} = {}'.format(w.name, w.value)) #remove
-
-    """
-    def setLoc(self, bed, needle, is_tuck=False):
-        if (bed,needle) not in self.bns: self.bns.append((bed, needle)) #new #check
-        # if needle not in self.bn_locs[bed]: self.bn_locs[bed].append(needle) #*
-        else:
-            if is_tuck:
-                if (bed,needle) not in self.st_cts: self.st_cts[(bed,needle)] = 0 #means there is a loop there, but not a full stitch
-                #
-                self.stacked_bns[bed].append(needle)
-                #
-                StackedLoopWarning.check(warnings, self.stacked_bns, bed, needle) #check
-                # stack_ct = self.stacked_bns[bed].count(needle)
-                # if stack_ct > 1: warnings.warn(StackedLoopWarning(f"{bed}{needle}", stack_ct)) #warnings.warn(f"{stack_ct} loops stacked on '{bed}{needle}'")
-            else:
-                if (bed,needle) not in self.st_cts: self.st_cts[(bed,needle)] = 0 #means there is a loop there, but not a full stitch
-                else: self.st_cts[(bed,needle)] += 1
-                #
-                self.stacked_bns[bed] = [n for n in self.stacked_bns[bed] if n != needle] #filter out all occurrences
-    
-    def unsetLoc(self, bed, needle):
-        if (bed,needle) in self.bns: self.bns.remove((bed,needle)) #new #check
-        # if needle in self.bn_locs[bed]: self.bn_locs[bed].remove(needle) #*
-        #
-        if needle in self.stacked_bns[bed]:
-            self.stacked_bns[bed] = [n for n in self.stacked_bns[bed] if n != needle] #filter out all occurrences
-
-    def xferLoc(self, bed, needle, bed2, needle2, is_split=False): #check
-        bed_stacked = self.stacked_bns[bed].copy() #TODO: see if needle deep copy
-        # bed2_stacked = self.stack_bns[bed2].copy()
-        #
-        if (bed,needle) in self.bns:
-            if (bed2,needle2) not in self.bns: self.bns.append((bed2,needle2))
-            if not is_split: self.bns.remove((bed,needle))
-        elif is_split: self.bn_locs[bed].append(needle)
-        # if needle in self.bn_locs[bed]:
-        #     if needle2 not in self.bn_locs[bed2]: self.bn_locs[bed2].append(needle2)
-        #     if not is_split: self.bn_locs[bed].remove(needle)
-        # elif is_split: self.bn_locs[bed].append(needle)
-        #
-        if needle in bed_stacked:
-            for n in bed_stacked:
-                if n == needle:
-                    self.stacked_bns[bed].remove(needle)
-                    self.stacked_bns[bed2].append(needle2)
-            #
-            StackedLoopWarning.check(warnings, self.stacked_bns, bed2, needle2) #check
-            # stack_ct = self.stacked_bns[bed2].count(needle2)
-            # if stack_ct > 1:  warnings.warn(StackedLoopWarning(f"{bed2}{needle2}", stack_ct)) #warnings.warn(f"{stack_ct} loops stacked on '{bed2}{needle2}'")
-        #
-        # if is_split and needle2 in bed2_stacked:
-        #     for n in bed2_stacked:
-        #         if n == needle2:
-        #             self.stacked_bns[bed2].remove(needle2)
-        #             self.stacked_bns[bed].append(needle)
-    """
     
     # patch on x-vis-color method:
     def visColor(self, hexcode, *args):
@@ -193,8 +132,7 @@ class Writer(knitout.Writer):
         #
         for c in carriers:
             if c in self.carrier_map: raise ValueError("Attempting to 'inhook' carrier that's already in", c) #TODO: make this a KnitoutException type
-            else: self.carrier_map[c] = Carrier() # self.in_carriers.append(c)
-        # self.in_carriers.extend(carriers)
+            else: self.carrier_map[c] = Carrier()
         #
         assert not self.hook_active, f"Can't inhook carrier(s) '{cs}' since the hook is still holding another yarn." #TODO: improve/make this a KnitoutException
         self.hook_active = True
@@ -216,8 +154,6 @@ class Writer(knitout.Writer):
         #
         for c in carriers:
             if not InactiveCarrierWarning.check(warnings, self.carrier_map, c, op="outhook"): del self.carrier_map[c] #check 
-            # if c not in self.carrier_map: warnings.warn(InactiveCarrierWarning(c, "outhook")) #raise ValueError("Attempting to 'outhook' carrier that is not already in", c)
-            # else: del self.carrier_map[c] #check #self.in_carriers.remove(c)
         #
         assert not self.hook_active, f"Can't outhook carrier(s) '{cs}' since the hook is still holding another yarn." #TODO: improve/make this a KnitoutException #TODO: check if this is truly an invalid thing to do
         #
@@ -230,8 +166,6 @@ class Writer(knitout.Writer):
         #
         for c in carriers:
             if not InactiveCarrierWarning.check(warnings, self.carrier_map, c, op="out"): del self.carrier_map[c] #check 
-            # if c not in self.carrier_map: warnings.warn(InactiveCarrierWarning(c, "out")) #raise ValueError("Attempting to 'out' carrier that is not already in", c)
-            # else: del self.carrier_map[c] 
         self.operations.append('out ' + cs)
 
     def releasehook(self, *args):
@@ -240,7 +174,6 @@ class Writer(knitout.Writer):
         #
         for c in carriers:
             InactiveCarrierWarning.check(warnings, self.carrier_map, c, op="releasehook")
-            # if c not in self.carrier_map: warnings.warn(InactiveCarrierWarning(c, "releasehook")) #raise ValueError("Attempting to 'releasehook' carrier that is not already in", c)
         #
         assert self.hook_active, f"Can't releasehook carrier(s) '{cs}' since the hook is not holding yarn." #TODO: improve/make this a KnitoutException
         self.hook_active = False
@@ -263,13 +196,10 @@ class Writer(knitout.Writer):
             #
             if InactiveCarrierWarning.check(warnings, self.carrier_map, c, op="knit"): self.carrier_map[c] = Carrier(direction, bed, needle) #warning raised, but not error level
             else: self.carrier_map[c].update(direction, bed, needle)
-            # if c not in self.carrier_map: warnings.warn(InactiveCarrierWarning(c, "knit")) #raise ValueError("Attempting to 'knit' with carrier that is not already in", c)
-            # else: self.carrier_map[c].update(direction, bed, needle)
         #
         self.operations.append('knit ' + direction + ' ' + bn + ' ' + cs)
         #
         self.bns.increment((bed,needle), is_tuck=False)
-        # self.setLoc(bed, needle)
 
 
     def tuck(self, *args):
@@ -283,8 +213,6 @@ class Writer(knitout.Writer):
             #
             if InactiveCarrierWarning.check(warnings, self.carrier_map, c, op="tuck"): self.carrier_map[c] = Carrier(direction, bed, needle) #warning raised, but not error level
             else: self.carrier_map[c].update(direction, bed, needle)
-            # if c not in self.carrier_map:warnings.warn(InactiveCarrierWarning(c, "tuck")) #raise ValueError("Attempting to 'tuck' with carrier that is not already in", c)
-            # else: self.carrier_map[c].update(direction, bed, needle)
         #
         self.operations.append('tuck ' + direction + ' ' + bn + ' ' + cs)
         #
@@ -298,11 +226,6 @@ class Writer(knitout.Writer):
         bn_to, (bed2, needle2) = shiftBedNeedle(argl)
         #
         UnalignedNeedlesWarning.check(warnings, self.rack_value, bed, needle, bed2, needle2)
-        # assert bed[0] != bed2[0], f"can't xfer to/from to same bed ({bed} -> {bed2})"
-        # if bed[0] == "f":
-        #     if needle-needle2 != self.rack_value: warnings.warn(UnalignedRackWarning(self.rack_value, bn_from, bn_to))
-        # else:
-        #     if needle2-needle != self.rack_value: warnings.warn(UnalignedRackWarning(self.rack_value, bn_from, bn_to))
         #
         self.operations.append('xfer ' + bn_from + ' ' + bn_to)
         #
@@ -319,23 +242,15 @@ class Writer(knitout.Writer):
         cs, carriers = shiftCarrierSet(argl, self.carriers)
         #
         UnalignedNeedlesWarning.check(warnings, self.rack_value, bed, needle, bed2, needle2)
-        # assert bed[0] != bed2[0], f"can't split to/from to same bed ({bed} -> {bed2})"
-        # if bed[0] == "f":
-        #     if needle-needle2 != self.rack_value: warnings.warn(UnalignedRackWarning(self.rack_value, bn_from, bn_to))
-        # else:
-        #     if needle2-needle != self.rack_value: warnings.warn(UnalignedRackWarning(self.rack_value, bn_from, bn_to))
         #
         for c in carriers:
             FloatWarning.check(warnings, self.carrier_map, c, needle)
             #
             if InactiveCarrierWarning.check(warnings, self.carrier_map, c, op="split"): self.carrier_map[c] = Carrier(direction, bed, needle) #warning raised, but not error level
             else: self.carrier_map[c].update(direction, bed, needle)
-            # if c not in self.carrier_map: warnings.warn(InactiveCarrierWarning(c, "split")) #raise ValueError("Attempting to 'split' with carrier that is not already in", c)
-            # else: self.carrier_map[c].update(direction, bed, needle)
         #
         self.operations.append('split '+ direction + ' '  + bn_from + ' ' + bn_to + ' ' + cs)
         #
-        # self.xferLoc(bed, needle, bed2, needle2, is_split=True)
         self.bns.xfer((bed,needle), (bed2,needle2), is_split=True)
         StackedLoopWarning.check(warnings, self.bns, bed2, needle2) #check
 
@@ -348,8 +263,6 @@ class Writer(knitout.Writer):
         for c in carriers:
             if InactiveCarrierWarning.check(warnings, self.carrier_map, c, op="miss"): self.carrier_map[c] = Carrier(direction, bed, needle) #warning raised, but not error level
             else: self.carrier_map[c].update(direction, bed, needle)
-            # if c not in self.carrier_map: warnings.warn(InactiveCarrierWarning(c, "miss")) #raise ValueError("Attempting to 'miss' with carrier that is not already in", c)
-            # else: self.carrier_map[c].update(direction, bed, needle)
         #
         self.operations.append('miss ' + direction + ' ' + bn + ' ' + cs)
     
@@ -359,7 +272,6 @@ class Writer(knitout.Writer):
         self.operations.append('drop ' + bn)
         #
         self.bns.remove((bed,needle))
-        # self.unsetLoc(bed, needle)
 
     def clear(self):
         #clear buffers
@@ -368,9 +280,7 @@ class Writer(knitout.Writer):
         #
         self.rack_value = 0
         self.carrier_map = dict()
-        # self.stacked_bns = {"f": [], "b": [], "fs": [], "bs": []}
         self.bns = BedNeedleList()
-        # self.bn_locs = {"f": [], "b": [], "fs": [], "bs": []}
 
 
 

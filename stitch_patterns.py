@@ -98,12 +98,10 @@ class StitchPattern(ABC):
             for n in range(self.left_n, self.right_n+1):
                 ops = row[n//self.gauge % len(row)]
                 if self.gaugeValid(n) and (ops[bed_idx] != 0 or n in self.knit_anyway[bed[0]]): return n
-            # return min(self.k.bn_locs[bed], default=float("inf"))
         else:
             for n in range(self.left_n, self.right_n+1):
                 ops = row[n//self.gauge % len(row)]
                 if self.gaugeValid(n) and (len(np.where(ops)[0]) != 0 or n in self.knit_anyway["b"] or n in self.knit_anyway["f"]): return n
-            # return min(min(self.k.bn_locs[b], default=float("inf")) for b in self.k.bn_locs.keys())
         #
         return float("inf") #if no needle that matches
 
@@ -116,19 +114,16 @@ class StitchPattern(ABC):
             for n in range(self.right_n, self.left_n-1, -1):
                 ops = row[n//self.gauge % len(row)]
                 if self.gaugeValid(n) and (ops[bed_idx] != 0 or n in self.knit_anyway[bed[0]]): return n
-            # return max(self.k.bn_locs[bed], default=float("-inf"))
         else:
             for n in range(self.right_n, self.left_n-1, -1):
                 ops = row[n//self.gauge % len(row)]
                 if self.gaugeValid(n) and (len(np.where(ops)[0]) != 0 or n in self.knit_anyway["b"] or n in self.knit_anyway["f"]): return n
-            # return max(max(self.k.bn_locs[b], default=float("-inf")) for b in self.k.bn_locs.keys())
         #
         return float("-inf") #if no needle that matches
 
     def ensureEmpty(self, bed, needle, n_range) -> bool: #returns whether it was empty (or in avoid_bns) to start with
         row = self.sequence[self.n_passes % self.sequence.shape[0]]
         #
-        # if needle in self.k.bn_locs[bed] and needle not in self.avoid_bns.get(bed[0], []): #*
         if (bed,needle) in self.k.bns and needle not in self.avoid_bns.get(bed[0], []): #new #check
             bed_idx = np.where(self.beds == bed)[0]
             bed2_idx = bed_idx-1
@@ -164,45 +159,6 @@ class StitchPattern(ABC):
             if not done: self.knit_anyway[bed].append(needle) #new #check
             return False
         else: return True
-
-    # def ensurePopulated(self, bed, needle, n_range) -> bool: #returns whether it was empty (or in avoid_bns) to start with
-    #     if needle not in self.k.bn_locs[bed] and needle not in self.avoid_bns.get(bed[0], []):
-    #         row = self.sequence[self.n_passes % self.sequence.shape[0]]
-    #         #
-    #         bed_idx = np.where(self.beds == bed)[0]
-    #         bed2_idx = bed_idx-1
-    #         bed2 = self.beds[bed2_idx][0]
-    #         # b, b2 = self.beds[bed_idx][0], self.beds[bed_idx-1][0]
-    #         #
-    #         done = False
-    #         # for n in n_range[n_range.index(needle)+1:]:
-    #         for n in n_range[n_range.index(needle):]:
-    #             if self.gaugeValid(n):
-    #                 ops = row[n//self.gauge % len(row)]
-    #                 #
-    #                 if ops[bed2_idx] != 0 and n not in self.avoid_bns.get(bed2, []):
-    #                     self.rackedXfer(bed, needle, bed2, n)
-    #                     done = True
-    #                     break
-    #                 elif ops[bed_idx] != 0 and n not in self.avoid_bns.get(bed, []):
-    #                     self.rackedXfer(bed, needle, bed, n)
-    #                     done = True
-    #                     break
-
-    #                 # if ops[bed_idx] != 0 and n not in self.avoid_bns.get(b, []):
-    #                 #     self.rackedXfer(b, needle, f"{b2}s", n)
-    #                 #     # self.rackedXfer(b, needle, f"{b2}s", n)
-    #                 #     # self.rackedXfer(f"{b2}s", n, b, n)
-    #                 #     done = True
-    #                 #     break
-    #                 # elif ops_[bed_idx-1] != 0 and n not in self.avoid_bns.get(b2, []):
-    #                 #     self.rackedXfer((b, n), (b2, n_))
-    #                 #     done = True
-    #                 #     break
-    #         #
-    #         if not done: self.knit_anyway[bed].append(needle) #new #check
-    #         return False
-    #     else: return True
 
     @classmethod
     def getXferSeqBn(self, needle_idx: int, needle: int, to_bn: str):
@@ -240,86 +196,11 @@ class StitchPattern(ABC):
                 for bed, op in zip(self.beds, ops):
                     if n not in self.avoid_bns.get(bed, []):
                         if op == 0:
-                            # if self.exclude_edge_ns and (n == self.left_n or n == self.right_n) and n in self.k.bn_locs[bed]: #*
                             if self.exclude_edge_ns and (n == self.left_n or n == self.right_n) and (bed,n) in self.k.bns: #new #check
                                 self.knit_anyway[bed].append(n)
                             else:
                                 was_empty = self.ensureEmpty(bed, n, n_range)
                                 if p == 0 and not was_empty and self.xfer_back_after: self.xbns[bed].append(n)
-                            # elif n not in self.k.bn_locs[bed]: self.ensurePopulated(bed, n)
-            """
-            # ops, x = np.divmod(ops, 1) #go back! #?
-            idxs = np.where(ops)[0]
-            #
-            if self.gaugeValid(n):
-                if len(idxs) == 1:
-                    idx = idxs[0]
-                    b, b2 = self.beds[idx], self.beds[idx-1]
-                    # op = ops[idx]
-                    #
-                    if n not in self.avoid_bns.get(b, []) and n not in self.bn_locs[b] and n in self.bn_locs[b2]:
-                        self.rackedXfer(b2, n, b, n)
-                        # self.bn_locs[b2].remove(n)
-                        # self.bn_locs[b].append(n) #don't actually need this because will be taken care of #*
-                        #
-                        if p == 0 and self.xfer_back_after: self.xbns[b2].append(n)
-                    # if x[idx]: #indicates transfer to
-
-                    # #
-                    # if op == KNIT:
-                    #     if n not in self.avoid_bns[b] and n in self.bn_locs[b2] and n not in self.bn_locs[b]:
-                    #         self.rackedXfer((b2, n), (b, n))
-                    #         # self.bn_locs[b2].remove(n)
-                    #         # self.bn_locs[b].append(n) #don't actually need this because will be taken care of
-                    #         #
-                    #         if p == 0 and self.xfer_back_after: self.xbns[b2].append(n)
-                    # elif op == MISS: # miss past NON empty needle
-                    #     if n in self.bn_locs[b2]: # need to transfer it away to get it empty
-                    #         if n not in self.bn_locs[b]:
-                    #             self.rackedXfer((b2, n), (b, n))
-                    #             #
-                    #             if p == 0 and self.xfer_back_after: self.xbns[b2].append(n)
-                elif len(idxs) == 0:
-                    self.ensureEmpty("f", n)
-                    self.ensureEmpty("b", n)
-                    #
-                    # if n not in self.avoid_bns.get(self.home_bed, []) and n in self.bn_locs[self.home_bed]:
-                    #     bed_idx = np.where(self.beds == self.home_bed)[0]
-                    #     b, b2 = self.beds[bed_idx][0], self.beds[bed_idx-1][0]
-                    #     #
-                    #     for n_ in n_range[n_range.index(n)+1:]:
-                    #         if self.gaugeValid(n_):
-                    #             done = False
-                    #             #
-                    #             ops_ = row[n_//self.gauge % len(row)]
-                    #             if ops_[bed_idx] != 0 and n_ not in self.avoid_bns.get(b, []):
-                    #                 self.rackedXfer((b, n), (f"{b2}s", n_))
-                    #                 self.rackedXfer((f"{b2}s", n_), (b, n_))
-                    #                 done = True
-                    #                 break
-                    #             elif ops_[bed_idx-1] != 0 and n not in self.avoid_bns.get(b2, []):
-                    #                 self.rackedXfer((b, n), (b2, n_))
-                    #                 done = True
-                    #                 break
-                    #             #
-                    #             if not done: self.knit_anyway[b].append(n) #new #check
-                    #
-                else:
-                    if n not in self.avoid_bns.get("b", []) and n not in self.avoid_bns.get("f", []) and (n not in self.bn_locs["f"] or n not in self.bn_locs["b"]): raise AssertionError("TODO: handle this")
-
-
-                # if n not in self.avoid_bns["b"]:
-                #     if ops[0] == 0:
-                #         if n in self.bn_locs["b"]: print("TODO: xfer to other valid location")
-                #     elif ops[1] < 3: # knit or tuck
-                #         if n not in self.bn_locs["b"] and n in self.bn_locs["f"] and ops[1] == 0:
-                #             self.rackedXfer(("f", n), ("b", n))
-                #             # self.bn_locs["f"].remove(n)
-                #             # self.bn_locs["b"].append(n) #don't actually need this because will be taken care of
-                #             #
-                #             if self.xfer_back_after: self.xbns["f"].append(n)
-            """
-
 
     def doPass(self, n_range): #TODO: think of a better name for this #?
         m = self.n_passes % self.sequence.shape[0] #check
@@ -330,7 +211,6 @@ class StitchPattern(ABC):
         for n in n_range:
             if self.gaugeValid(n):
                 ops = np.copy(row[n//self.gauge % len(row)])
-                # if n in last_ns and any(ops[i] == 0 and n in self.bn_locs[self.beds[i]] for i in range(2)):
                 if n in self.knit_anyway["b"]: ops[0] = KNIT
                 if n in self.knit_anyway["f"]: ops[1] = KNIT
 
@@ -356,12 +236,6 @@ class StitchPattern(ABC):
                     # if n not in self.bn_locs[b]: self.bn_locs[b].append(n) #go back! #?
                 else: self.k.miss(self.direction, f"f{n}", *self.cs) #TODO: disallow tucks on the edges (miss instead #?)
             elif n == n_range[-1]: self.k.miss(self.direction, f"f{n}", *self.cs) #miss last needle
-
-    # def postPassUpdate(self, pass_idx: int, n_range, *args, **kwargs): #remove #?
-    #     m1 = (self.n_passes+1) % self.sequence.shape[0] #check
-    #     row = self.sequence[m1-1] #so it can be -1, which is fine
-    #     next_row = self.sequence[m1]
-    #     pass
 
     def generate(self, passes: int, start_n: Optional[int]=None, end_n: Optional[int]=None):
         if self.speedNumber is not None: self.k.speedNumber(self.speedNumber)
@@ -429,15 +303,6 @@ class StitchPattern(ABC):
         if stitchNumber is not None: self.stitchNumber = stitchNumber
         if xfer_speedNumber is not None: self.xfer_speedNumber = xfer_speedNumber
         if xfer_stitchNumber is not None: self.xfer_stitchNumber = xfer_stitchNumber
-
-    # #concrete method
-    # def setAvoidBns(self, bns={"f": [], "b": []}) -> None: #TODO: think of a better name for this
-    #     self.avoid_bns = deepcopy(bns) #?
-    
-    # #concrete method
-    # def appendAvoidBns(self, bns={"f": [], "b": []}) -> None: #TODO: think of a better name for this
-    #     for bed, needles in bns.keys():
-    #         self.avoid_bns[bed].extend(deepcopy(needles)) #?
 
     #===========================================================================
     #--------------------------------- HELPERS: --------------------------------
