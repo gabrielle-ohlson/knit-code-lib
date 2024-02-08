@@ -1,5 +1,7 @@
-from typing import Optional, Tuple
+from __future__ import annotations #so we don't have to worry about situations that would require forward declarations
+from typing import Optional, Union, Tuple, List
 import re
+from multimethod import multimethod
 
 
 class Carrier:
@@ -20,6 +22,7 @@ def getBedNeedle(bn: str):
         bed, needle = res.group(1), int(res.group(2))
         return bed, needle
     else: raise ValueError(f"'{bn}' is not a valid bed-needle string.")
+
 
 def findNextValidNeedle(self, bed: Optional[str], needle: int, d: str=None, in_limits: bool=True) -> Tuple[str, int]: #TODO: add code for in_limits=False (aka can search outside of limits with min_n and max_n)
     min_ns = {"f": self.getMinNeedle("f"), "b": self.getMinNeedle("b")} #NOTE: must have `getMinNeedle` and `getMaxNeedle` attributes to use this method
@@ -165,6 +168,8 @@ class UnalignedNeedlesWarning(UserWarning):
 
 
 class StackedLoopWarning(UserWarning):
+    MAX_STACK_CT = 2
+
     def __init__(self, bn: str, count: int):
         self.message = f"{count} loops stacked on '{bn}'"
 
@@ -172,24 +177,46 @@ class StackedLoopWarning(UserWarning):
         return repr(self.message)
     
     @classmethod
-    def check(self, warnings, stacked_bns, bed, needle) -> bool:
-        stack_ct = stacked_bns[bed].count(needle)
-        if stack_ct > 1:
+    def check(self, warnings, bns, bed, needle) -> bool:
+        stack_ct = bns.getStackCt((bed, needle))
+        # stack_ct = stacked_bns[bed].count(needle)
+        if stack_ct > self.MAX_STACK_CT:
             warnings.warn(StackedLoopWarning(f"{bed}{needle}", stack_ct))
             return True
         else: return False
+    
+    # @classmethod
+    # def check(self, warnings, stacked_bns, bed, needle) -> bool:
+    #     stack_ct = stacked_bns[bed].count(needle)
+    #     if stack_ct > 1:
+    #         warnings.warn(StackedLoopWarning(f"{bed}{needle}", stack_ct))
+    #         return True
+    #     else: return False
 
 
 class HeldLoopWarning(UserWarning):
+    MAX_HOLD_ROWS = 10 #TODO: see what this value is on shima
+
     def __init__(self, bn: str, n_rows: int):
         self.message = f"'{bn}' has been holding an unknit loop for {n_rows} rows." #TODO: phrase this better
 
     def __str__(self):
         return repr(self.message)
     
+    # @classmethod
+    # def check(self, warnings, bn_locs, bed, needle) -> bool:
+    #     raise NotImplementedError
     @classmethod
-    def check(self, warnings, bn_locs, bed, needle) -> bool:
+    def check(self, warnings, st_cts, bed, needle) -> bool:
         raise NotImplementedError
+    
+    @classmethod
+    def check(self, warnings, carrier_map, c, needle) -> bool:
+        prev_needle = carrier_map[c].needle
+        if prev_needle is None or abs(needle-prev_needle) <= self.MAX_FLOAT_LEN: return False
+        else:
+            warnings.warn(FloatWarning(c, prev_needle, needle))
+            return True
     
 
 class UnstableLoopWarning(UserWarning):
@@ -200,12 +227,12 @@ class UnstableLoopWarning(UserWarning):
         return repr(self.message)
     
     @classmethod
-    def check(self, warnings, bn_locs, bed, needle) -> bool:
+    def check(self, warnings, bns, bed, needle) -> bool:
         raise NotImplementedError
     
 
 class FloatWarning(UserWarning):
-    MIN_FLOAT_LEN = 6 #TODO: add option to adjust
+    MAX_FLOAT_LEN = 6 #TODO: add option to adjust
 
     def __init__(self, c: str, prev_needle: int, needle: int):
         self.message = f"Float of length {abs(needle-prev_needle)} formed bringing carrier '{c}' from previous position, needle {prev_needle}, to needle {needle}." #TODO: phrase this better
@@ -216,7 +243,7 @@ class FloatWarning(UserWarning):
     @classmethod
     def check(self, warnings, carrier_map, c, needle) -> bool:
         prev_needle = carrier_map[c].needle
-        if prev_needle is None or abs(needle-prev_needle) < self.MIN_FLOAT_LEN: return False
+        if prev_needle is None or abs(needle-prev_needle) <= self.MAX_FLOAT_LEN: return False
         else:
             warnings.warn(FloatWarning(c, prev_needle, needle))
             return True

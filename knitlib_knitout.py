@@ -18,6 +18,7 @@ if not __package__: #remove #?
 
 
 from .knitout_helpers import Carrier, InactiveCarrierWarning, UnalignedNeedlesWarning, StackedLoopWarning, HeldLoopWarning, UnstableLoopWarning, FloatWarning
+from .bed_needle import BedNeedleList
     
 
 class KnitoutException(Enum):
@@ -95,8 +96,11 @@ class Writer(knitout.Writer):
         self.rack_value = 0
         # self.in_carriers = list()
         self.carrier_map = dict()
-        self.stacked_bns = {"f": [], "b": [], "fs": [], "bs": []} #keep #?
-        self.bn_locs = {"f": [], "b": [], "fs": [], "bs": []}
+        self.bns = BedNeedleList()
+        # self.stacked_bns = {"f": [], "b": [], "fs": [], "bs": []} #keep #? #TODO: replace with st_cts
+        # self.bn_locs = {"f": [], "b": [], "fs": [], "bs": []}
+        # self.st_cts = {} #new #*
+        self.row_ct = 0 #?
         self.hook_active = False
 
         self.setExceptionHandling(enabled_warnings=(KnitoutException.FLOAT, KnitoutException.STACKED_LOOP, KnitoutException.HELD_LOOP, KnitoutException.UNSTABLE_LOOP), enabled_errors=(KnitoutException.INACTIVE_CARRIER, KnitoutException.UNALIGNED_NEEDLES)) #default (can be changed by calling it again with different values) (NOTE: any KnitoutExceptions not included in `enabled_warnings` or `enabled_errors` are ignored by default)
@@ -120,20 +124,28 @@ class Writer(knitout.Writer):
             else: warnings.simplefilter("ignore", w.value)
             # print('{:15} = {}'.format(w.name, w.value)) #remove
 
-
+    """
     def setLoc(self, bed, needle, is_tuck=False):
-        if needle not in self.bn_locs[bed]: self.bn_locs[bed].append(needle)
+        if (bed,needle) not in self.bns: self.bns.append((bed, needle)) #new #check
+        # if needle not in self.bn_locs[bed]: self.bn_locs[bed].append(needle) #*
         else:
             if is_tuck:
+                if (bed,needle) not in self.st_cts: self.st_cts[(bed,needle)] = 0 #means there is a loop there, but not a full stitch
+                #
                 self.stacked_bns[bed].append(needle)
                 #
                 StackedLoopWarning.check(warnings, self.stacked_bns, bed, needle) #check
                 # stack_ct = self.stacked_bns[bed].count(needle)
                 # if stack_ct > 1: warnings.warn(StackedLoopWarning(f"{bed}{needle}", stack_ct)) #warnings.warn(f"{stack_ct} loops stacked on '{bed}{needle}'")
-            else: self.stacked_bns[bed] = [n for n in self.stacked_bns[bed] if n != needle] #filter out all occurrences
+            else:
+                if (bed,needle) not in self.st_cts: self.st_cts[(bed,needle)] = 0 #means there is a loop there, but not a full stitch
+                else: self.st_cts[(bed,needle)] += 1
+                #
+                self.stacked_bns[bed] = [n for n in self.stacked_bns[bed] if n != needle] #filter out all occurrences
     
     def unsetLoc(self, bed, needle):
-        if needle in self.bn_locs[bed]: self.bn_locs[bed].remove(needle)
+        if (bed,needle) in self.bns: self.bns.remove((bed,needle)) #new #check
+        # if needle in self.bn_locs[bed]: self.bn_locs[bed].remove(needle) #*
         #
         if needle in self.stacked_bns[bed]:
             self.stacked_bns[bed] = [n for n in self.stacked_bns[bed] if n != needle] #filter out all occurrences
@@ -142,10 +154,14 @@ class Writer(knitout.Writer):
         bed_stacked = self.stacked_bns[bed].copy() #TODO: see if needle deep copy
         # bed2_stacked = self.stack_bns[bed2].copy()
         #
-        if needle in self.bn_locs[bed]:
-            if needle2 not in self.bn_locs[bed2]: self.bn_locs[bed2].append(needle2)
-            if not is_split: self.bn_locs[bed].remove(needle)
+        if (bed,needle) in self.bns:
+            if (bed2,needle2) not in self.bns: self.bns.append((bed2,needle2))
+            if not is_split: self.bns.remove((bed,needle))
         elif is_split: self.bn_locs[bed].append(needle)
+        # if needle in self.bn_locs[bed]:
+        #     if needle2 not in self.bn_locs[bed2]: self.bn_locs[bed2].append(needle2)
+        #     if not is_split: self.bn_locs[bed].remove(needle)
+        # elif is_split: self.bn_locs[bed].append(needle)
         #
         if needle in bed_stacked:
             for n in bed_stacked:
@@ -162,6 +178,7 @@ class Writer(knitout.Writer):
         #         if n == needle2:
         #             self.stacked_bns[bed2].remove(needle2)
         #             self.stacked_bns[bed].append(needle)
+    """
     
     # patch on x-vis-color method:
     def visColor(self, hexcode, *args):
@@ -251,10 +268,9 @@ class Writer(knitout.Writer):
         #
         self.operations.append('knit ' + direction + ' ' + bn + ' ' + cs)
         #
-        self.setLoc(bed, needle)
-        # bed, needle = getBedNeedle(bn)
+        self.bns.increment((bed,needle), is_tuck=False)
+        # self.setLoc(bed, needle)
 
-        # super().knit(*args)
 
     def tuck(self, *args):
         argl = list(args)
@@ -272,7 +288,9 @@ class Writer(knitout.Writer):
         #
         self.operations.append('tuck ' + direction + ' ' + bn + ' ' + cs)
         #
-        self.setLoc(bed, needle, is_tuck=True)
+        self.bns.increment((bed,needle), is_tuck=True)
+        StackedLoopWarning.check(warnings, self.bns, bed, needle) #check
+        # self.setLoc(bed, needle, is_tuck=True)
 
     def xfer(self, *args):
         argl = list(args)
@@ -288,9 +306,9 @@ class Writer(knitout.Writer):
         #
         self.operations.append('xfer ' + bn_from + ' ' + bn_to)
         #
-        self.xferLoc(bed, needle, bed2, needle2)
-        # self.unsetLoc(bed, needle)
-        # self.setLoc(bed2, needle2)
+        self.bns.xfer((bed,needle), (bed2,needle2), is_split=False)
+        StackedLoopWarning.check(warnings, self.bns, bed2, needle2) #check
+        # self.xferLoc(bed, needle, bed2, needle2)
 
 
     def split(self, *args):
@@ -317,8 +335,9 @@ class Writer(knitout.Writer):
         #
         self.operations.append('split '+ direction + ' '  + bn_from + ' ' + bn_to + ' ' + cs)
         #
-        self.xferLoc(bed, needle, bed2, needle2, is_split=True)
-        # self.setLoc(bed2, needle2)
+        # self.xferLoc(bed, needle, bed2, needle2, is_split=True)
+        self.bns.xfer((bed,needle), (bed2,needle2), is_split=True)
+        StackedLoopWarning.check(warnings, self.bns, bed2, needle2) #check
 
     def miss(self, *args):
         argl = list(args)
@@ -339,7 +358,8 @@ class Writer(knitout.Writer):
         bn, (bed, needle) = shiftBedNeedle(argl)
         self.operations.append('drop ' + bn)
         #
-        self.unsetLoc(bed, needle)
+        self.bns.remove((bed,needle))
+        # self.unsetLoc(bed, needle)
 
     def clear(self):
         #clear buffers
@@ -348,8 +368,9 @@ class Writer(knitout.Writer):
         #
         self.rack_value = 0
         self.carrier_map = dict()
-        self.stacked_bns = {"f": [], "b": [], "fs": [], "bs": []}
-        self.bn_locs = {"f": [], "b": [], "fs": [], "bs": []}
+        # self.stacked_bns = {"f": [], "b": [], "fs": [], "bs": []}
+        self.bns = BedNeedleList()
+        # self.bn_locs = {"f": [], "b": [], "fs": [], "bs": []}
 
 
 

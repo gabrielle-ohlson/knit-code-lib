@@ -42,7 +42,7 @@ from .helpers import gauged, toggleDirection
 from .stitchPatterns import jersey, interlock, rib, garter, seed
 # from .helpers import multidispatchmethod
 
-from .knitout_helpers import getBedNeedle, rackedXfer #, findNextValidNeedle
+from .knitout_helpers import getBedNeedle, rackedXfer, HeldLoopWarning #, findNextValidNeedle
 from .shaping import decEdge, decSchoolBus, decBindoff, incEdge, incSchoolBus, incCaston, incSplit
 
 
@@ -161,16 +161,20 @@ class KnitObject:
             # "avoid_bns": {"f": [], "b": []}
         }
 
-
+        # SETTINGS/CONSTANTS:
         self.MAX_RACK = 4
 
     def getMinNeedle(self, bed=None) -> Union[int,float]:
-        if bed is not None: return min(self.k.bn_locs[bed], default=float("inf"))
-        else: return min(min(self.k.bn_locs[b], default=float("inf")) for b in self.k.bn_locs.keys())
+        try: return self.k.bns.min(bed)
+        except: return float("inf")
+        # if bed is not None: return min(self.k.bn_locs[bed], default=float("inf"))
+        # else: return min(min(self.k.bn_locs[b], default=float("inf")) for b in self.k.bn_locs.keys())
 
     def getMaxNeedle(self, bed=None) -> Union[int,float]:
-        if bed is not None: return max(self.k.bn_locs[bed], default=float("-inf"))
-        else: return max(max(self.k.bn_locs[b], default=float("-inf")) for b in self.k.bn_locs.keys())
+        try: return self.k.bns.max(bed)
+        except: return float("-inf")
+        # if bed is not None: return max(self.k.bn_locs[bed], default=float("-inf"))
+        # else: return max(max(self.k.bn_locs[b], default=float("-inf")) for b in self.k.bn_locs.keys())
 
     @property
     def row_ct(self):
@@ -694,16 +698,7 @@ class KnitObject:
         #
         return (None, None)
     """
-
-    def bnIsActive(self, bed: str, needle: int) -> bool:
-        return needle in self.k.bn_locs[bed]
     
-    def bnIsEmpty(self, bed: str, needle: int) -> bool:
-        return not needle in self.k.bn_locs[bed]
-    
-    def bnStackCount(self, bed: str, needle: int) -> int:
-        return self.k.stacked_bns[bed].count(needle)+1
-
 
 #===============================================================================
 

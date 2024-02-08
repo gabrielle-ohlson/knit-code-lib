@@ -128,7 +128,8 @@ class StitchPattern(ABC):
     def ensureEmpty(self, bed, needle, n_range) -> bool: #returns whether it was empty (or in avoid_bns) to start with
         row = self.sequence[self.n_passes % self.sequence.shape[0]]
         #
-        if needle in self.k.bn_locs[bed] and needle not in self.avoid_bns.get(bed[0], []):
+        # if needle in self.k.bn_locs[bed] and needle not in self.avoid_bns.get(bed[0], []): #*
+        if (bed,needle) in self.k.bns and needle not in self.avoid_bns.get(bed[0], []): #new #check
             bed_idx = np.where(self.beds == bed)[0]
             bed2_idx = bed_idx-1
             bed2 = self.beds[bed2_idx][0]
@@ -239,7 +240,8 @@ class StitchPattern(ABC):
                 for bed, op in zip(self.beds, ops):
                     if n not in self.avoid_bns.get(bed, []):
                         if op == 0:
-                            if self.exclude_edge_ns and (n == self.left_n or n == self.right_n) and n in self.k.bn_locs[bed]:
+                            # if self.exclude_edge_ns and (n == self.left_n or n == self.right_n) and n in self.k.bn_locs[bed]: #*
+                            if self.exclude_edge_ns and (n == self.left_n or n == self.right_n) and (bed,n) in self.k.bns: #new #check
                                 self.knit_anyway[bed].append(n)
                             else:
                                 was_empty = self.ensureEmpty(bed, n, n_range)
