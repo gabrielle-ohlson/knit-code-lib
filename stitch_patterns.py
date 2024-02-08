@@ -511,7 +511,7 @@ class Lace(StitchPattern):
 
 
 
-
+""" #test stuff
 # import knitout
 import knitlib_knitout
 k = knitlib_knitout.Writer("1 2 3 4 5 6 7 8 9 10")
@@ -523,3 +523,4 @@ pat = Rib(k, left_n=0, right_n=10, c="3", home_bed="f", gauge=1, inhook=True) #,
 pat.generate(passes=10)
 
 k.write("pat_test.k")
+"""

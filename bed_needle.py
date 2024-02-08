@@ -80,7 +80,7 @@ class BedNeedleList(list):
 
     def get(self, item: Union[BedNeedle, Tuple[str,int], str]) -> BedNeedle:
         for bn in self:
-            if bn.isEqual(item): return bn
+            if bn.isSame(item): return bn
         #
         raise ValueError(f"'{item}' not in list")
 
@@ -127,7 +127,7 @@ class BedNeedleList(list):
 
     @multimethod
     def remove(self, item: BedNeedle) -> None:
-        super.remove(self.get(item))
+        super().remove(self.get(item))
 
     @remove.register
     def remove(self, item: Union[str, Tuple[str,int]]) -> None:
