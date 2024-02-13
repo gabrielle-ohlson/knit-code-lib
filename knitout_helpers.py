@@ -134,6 +134,8 @@ def rackedXfer(self, from_bed: str, from_needle: int, to_bed: str, to_needle: in
 
 
 class InactiveCarrierWarning(UserWarning):
+    ENABLED = True
+
     def __init__(self, c: str, op: str='use'):
         self.message = f"Attempting to {op} carrier '{c}', which hasn't been brought in yet."
 
@@ -141,14 +143,17 @@ class InactiveCarrierWarning(UserWarning):
         return repr(self.message)
     
     @classmethod
-    def check(self, warnings, carrier_map, c, op="use") -> bool:
+    def check(self, k, warnings, carrier_map, c, op="use") -> bool:
         if c not in carrier_map:
+            if self.ENABLED: k.comment("inactive carrier warning")
             warnings.warn(InactiveCarrierWarning(c, op))
             return True
         else: return False
 
 
 class UnalignedNeedlesWarning(UserWarning):
+    ENABLED = True
+
     def __init__(self, r: int, bn: str, bn2: str):
         self.message = f"'{bn}' and '{bn2}' are unaligned at rack {r}."
 
@@ -156,18 +161,22 @@ class UnalignedNeedlesWarning(UserWarning):
         return repr(self.message)
     
     @classmethod
-    def check(self, warnings, rack_value, bed, needle, bed2, needle2) -> bool:
+    def check(self, k, warnings, rack_value, bed, needle, bed2, needle2) -> bool:
         if bed[0] == bed2[0]:
+            if self.ENABLED: k.comment("unaligned needles warning (xfer to/from same bed)")
             print(f"can't xfer to/from to same bed ({bed} -> {bed2})")
             warnings.warn(UnalignedNeedlesWarning(rack_value, f"{bed}{needle}", f"{bed2}{needle2}"))
             return True
         elif (bed[0] == "f" and needle-needle2 != rack_value) or (bed[0] == "b" and needle2-needle != rack_value):
+            if self.ENABLED: k.comment("unaligned needles warning (rack value)")
             warnings.warn(UnalignedNeedlesWarning(rack_value, f"{bed}{needle}", f"{bed2}{needle2}"))
+            return True
         else: return False
 
 
 
 class StackedLoopWarning(UserWarning):
+    ENABLED = True
     MAX_STACK_CT = 2
 
     def __init__(self, bn: str, count: int):
@@ -177,24 +186,18 @@ class StackedLoopWarning(UserWarning):
         return repr(self.message)
     
     @classmethod
-    def check(self, warnings, bns, bed, needle) -> bool:
+    def check(self, k, warnings, bns, bed, needle) -> bool:
         stack_ct = bns.getStackCt((bed, needle))
         # stack_ct = stacked_bns[bed].count(needle)
         if stack_ct > self.MAX_STACK_CT:
+            if self.ENABLED: k.comment("stacked loop warning")
             warnings.warn(StackedLoopWarning(f"{bed}{needle}", stack_ct))
             return True
         else: return False
-    
-    # @classmethod
-    # def check(self, warnings, stacked_bns, bed, needle) -> bool:
-    #     stack_ct = stacked_bns[bed].count(needle)
-    #     if stack_ct > 1:
-    #         warnings.warn(StackedLoopWarning(f"{bed}{needle}", stack_ct))
-    #         return True
-    #     else: return False
 
 
 class HeldLoopWarning(UserWarning):
+    ENABLED = True
     MAX_HOLD_ROWS = 10 #TODO: see what this value is on shima
 
     def __init__(self, bn: str, n_rows: int):
@@ -207,19 +210,12 @@ class HeldLoopWarning(UserWarning):
     # def check(self, warnings, bn_locs, bed, needle) -> bool:
     #     raise NotImplementedError
     @classmethod
-    def check(self, warnings, st_cts, bed, needle) -> bool:
+    def check(self, k, warnings, bns, bed, needle) -> bool:
         raise NotImplementedError
-    
-    @classmethod
-    def check(self, warnings, carrier_map, c, needle) -> bool:
-        prev_needle = carrier_map[c].needle
-        if prev_needle is None or abs(needle-prev_needle) <= self.MAX_FLOAT_LEN: return False
-        else:
-            warnings.warn(FloatWarning(c, prev_needle, needle))
-            return True
-    
 
 class UnstableLoopWarning(UserWarning):
+    ENABLED = True
+
     def __init__(self, bn: str):
         self.message = f"Attempting to knit on '{bn}', which does not yet have a stable loop formed." #TODO: phrase this better
 
@@ -227,11 +223,12 @@ class UnstableLoopWarning(UserWarning):
         return repr(self.message)
     
     @classmethod
-    def check(self, warnings, bns, bed, needle) -> bool:
+    def check(self, k, warnings, bns, bed, needle) -> bool:
         raise NotImplementedError
     
 
 class FloatWarning(UserWarning):
+    ENABLED = True
     MAX_FLOAT_LEN = 6 #TODO: add option to adjust
 
     def __init__(self, c: str, prev_needle: int, needle: int):
@@ -241,9 +238,12 @@ class FloatWarning(UserWarning):
         return repr(self.message)
     
     @classmethod
-    def check(self, warnings, carrier_map, c, needle) -> bool:
+    def check(self, k, warnings, carrier_map, c, needle) -> bool:
         prev_needle = carrier_map[c].needle
         if prev_needle is None or abs(needle-prev_needle) <= self.MAX_FLOAT_LEN: return False
         else:
+            if self.ENABLED: k.comment("float warning")
+            # w_filter = next((w for w in warnings.filters if w[2] == self), None)
+            # if w_filter is not None and w_filter[0] != "ignore": k.comment("float warning")
             warnings.warn(FloatWarning(c, prev_needle, needle))
             return True

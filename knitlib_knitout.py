@@ -114,9 +114,15 @@ class Writer(knitout.Writer):
         else: assert isinstance(enabled_errors,  (tuple, list)) and isinstance(enabled_errors[0], KnitoutException), "'enabled_errors' parameter must be of type Tuple[KnitoutException], List[KnitoutException], or KnitoutException." #check
         #
         for w in KnitoutException:
-            if w in enabled_errors: warnings.simplefilter("error", w.value)
-            elif w in enabled_warnings: warnings.simplefilter("default", w.value)
-            else: warnings.simplefilter("ignore", w.value)
+            if w in enabled_errors: 
+                warnings.simplefilter("error", w.value)
+                w.value.ENABLED = True
+            elif w in enabled_warnings: 
+                warnings.simplefilter("default", w.value)
+                w.value.ENABLED = True
+            else:
+                warnings.simplefilter("ignore", w.value)
+                w.value.ENABLED = False
             # print('{:15} = {}'.format(w.name, w.value)) #remove
     
     # patch on x-vis-color method:
@@ -153,7 +159,7 @@ class Writer(knitout.Writer):
         cs, carriers = shiftCarrierSet(argl, self.carriers)
         #
         for c in carriers:
-            if not InactiveCarrierWarning.check(warnings, self.carrier_map, c, op="outhook"): del self.carrier_map[c] #check 
+            if not InactiveCarrierWarning.check(self, warnings, self.carrier_map, c, op="outhook"): del self.carrier_map[c] #check 
         #
         assert not self.hook_active, f"Can't outhook carrier(s) '{cs}' since the hook is still holding another yarn." #TODO: improve/make this a KnitoutException #TODO: check if this is truly an invalid thing to do
         #
@@ -165,7 +171,7 @@ class Writer(knitout.Writer):
         cs, carriers = shiftCarrierSet(argl, self.carriers)
         #
         for c in carriers:
-            if not InactiveCarrierWarning.check(warnings, self.carrier_map, c, op="out"): del self.carrier_map[c] #check 
+            if not InactiveCarrierWarning.check(self, warnings, self.carrier_map, c, op="out"): del self.carrier_map[c] #check 
         self.operations.append('out ' + cs)
 
     def releasehook(self, *args):
@@ -173,7 +179,7 @@ class Writer(knitout.Writer):
         cs, carriers = shiftCarrierSet(argl, self.carriers)
         #
         for c in carriers:
-            InactiveCarrierWarning.check(warnings, self.carrier_map, c, op="releasehook")
+            InactiveCarrierWarning.check(self, warnings, self.carrier_map, c, op="releasehook")
         #
         assert self.hook_active, f"Can't releasehook carrier(s) '{cs}' since the hook is not holding yarn." #TODO: improve/make this a KnitoutException
         self.hook_active = False
@@ -192,9 +198,9 @@ class Writer(knitout.Writer):
         cs, carriers = shiftCarrierSet(argl, self.carriers)
         #
         for c in carriers:
-            FloatWarning.check(warnings, self.carrier_map, c, needle)
+            FloatWarning.check(self, warnings, self.carrier_map, c, needle)
             #
-            if InactiveCarrierWarning.check(warnings, self.carrier_map, c, op="knit"): self.carrier_map[c] = Carrier(direction, bed, needle) #warning raised, but not error level
+            if InactiveCarrierWarning.check(self, warnings, self.carrier_map, c, op="knit"): self.carrier_map[c] = Carrier(direction, bed, needle) #warning raised, but not error level
             else: self.carrier_map[c].update(direction, bed, needle)
         #
         self.operations.append('knit ' + direction + ' ' + bn + ' ' + cs)
@@ -209,15 +215,15 @@ class Writer(knitout.Writer):
         cs, carriers = shiftCarrierSet(argl, self.carriers)
         #
         for c in carriers:
-            FloatWarning.check(warnings, self.carrier_map, c, needle)
+            FloatWarning.check(self, warnings, self.carrier_map, c, needle)
             #
-            if InactiveCarrierWarning.check(warnings, self.carrier_map, c, op="tuck"): self.carrier_map[c] = Carrier(direction, bed, needle) #warning raised, but not error level
+            if InactiveCarrierWarning.check(self, warnings, self.carrier_map, c, op="tuck"): self.carrier_map[c] = Carrier(direction, bed, needle) #warning raised, but not error level
             else: self.carrier_map[c].update(direction, bed, needle)
         #
         self.operations.append('tuck ' + direction + ' ' + bn + ' ' + cs)
         #
         self.bns.increment((bed,needle), is_tuck=True)
-        StackedLoopWarning.check(warnings, self.bns, bed, needle) #check
+        StackedLoopWarning.check(self, warnings, self.bns, bed, needle) #check
         # self.setLoc(bed, needle, is_tuck=True)
 
     def xfer(self, *args):
@@ -225,12 +231,12 @@ class Writer(knitout.Writer):
         bn_from, (bed, needle) = shiftBedNeedle(argl)
         bn_to, (bed2, needle2) = shiftBedNeedle(argl)
         #
-        UnalignedNeedlesWarning.check(warnings, self.rack_value, bed, needle, bed2, needle2)
+        UnalignedNeedlesWarning.check(self, warnings, self.rack_value, bed, needle, bed2, needle2)
         #
         self.operations.append('xfer ' + bn_from + ' ' + bn_to)
         #
         self.bns.xfer((bed,needle), (bed2,needle2), is_split=False)
-        StackedLoopWarning.check(warnings, self.bns, bed2, needle2) #check
+        StackedLoopWarning.check(self, warnings, self.bns, bed2, needle2) #check
         # self.xferLoc(bed, needle, bed2, needle2)
 
 
@@ -241,18 +247,18 @@ class Writer(knitout.Writer):
         bn_to, (bed2, needle2) = shiftBedNeedle(argl)
         cs, carriers = shiftCarrierSet(argl, self.carriers)
         #
-        UnalignedNeedlesWarning.check(warnings, self.rack_value, bed, needle, bed2, needle2)
+        UnalignedNeedlesWarning.check(self, warnings, self.rack_value, bed, needle, bed2, needle2)
         #
         for c in carriers:
-            FloatWarning.check(warnings, self.carrier_map, c, needle)
+            FloatWarning.check(self, warnings, self.carrier_map, c, needle)
             #
-            if InactiveCarrierWarning.check(warnings, self.carrier_map, c, op="split"): self.carrier_map[c] = Carrier(direction, bed, needle) #warning raised, but not error level
+            if InactiveCarrierWarning.check(self, warnings, self.carrier_map, c, op="split"): self.carrier_map[c] = Carrier(direction, bed, needle) #warning raised, but not error level
             else: self.carrier_map[c].update(direction, bed, needle)
         #
         self.operations.append('split '+ direction + ' '  + bn_from + ' ' + bn_to + ' ' + cs)
         #
         self.bns.xfer((bed,needle), (bed2,needle2), is_split=True)
-        StackedLoopWarning.check(warnings, self.bns, bed2, needle2) #check
+        StackedLoopWarning.check(self, warnings, self.bns, bed2, needle2) #check
 
     def miss(self, *args):
         argl = list(args)
@@ -261,7 +267,7 @@ class Writer(knitout.Writer):
         cs, carriers = shiftCarrierSet(argl, self.carriers)
         #
         for c in carriers:
-            if InactiveCarrierWarning.check(warnings, self.carrier_map, c, op="miss"): self.carrier_map[c] = Carrier(direction, bed, needle) #warning raised, but not error level
+            if InactiveCarrierWarning.check(self, warnings, self.carrier_map, c, op="miss"): self.carrier_map[c] = Carrier(direction, bed, needle) #warning raised, but not error level
             else: self.carrier_map[c].update(direction, bed, needle)
         #
         self.operations.append('miss ' + direction + ' ' + bn + ' ' + cs)
