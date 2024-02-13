@@ -240,10 +240,9 @@ class FloatWarning(UserWarning):
     @classmethod
     def check(self, k, warnings, carrier_map, c, needle) -> bool:
         prev_needle = carrier_map[c].needle
-        float_len = abs(needle-prev_needle)
-        if prev_needle is None or float_len <= self.MAX_FLOAT_LEN: return False
+        if prev_needle is None or abs(needle-prev_needle) <= self.MAX_FLOAT_LEN: return False
         else:
-            if self.ENABLED: k.comment(f"float warning (carrier: {c}, length: {float_len})")
+            if self.ENABLED: k.comment(f"float warning (carrier: {c}, length: {abs(needle-prev_needle)})")
             # w_filter = next((w for w in warnings.filters if w[2] == self), None)
             # if w_filter is not None and w_filter[0] != "ignore": k.comment("float warning")
             warnings.warn(FloatWarning(c, prev_needle, needle))
