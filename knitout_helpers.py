@@ -145,7 +145,7 @@ class InactiveCarrierWarning(UserWarning):
     @classmethod
     def check(self, k, warnings, carrier_map, c, op="use") -> bool:
         if c not in carrier_map:
-            if self.ENABLED: k.comment("inactive carrier warning")
+            if self.ENABLED: k.comment(f"inactive carrier warning (carrier: {c})")
             warnings.warn(InactiveCarrierWarning(c, op))
             return True
         else: return False
@@ -163,12 +163,12 @@ class UnalignedNeedlesWarning(UserWarning):
     @classmethod
     def check(self, k, warnings, rack_value, bed, needle, bed2, needle2) -> bool:
         if bed[0] == bed2[0]:
-            if self.ENABLED: k.comment("unaligned needles warning (xfer to/from same bed)")
+            if self.ENABLED: k.comment(f"unaligned needles warning: can't xfer to/from same bed ({bed}{needle} -> {bed2}{needle2})")
             print(f"can't xfer to/from to same bed ({bed} -> {bed2})")
             warnings.warn(UnalignedNeedlesWarning(rack_value, f"{bed}{needle}", f"{bed2}{needle2}"))
             return True
         elif (bed[0] == "f" and needle-needle2 != rack_value) or (bed[0] == "b" and needle2-needle != rack_value):
-            if self.ENABLED: k.comment("unaligned needles warning (rack value)")
+            if self.ENABLED: k.comment(f"unaligned needles warning: invalid rack value ({bed}{needle} -> {bed2}{needle2} at rack {rack_value})")
             warnings.warn(UnalignedNeedlesWarning(rack_value, f"{bed}{needle}", f"{bed2}{needle2}"))
             return True
         else: return False
@@ -190,7 +190,7 @@ class StackedLoopWarning(UserWarning):
         stack_ct = bns.getStackCt((bed, needle))
         # stack_ct = stacked_bns[bed].count(needle)
         if stack_ct > self.MAX_STACK_CT:
-            if self.ENABLED: k.comment("stacked loop warning")
+            if self.ENABLED: k.comment(f"stacked loop warning ({stack_ct} on {bed}{needle})")
             warnings.warn(StackedLoopWarning(f"{bed}{needle}", stack_ct))
             return True
         else: return False
@@ -240,9 +240,10 @@ class FloatWarning(UserWarning):
     @classmethod
     def check(self, k, warnings, carrier_map, c, needle) -> bool:
         prev_needle = carrier_map[c].needle
-        if prev_needle is None or abs(needle-prev_needle) <= self.MAX_FLOAT_LEN: return False
+        float_len = abs(needle-prev_needle)
+        if prev_needle is None or float_len <= self.MAX_FLOAT_LEN: return False
         else:
-            if self.ENABLED: k.comment("float warning")
+            if self.ENABLED: k.comment(f"float warning (carrier: {c}, length: {float_len})")
             # w_filter = next((w for w in warnings.filters if w[2] == self), None)
             # if w_filter is not None and w_filter[0] != "ignore": k.comment("float warning")
             warnings.warn(FloatWarning(c, prev_needle, needle))
