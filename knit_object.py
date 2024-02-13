@@ -165,12 +165,16 @@ class KnitObject:
         self.MAX_RACK = 4
 
     def getMinNeedle(self, bed=None) -> Union[int,float]:
-        try: return self.k.bns.min(bed)
-        except: return float("inf")
+        try:
+            return self.k.bns.min(bed).needle
+        except AssertionError: #?
+            return float("inf")
 
     def getMaxNeedle(self, bed=None) -> Union[int,float]:
-        try: return self.k.bns.max(bed)
-        except: return float("-inf")
+        try:
+            return self.k.bns.max(bed).needle
+        except AssertionError:
+            return float("-inf")
 
     @property
     def row_ct(self):

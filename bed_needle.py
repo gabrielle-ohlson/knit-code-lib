@@ -197,18 +197,13 @@ class BedNeedleList(list):
         super().sort(key=lambda bn: (-bn.needle,bn.bed))
         if not reverse: super().reverse() # bed `f` comes first (so works for when knitting at e.g. `rack 0.25`)
     
-    @multimethod
-    def sorted(self, reverse=False) -> BedNeedleList:
-        res = sorted(self, key=lambda bn: (-bn.needle,bn.bed))
-        if not reverse: res.reverse()
-        return BedNeedleList(*res)
-    
-    @sorted.register
     def sorted(self, bed: str, reverse=False) -> BedNeedleList:
-        res = sorted([bn for bn in self if bn.bed == bed], key=lambda bn: (-bn.needle,bn.bed))
+        if bed is None: res = sorted(self, key=lambda bn: (-bn.needle,bn.bed))
+        else: res = sorted([bn for bn in self if bn.bed == bed], key=lambda bn: (-bn.needle,bn.bed))
+        #
         if not reverse: res.reverse()
         return BedNeedleList(*res)
-    
+            
     def rackSorted(self, rack: int, reverse=False) -> BedNeedleList: #check
         res = [bn if bn.bed == "f" else BedNeedle(bn.bed, bn.needle+rack) for bn in self]
         res = sorted(res, key=lambda bn: (-bn.needle,bn.bed))
