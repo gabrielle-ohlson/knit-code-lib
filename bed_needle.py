@@ -189,6 +189,7 @@ class BedNeedleList(list):
         if item_to in self: bn_to = self.get(item_to)
         else:
             bn_to = BedNeedle(item_to)
+            bn_to.loop_ct = 0 #since not necessarily a loop forming #new #check
             self.append(bn_to)
         #
         self.xfer(bn_from, bn_to, is_split)
