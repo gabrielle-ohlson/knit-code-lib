@@ -38,7 +38,7 @@ add something for knitPass at a rack (or a "rackedSort" function)
 """
 
 from knitlib import altTuckCaston, altTuckClosedCaston, altTuckOpenTubeCaston, zigzagCaston, sheetBindoff, closedTubeBindoff, openTubeBindoff, dropFinish
-from .helpers import gauged, toggleDirection
+from .helpers import gauged, toggleDirection, bnValid
 from .stitchPatterns import jersey, interlock, rib, garter, seed
 # from .helpers import multidispatchmethod
 
@@ -555,41 +555,78 @@ class KnitObject:
         self.decrease(method, getBedNeedle(from_bn), getBedNeedle(to_bn))
     
     @multimethod
-    def decreaseLeft(self,  method: Union[DecreaseMethod, int], bed: str, count: int):
+    def decreaseLeft(self,  method: Union[DecreaseMethod, int], bed: Optional[str], count: int):
         method = DecreaseMethod.parse(method) #check
-        min_n = self.getMinNeedle(bed[0])
-        max_n = self.getMaxNeedle(bed[0])
+        #
+        bed2 = None #for now
+        if bed is None: #double bed
+            min_n = self.getMinNeedle()
+            max_n = self.getMaxNeedle()
+            #
+            if bnValid("f", min_n, self.gauge):
+                bed = "f"
+                if bnValid("f", min_n+count, self.gauge): bed2 = "f"
+                elif bnValid("b", min_n+count, self.gauge): bed2 = "b"
+                else: raise NotImplementedError("TODO: decrease count until valid needle")
+            else:
+                bed = "b"
+                if bnValid("b", min_n+count, self.gauge): bed2 = "b"
+                elif bnValid("f", min_n+count, self.gauge): bed2 = "f"
+                else: raise NotImplementedError("TODO: decrease count until valid needle")
+        else:
+            min_n = self.getMinNeedle(bed[0])
+            max_n = self.getMaxNeedle(bed[0])
+            bed2 = bed
         #
         if method == DecreaseMethod.DEFAULT:
             if min_n-count > max_n: method = DecreaseMethod.BINDOFF #check
             elif count <= self.gauge: method = DecreaseMethod.EDGE
             else: method = DecreaseMethod.SCHOOL_BUS
         #
-        self.decrease(method, (bed, min_n), (bed, min_n+count))
+        self.decrease(method, (bed, min_n), (bed2, min_n+count))
 
     @decreaseLeft.register
-    def decreaseLeft(self, bed: str, count: int):
+    def decreaseLeft(self, bed: Optional[str], count: int):
         self.decreaseLeft(DecreaseMethod.DEFAULT, bed, count)
 
     @multimethod
-    def decreaseRight(self, method: Union[DecreaseMethod, int], bed: str, count: int): #TODO: add default method stuff
+    def decreaseRight(self, method: Union[DecreaseMethod, int], bed: Optional[str], count: int): #TODO: add default method stuff
         method = DecreaseMethod.parse(method) #check
-        max_n = self.getMaxNeedle(bed[0])
-        min_n = self.getMinNeedle(bed[0])
+        #
+        bed2 = None #for now
+        if bed is None: #double bed
+            max_n = self.getMaxNeedle()
+            min_n = self.getMinNeedle()
+            #
+            if bnValid("f", max_n, self.gauge):
+                bed = "f"
+                if bnValid("f", max_n-count, self.gauge): bed2 = "f"
+                elif bnValid("b", max_n-count, self.gauge): bed2 = "b"
+                else: raise NotImplementedError("TODO: decrease count until valid needle")
+            else:
+                bed = "b"
+                if bnValid("b", max_n-count, self.gauge): bed2 = "b"
+                elif bnValid("f", max_n-count, self.gauge): bed2 = "f"
+                else: raise NotImplementedError("TODO: decrease count until valid needle")
+        else:
+            max_n = self.getMaxNeedle(bed[0])
+            min_n = self.getMinNeedle(bed[0])
+            bed2 = bed
         #
         if method == DecreaseMethod.DEFAULT:
             if max_n-count < min_n: method = DecreaseMethod.BINDOFF #check
             elif count <= self.gauge: method = DecreaseMethod.EDGE
             else: method = DecreaseMethod.SCHOOL_BUS
         #
-        self.decrease(method, (bed, max_n), (bed, max_n-count))
+        self.decrease(method, (bed, max_n), (bed2, max_n-count))
 
     @decreaseRight.register
-    def decreaseRight(self, bed: str, count: int):
+    def decreaseRight(self, bed: Optional[str], count: int):
         self.decreaseRight(DecreaseMethod.DEFAULT, bed, count)
 
     @multimethod
     def increase(self, method: Union[IncreaseMethod, int], from_bn: Tuple[str, int], to_bn: Tuple[str, int]):
+        #TODO: make sure valid gauge for to_bn
         method = IncreaseMethod.parse(method) #check
         assert method != IncreaseMethod.DEFAULT, "TODO: deal with this"
         #
@@ -604,43 +641,91 @@ class KnitObject:
         self.increase(method, getBedNeedle(from_bn), getBedNeedle(to_bn))
 
     @multimethod
-    def increaseLeft(self, method: Union[IncreaseMethod, int], bed: str, count: int):
+    def increaseLeft(self, method: Union[IncreaseMethod, int], bed: Optional[str], count: int):
         method = IncreaseMethod.parse(method) #check
-        min_n = self.getMinNeedle(bed[0])
-        max_n = self.getMaxNeedle(bed[0])
         #
-        # for c, info in self.k.carrier_map.items():
-        #     if info.needle == min_n: self.k.miss("-", f"{info.bed}{min_n-count}", c)
+        bed2 = None #for now
+        if bed is None: #double bed
+            min_n = self.getMinNeedle()
+            max_n = self.getMaxNeedle()
+            #
+            if bnValid("f", min_n, self.gauge):
+                bed = "f"
+                if bnValid("f", min_n-count, self.gauge): bed2 = "f"
+                elif bnValid("b", min_n-count, self.gauge): bed2 = "b"
+                else: raise NotImplementedError("TODO: decrease count until valid needle")
+            else:
+                bed = "b"
+                if bnValid("b", min_n-count, self.gauge): bed2 = "b"
+                elif bnValid("f", min_n-count, self.gauge): bed2 = "f"
+                else: raise NotImplementedError("TODO: decrease count until valid needle")
+        else:
+            min_n = self.getMinNeedle(bed[0])
+            max_n = self.getMaxNeedle(bed[0])
+            bed2 = bed
         #
         if method == IncreaseMethod.DEFAULT:
             if min_n+count > max_n: method = IncreaseMethod.CASTON
             elif count <= self.gauge: method = IncreaseMethod.EDGE
             else: method = IncreaseMethod.SCHOOL_BUS
         #
-        self.increase(method, (bed, min_n), (bed, min_n-count))
+        self.increase(method, (bed, min_n), (bed2, min_n-count))
 
     @increaseLeft.register
-    def increaseLeft(self, bed: str, count: int):
+    def increaseLeft(self, bed: Optional[str], count: int):
         self.increaseLeft(IncreaseMethod.DEFAULT, bed, count)
 
     @multimethod
-    def increaseRight(self, method: Union[IncreaseMethod, int], bed: str, count: int):
+    def increaseRight(self, method: Union[IncreaseMethod, int], bed: Optional[str], count: int):
         method = IncreaseMethod.parse(method) #check
-        max_n = self.getMaxNeedle(bed[0])
-        min_n = self.getMinNeedle(bed[0])
         #
-        # for c, info in self.k.carrier_map.items():
-        #     if info.needle == max_n: self.k.miss("+", f"{info.bed}{max_n+count}", c)
+        bed2 = None #for now
+        if bed is None: #double bed
+            max_n = self.getMaxNeedle()
+            min_n = self.getMinNeedle()
+            #
+            if bnValid("f", max_n, self.gauge):
+                bed = "f"
+                if bnValid("f", max_n+count, self.gauge): bed2 = "f"
+                elif bnValid("b", max_n+count, self.gauge): bed2 = "b"
+                else: raise NotImplementedError("TODO: decrease count until valid needle")
+            else:
+                bed = "b"
+                if bnValid("b", max_n+count, self.gauge): bed2 = "b"
+                elif bnValid("f", max_n+count, self.gauge): bed2 = "f"
+                else: raise NotImplementedError("TODO: decrease count until valid needle")
+            # #
+            # if bnValid(bed, max_n+count, self.gauge): bed2 = bed
+            
+            # bed2 = "f"
+
+            # max_n_b = self.getMaxNeedle("b")
+            # max_n_f = self.getMaxNeedle("f")
+            # #
+            # if max_n_b > max_n_f:
+            #     max_n = max_n_b
+            #     bed = "b"
+            #     bed2 = "f"
+            # else:
+            #     max_n = max_n_f
+            #     bed = "f"
+            #     bed2 = "b"
+            # min_n = self.getMinNeedle()
+        else:
+            max_n = self.getMaxNeedle(bed[0])
+            min_n = self.getMinNeedle(bed[0])
+            bed2 = bed
         #
         if method == IncreaseMethod.DEFAULT:
             if max_n-count < min_n: method = IncreaseMethod.CASTON
             elif count <= self.gauge: method = IncreaseMethod.EDGE
             else: method = IncreaseMethod.SCHOOL_BUS
         #
-        self.increase(method, (bed, max_n), (bed, max_n+count))
+        # self.increase(method, (bed, max_n), (bed, max_n+count))
+        self.increase(method, (bed, max_n), (bed2, max_n+count))
     
     @increaseRight.register
-    def increaseRight(self, bed: str, count: int):
+    def increaseRight(self, bed: Optional[str], count: int):
         self.increaseRight(IncreaseMethod.DEFAULT, bed, count)
     
     # findNextValidNeedle = findNextValidNeedle
