@@ -3,6 +3,8 @@ import math
 
 from knitlib import zigzagCaston, sheetBindoff
 from .helpers import bnValid
+
+from .knitout_helpers import findNextValidNeedle #?
 # from .bed_needle import BedNeedle
 
 
@@ -17,7 +19,7 @@ def decEdge(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], int]): #T
     else:
         for i in range(from_needle-to_needle):
             obj.rackedXfer((from_bed, from_needle-i), (to_bed, to_needle-i), reset_rack=False)
-    obj.rack(0)
+    obj.k.rack(0)
 
 
 def decSchoolBus(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], int]):
@@ -60,7 +62,7 @@ def decSchoolBus(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], int]
                         print(f"stack: {n}") #remove #debug
                 """
             #
-            obj.rack(0)
+            obj.k.rack(0)
         else:
             raise RuntimeError(f"not enough working needles to decrease by {ct} using the school-bus method.")
     else: #left side
@@ -101,7 +103,7 @@ def decSchoolBus(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], int]
                         print(f"stack: {n}") #remove #debug
                 """
             #
-            obj.rack(0)
+            obj.k.rack(0)
         else:
             raise RuntimeError(f"not enough working needles to decrease by {ct} using the school-bus method.")
     
@@ -130,8 +132,8 @@ def incEdge(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], int]):
             obj.rackedXfer((from_bed, from_needle+i//2), (to_bed, to_needle+i), reset_rack=False)
             #
             obj.twist_bns.append(f"{to_bed}{to_needle+i+1}")
-    obj.rack(0)
-    # obj.xfer(from_bn, to_bn)
+    obj.k.rack(0)
+    # obj.k.xfer(from_bn, to_bn)
     # obj.twist_bns.append(from_bn) #TODO
 
 
@@ -172,7 +174,7 @@ def incSchoolBus(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], int]
                 for n in range(start_n+i*r+i*ct, (start_n+i*r+i*ct)+r):
                     if bnValid(from_bed, n, obj.gauge): obj.twist_bns.append(f"{from_bed}{n}") #TODO: make these splits instead #?
             #
-            obj.rack(0)
+            obj.k.rack(0)
         else:
             raise RuntimeError(f"not enough working needles to increase by {ct} using the school-bus method.")
     else: #left side
@@ -212,7 +214,7 @@ def incSchoolBus(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], int]
                         # print(f"twist: {n}") #remove #debug
                         obj.twist_bns.append(f"{from_bed}{n}")
             #
-            obj.rack(0)
+            obj.k.rack(0)
         else:
             raise RuntimeError(f"not enough working needles to increase by {ct} using the school-bus method.")
     
@@ -229,7 +231,7 @@ def incCaston(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], int]):
         for n in range(from_needle+1, to_needle+1):
             test_bn = ("b", n) #?
             if n in obj.avoid_bns["b"]:
-                next_bn = obj.findNextValidNeedle(*test_bn, in_limits=True)
+                next_bn = findNextValidNeedle(obj, *test_bn, in_limits=True) #TODO: #check
                 obj.rackedXfer(test_bn, next_bn)
                 # obj.active_bns.append(next_bn) #TODO
     else: #left side
