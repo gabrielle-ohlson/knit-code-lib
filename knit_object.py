@@ -576,7 +576,10 @@ class KnitObject:
         else:
             min_n = self.getMinNeedle(bed[0])
             max_n = self.getMaxNeedle(bed[0])
-            bed2 = bed
+            if bnValid(bed[0], min_n+count, self.gauge): bed2 = bed
+            else:
+                bed2 = "b" if bed[0] == "f" else "f"
+                if not bnValid(bed2, min_n+count, self.gauge): raise NotImplementedError("TODO: decrease count until valid needle")
         #
         if method == DecreaseMethod.DEFAULT:
             if min_n-count > max_n: method = DecreaseMethod.BINDOFF #check
@@ -611,7 +614,11 @@ class KnitObject:
         else:
             max_n = self.getMaxNeedle(bed[0])
             min_n = self.getMinNeedle(bed[0])
-            bed2 = bed
+            #
+            if bnValid(bed[0], max_n-count, self.gauge): bed2 = bed
+            else:
+                bed2 = "b" if bed[0] == "f" else "f"
+                if not bnValid(bed2, max_n-count, self.gauge): raise NotImplementedError("TODO: decrease count until valid needle")
         #
         if method == DecreaseMethod.DEFAULT:
             if max_n-count < min_n: method = DecreaseMethod.BINDOFF #check
@@ -662,7 +669,11 @@ class KnitObject:
         else:
             min_n = self.getMinNeedle(bed[0])
             max_n = self.getMaxNeedle(bed[0])
-            bed2 = bed
+            #
+            if bnValid(bed[0], min_n-count, self.gauge): bed2 = bed
+            else:
+                bed2 = "b" if bed[0] == "f" else "f"
+                if not bnValid(bed2, min_n-count, self.gauge): raise NotImplementedError("TODO: decrease count until valid needle")
         #
         if method == IncreaseMethod.DEFAULT:
             if min_n+count > max_n: method = IncreaseMethod.CASTON
@@ -714,7 +725,11 @@ class KnitObject:
         else:
             max_n = self.getMaxNeedle(bed[0])
             min_n = self.getMinNeedle(bed[0])
-            bed2 = bed
+            #
+            if bnValid(bed[0], max_n+count, self.gauge): bed2 = bed
+            else:
+                bed2 = "b" if bed[0] == "f" else "f"
+                if not bnValid(bed2, max_n+count, self.gauge): raise NotImplementedError("TODO: decrease count until valid needle")
         #
         if method == IncreaseMethod.DEFAULT:
             if max_n-count < min_n: method = IncreaseMethod.CASTON
