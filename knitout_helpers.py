@@ -180,15 +180,19 @@ class StackedLoopWarning(UserWarning):
     MAX_STACK_CT = 2
 
     def __init__(self, bn: str, count: int):
+        self.bn = bn
+        self.count = count
+        #
         self.message = f"{count} loops stacked on '{bn}'"
 
     def __str__(self):
         return repr(self.message)
     
     @classmethod
-    def check(self, k, warnings, bns, bed, needle) -> bool:
-        stack_ct = bns.getStackCt((bed, needle))
-        # stack_ct = stacked_bns[bed].count(needle)
+    def check(self, k, warnings, bns, bed, needle, MAX_STACK_CT=None) -> bool:
+        if MAX_STACK_CT is None: MAX_STACK_CT = self.MAX_STACK_CT
+        stack_ct = bns.getStackCt((bed,needle))
+        #
         if stack_ct > self.MAX_STACK_CT:
             if self.ENABLED: k.comment(f"stacked loop warning ({stack_ct} on {bed}{needle})")
             warnings.warn(StackedLoopWarning(f"{bed}{needle}", stack_ct))
@@ -206,12 +210,18 @@ class HeldLoopWarning(UserWarning):
     def __str__(self):
         return repr(self.message)
     
-    # @classmethod
-    # def check(self, warnings, bn_locs, bed, needle) -> bool:
-    #     raise NotImplementedError
     @classmethod
-    def check(self, k, warnings, bns, bed, needle) -> bool:
-        raise NotImplementedError
+    def check(self, k, warnings, bns, bed, needle) -> bool: #new #check
+        try:
+            held_ct = bns.getHeldRowCt((bed,needle))
+        except ValueError: #not in bns list yet
+            return False
+        #
+        if held_ct > self.MAX_HOLD_ROWS:
+            if self.ENABLED: k.comment(f"held loop warning ({held_ct} rows on {bed}{needle})")
+            warnings.warn(HeldLoopWarning(f"{bed}{needle}", held_ct))
+            return True
+        else: return False
 
 class UnstableLoopWarning(UserWarning):
     ENABLED = True

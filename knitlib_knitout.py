@@ -203,6 +203,8 @@ class Writer(knitout.Writer):
             if InactiveCarrierWarning.check(self, warnings, self.carrier_map, c, op="knit"): self.carrier_map[c] = Carrier(direction, bed, needle) #warning raised, but not error level
             else: self.carrier_map[c].update(direction, bed, needle)
         #
+        HeldLoopWarning.check(self, warnings, self.bns, bed, needle) #new #check
+        #
         self.operations.append('knit ' + direction + ' ' + bn + ' ' + cs)
         #
         self.bns.increment((bed,needle), is_tuck=False)
@@ -219,6 +221,8 @@ class Writer(knitout.Writer):
             #
             if InactiveCarrierWarning.check(self, warnings, self.carrier_map, c, op="tuck"): self.carrier_map[c] = Carrier(direction, bed, needle) #warning raised, but not error level
             else: self.carrier_map[c].update(direction, bed, needle)
+        #
+        HeldLoopWarning.check(self, warnings, self.bns, bed, needle) #new #check
         #
         self.operations.append('tuck ' + direction + ' ' + bn + ' ' + cs)
         #
@@ -254,6 +258,8 @@ class Writer(knitout.Writer):
             #
             if InactiveCarrierWarning.check(self, warnings, self.carrier_map, c, op="split"): self.carrier_map[c] = Carrier(direction, bed, needle) #warning raised, but not error level
             else: self.carrier_map[c].update(direction, bed, needle)
+        #
+        HeldLoopWarning.check(self, warnings, self.bns, bed, needle) #new #check
         #
         self.operations.append('split '+ direction + ' '  + bn_from + ' ' + bn_to + ' ' + cs)
         #

@@ -37,7 +37,7 @@ add something for knitPass at a rack (or a "rackedSort" function)
 - [ ] fmt warnings
 """
 
-from knitlib import zigzagCaston, sheetBindoff, altTuckCaston, altTuckClosedCaston, altTuckOpenTubeCaston #check import
+from knitlib import altTuckCaston, altTuckClosedCaston, altTuckOpenTubeCaston, zigzagCaston, sheetBindoff, closedTubeBindoff, openTubeBindoff, dropFinish
 from .helpers import gauged, toggleDirection
 from .stitchPatterns import jersey, interlock, rib, garter, seed
 # from .helpers import multidispatchmethod
@@ -196,7 +196,7 @@ class KnitObject:
             if bed != "f" and bed != "b": altTuckClosedCaston(self.k, needle_range[0], needle_range[1], c=cs, gauge=self.gauge)
             else: altTuckCaston(self.k, needle_range[0], needle_range[1], c=cs, bed=bed, gauge=self.gauge)
         elif method == CastonMethod.ALT_TUCK_OPEN:
-            assert bed != "f" and bed != "b", "ALT_TUCK_OPEN only valid for double bed knitting."
+            assert bed != "f" and bed != "b", "`CastonMethod.ALT_TUCK_OPEN` only valid for double bed knitting."
             altTuckOpenTubeCaston(self.k, needle_range[0], needle_range[1], c=cs, gauge=self.gauge)
         elif method == CastonMethod.ZIGZAG:
             zigzagCaston(self.k, needle_range[0], needle_range[1], c=cs, gauge=self.gauge)
@@ -286,14 +286,33 @@ class KnitObject:
         self.knitPass(StitchPattern.JERSEY, bed, needle_range, *cs, **kwargs)
     
     @multimethod
-    def bindoff(self, method: Union[BindoffMethod, int], bed: str, needle_range: Optional[Tuple[int, int]], *cs: str) -> None: #TODO
+    def bindoff(self, method: Union[BindoffMethod, int], bed: Optional[str], needle_range: Optional[Tuple[int, int]], *cs: str) -> None: #TODO
         method = BindoffMethod.parse(method) #check
         #
         if needle_range is None: needle_range = self.getNeedleRange(bed, *cs)
-        raise NotImplementedError
+        #
+        if method == BindoffMethod.CLOSED:
+            if bed == "f" or bed == "b": sheetBindoff(self.k, needle_range[0], needle_range[1], cs, bed, self.gauge)
+            else: closedTubeBindoff(self.k, needle_range[0], needle_range[1], cs, self.gauge)
+        elif method == BindoffMethod.OPEN:
+            assert bed != "f" and bed != "b", "`BindoffMethod.OPEN` only valid for double bed knitting."
+            openTubeBindoff(self.k, needle_range[0], needle_range[1], cs, self.gauge)
+        elif method == BindoffMethod.DROP:
+            if bed == "b": front_needle_ranges = []
+            else: front_needle_ranges = sorted(self.getNeedleRange("f", *cs))
+            #
+            if bed == "f": back_needle_ranges = []
+            else: back_needle_ranges = sorted(self.getNeedleRange("b", *cs))
+            #
+            dropFinish(self.k, front_needle_ranges=front_needle_ranges, back_needle_ranges=back_needle_ranges)
+            # if needle_range[1] > needle_range[0]: left_n, right_n = needle_range[0], needle_range[1]
+            # else: left_n, right_n = needle_range[1], needle_range[0]
+            # #
+            # dropFinish(self.k, front_needle_ranges=([] if bed == "b" else [left_n,right_n]), back_needle_ranges=([] if bed == "f" else [left_n,right_n]))
+        else: raise ValueError("unsupported bindoff method")
     
     @bindoff.register
-    def bindoff(self, method: Union[BindoffMethod, int], bed: str, *cs: str) -> None: #TODO
+    def bindoff(self, method: Union[BindoffMethod, int], bed: Optional[str], *cs: str) -> None: #TODO
         self.bindoff(method, bed, None, *cs)
 
     def isEndNeedle(self, direction: str, bed: str, needle: int) -> bool:
