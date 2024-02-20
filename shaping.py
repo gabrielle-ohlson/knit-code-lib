@@ -43,6 +43,90 @@ def decSchoolBus(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], int]
         min_n = obj.getMinNeedle(from_bed[0])
         if from_needle-ct+1 > min_n: # valid school bus operation
             w = from_needle-min_n+1
+            #
+            r = max(obj.gauge, int(ct-math.fmod(ct, obj.gauge)))
+            if r > obj.MAX_RACK: #TODO: #check
+                ct_2 = ct*ct
+                r = ct_2/(w-ct)
+                r = max(obj.gauge, int(r-math.fmod(r, obj.gauge))) #TODO: #check
+                assert r <= obj.MAX_RACK
+
+            sects = ct #TODO: remove this since it is redundant
+            size = math.floor(w/ct)
+            # sects = ct-1
+            # size = math.floor(w/(ct+1))
+            start_n = from_needle
+
+            for i in range(sects):
+                # for n in range(start_n-(sects-i)*size, start_n-i*r+1):
+                for n in range(start_n-(sects-1-i)*size, start_n-i*r+1):
+                    if bnValid(from_bed, n, obj.gauge): obj.rackedXfer((from_bed, n), (xto_bed, n-r), reset_rack=False)
+                #
+                # for n in range((start_n-(sects-i)*size)-r, (start_n-i*r+1)-r):
+                for n in range((start_n-(sects-1-i)*size)-r, (start_n-i*r+1)-r):
+                        if bnValid(from_bed, n, obj.gauge): obj.rackedXfer((xto_bed, n), (from_bed, n), reset_rack=False)
+            #
+            obj.k.rack(0)
+        else:
+            raise RuntimeError(f"not enough working needles to decrease by {ct} using the school-bus method.")
+    else: #left side
+        ct = to_needle-from_needle
+        obj.k.comment(f"decrease {ct} on left (school bus)") #debug
+        if from_bed.startswith("f"):
+            xto_bed = "bs"
+        else:
+            xto_bed = "fs"
+        #
+        # if to_bed is None: to_bed = from_bed
+        # assert to_bed == from_bed, "school-bus decrease to opposite bed not supported yet"
+        #
+        max_n = obj.getMaxNeedle(from_bed[0])
+        if from_needle-ct+1 < max_n: # valid school bus operation
+            w = max_n-from_needle+1
+            #
+            r = max(obj.gauge, int(ct-math.fmod(ct, obj.gauge))) #TODO: #check
+            if r > obj.MAX_RACK: #TODO: #check
+                ct_2 = ct*ct
+                r = ct_2/(w-ct)
+                r = max(obj.gauge, int(r-math.fmod(r, obj.gauge))) #TODO: #check
+                assert r <= obj.MAX_RACK
+
+            sects = ct #TODO: remove this since it is redundant
+            size = math.floor(w/ct)
+            start_n = from_needle
+
+            for i in range(sects):
+                # for n in range(start_n-(sects-1-i)*size, start_n-i*r+1):
+                for n in range(start_n+i*r, start_n+(sects-1-i)*size+1): #TODO: #check
+                    if bnValid(from_bed, n, obj.gauge): obj.rackedXfer((from_bed, n), (xto_bed, n-r), reset_rack=False)
+                #
+                # for n in range((start_n-(sects-1-i)*size)-r, (start_n-i*r+1)-r):
+                for n in range((start_n+i*r)+r, (start_n+(sects-1-i)*size+1)+r): #TODO: #check
+                        if bnValid(from_bed, n, obj.gauge): obj.rackedXfer((xto_bed, n), (from_bed, n), reset_rack=False)
+            #
+            obj.k.rack(0)
+        else:
+            raise RuntimeError(f"not enough working needles to decrease by {ct} using the school-bus method.")
+    
+
+def decSchoolBus_old(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], int]):
+    from_bed, from_needle = from_bn
+    to_bed, to_needle = to_bn
+    if to_bed is None: to_bed = from_bed
+    assert to_bed == from_bed, "school-bus decrease to opposite bed not supported yet"
+    #
+    if from_needle > to_needle: #right side
+        ct = from_needle-to_needle
+        obj.k.comment(f"decrease {ct} on right (school bus)") #debug
+        if from_bed.startswith("f"):
+            xto_bed = "bs"
+        else:
+            xto_bed = "fs"
+        #
+        min_n = obj.getMinNeedle(from_bed[0])
+        if from_needle-ct+1 > min_n: # valid school bus operation
+            w = from_needle-min_n+1
+            #
             ct_2 = ct*ct
             r = ct_2/(w-ct)
             r = max(obj.gauge, int(r-math.fmod(r, obj.gauge))) #TODO: #check
@@ -77,9 +161,8 @@ def decSchoolBus(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], int]
         else:
             xto_bed = "fs"
         #
-        if to_bed is None: to_bed = from_bed
-        #
-        assert to_bed == from_bed, "school-bus decrease to opposite bed not supported yet"
+        # if to_bed is None: to_bed = from_bed
+        # assert to_bed == from_bed, "school-bus decrease to opposite bed not supported yet"
         #
         max_n = obj.getMaxNeedle(from_bed[0])
         if from_needle-ct+1 < max_n: # valid school bus operation
