@@ -690,51 +690,49 @@ class KnitObject:
     def increaseRight(self, method: Union[IncreaseMethod, int], bed: Optional[str], count: int):
         method = IncreaseMethod.parse(method) #check
         #
+        # if method == IncreaseMethod.DEFAULT:
+        #     if self.getMaxNeedle()-count < self.getMinNeedle(): method = IncreaseMethod.CASTON #TODO: #check
+        #     elif count <= self.gauge: method = IncreaseMethod.EDGE
+        #     else: method = IncreaseMethod.SCHOOL_BUS
+        #
         bed2 = None #for now
         if bed is None: #double bed
             max_n = self.getMaxNeedle()
-            min_n = self.getMinNeedle()
+            # min_n = self.getMinNeedle()
+            #
+            if method == IncreaseMethod.DEFAULT:
+                if max_n-count < self.getMinNeedle(): method = IncreaseMethod.CASTON #TODO: #check
+                elif count <= self.gauge: method = IncreaseMethod.EDGE
+                else: method = IncreaseMethod.SCHOOL_BUS
             #
             if bnValid("f", max_n, self.gauge):
                 bed = "f"
-                if bnValid("f", max_n+count, self.gauge): bed2 = "f"
+                if method == IncreaseMethod.SCHOOL_BUS or bnValid("f", max_n+count, self.gauge): bed2 = "f"
                 elif bnValid("b", max_n+count, self.gauge): bed2 = "b"
                 else: raise NotImplementedError("TODO: decrease count until valid needle")
             else:
                 bed = "b"
-                if bnValid("b", max_n+count, self.gauge): bed2 = "b"
+                if method == IncreaseMethod.SCHOOL_BUS or bnValid("b", max_n+count, self.gauge): bed2 = "b"
                 elif bnValid("f", max_n+count, self.gauge): bed2 = "f"
                 else: raise NotImplementedError("TODO: decrease count until valid needle")
-            # #
-            # if bnValid(bed, max_n+count, self.gauge): bed2 = bed
-            
-            # bed2 = "f"
-
-            # max_n_b = self.getMaxNeedle("b")
-            # max_n_f = self.getMaxNeedle("f")
-            # #
-            # if max_n_b > max_n_f:
-            #     max_n = max_n_b
-            #     bed = "b"
-            #     bed2 = "f"
-            # else:
-            #     max_n = max_n_f
-            #     bed = "f"
-            #     bed2 = "b"
-            # min_n = self.getMinNeedle()
         else:
             max_n = self.getMaxNeedle(bed[0])
-            min_n = self.getMinNeedle(bed[0])
+            # min_n = self.getMinNeedle(bed[0])
             #
-            if bnValid(bed[0], max_n+count, self.gauge): bed2 = bed
+            if method == IncreaseMethod.DEFAULT:
+                if max_n-count < self.getMinNeedle(bed[0]): method = IncreaseMethod.CASTON #TODO: #check
+                elif count <= self.gauge: method = IncreaseMethod.EDGE
+                else: method = IncreaseMethod.SCHOOL_BUS
+            #
+            if method == IncreaseMethod.SCHOOL_BUS or bnValid(bed[0], max_n+count, self.gauge): bed2 = bed
             else:
                 bed2 = "b" if bed[0] == "f" else "f"
                 if not bnValid(bed2, max_n+count, self.gauge): raise NotImplementedError("TODO: decrease count until valid needle")
         #
-        if method == IncreaseMethod.DEFAULT:
-            if max_n-count < min_n: method = IncreaseMethod.CASTON
-            elif count <= self.gauge: method = IncreaseMethod.EDGE
-            else: method = IncreaseMethod.SCHOOL_BUS
+        # if method == IncreaseMethod.DEFAULT:
+        #     if max_n-count < min_n: method = IncreaseMethod.CASTON
+        #     elif count <= self.gauge: method = IncreaseMethod.EDGE
+        #     else: method = IncreaseMethod.SCHOOL_BUS
         #
         # self.increase(method, (bed, max_n), (bed, max_n+count))
         self.increase(method, (bed, max_n), (bed2, max_n+count))
@@ -742,45 +740,6 @@ class KnitObject:
     @increaseRight.register
     def increaseRight(self, bed: Optional[str], count: int):
         self.increaseRight(IncreaseMethod.DEFAULT, bed, count)
-    
-    # findNextValidNeedle = findNextValidNeedle
-    """
-    def findNextValidNeedle(self, bed: Optional[str], needle: int, d: str=None, in_limits: bool=True) -> Tuple[str, int]: #TODO: add code for in_limits=False (aka can search outside of limits with min_n and max_n)
-
-        min_ns = {"f": self.getMinNeedle("f"), "b": self.getMinNeedle("b")}
-        max_ns = {"f": self.getMaxNeedle("f"), "b": self.getMaxNeedle("b")}
-        if bed is not None: min_n, max_n = min_ns[bed[0]], max_ns[bed[0]]
-        else: min_n, max_n = min(min_ns["f"], min_ns["b"]), max(max_ns["f"], max_ns["b"])
-        #
-        n_1, n1 = needle, needle
-        if d is None:
-            for n_1, n1 in zip(range(needle, min_n-1, -1), range(needle, max_n+1)):
-                if bed != "f" and n_1 >= min_ns["b"] and not n_1 in self.avoid_bns["b"]:
-                    return ("b", n_1)
-                elif bed != "b" and n_1 >= min_ns["f"] and not n_1 in self.avoid_bns["f"]:
-                    return ("f", n_1)
-                elif bed != "b" and n1 <= max_ns["f"] and not n1 in self.avoid_bns["f"]:
-                    return ("f", n1)
-                elif bed != "f" and n1 <= max_ns["b"] and not n1 in self.avoid_bns["b"]:
-                    return ("b", n1)
-        else: assert d == "-" or d == "+"
-        #
-        if d == "-" or n_1 != min_n:
-            for n_1 in range(n_1, min_n-1, -1):
-                if bed != "f" and n_1 >= min_ns["b"] and not n_1 in self.avoid_bns["b"]:
-                    return ("b", n_1)
-                elif bed != "b" and n_1 >= min_ns["f"] and not n_1 in self.avoid_bns["f"]:
-                    return ("f", n_1)
-        #
-        if d == "+" or n1 != max_n:
-            for n1 in range(n1, max_n+1):
-                if bed != "b" and n1 <= max_ns["f"] and not n1 in self.avoid_bns["f"]:
-                    return ("f", n1)
-                elif bed != "f" and n1 <= max_ns["b"] and not n1 in self.avoid_bns["b"]:
-                    return ("b", n1)
-        #
-        return (None, None)
-    """
     
 
 #===============================================================================
