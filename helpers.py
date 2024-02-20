@@ -8,9 +8,9 @@ import cv2
 #===============================================================================
 #-------------------------------- MISC HELPERS ---------------------------------
 #===============================================================================
-def parityRound(num: int, parity: str="even") -> int:
-    if parity == "even": return round(num/2)*2
-    else: return int(np.floor(num/2))*2 + 1
+def parityRound(num: int, odd: bool=False) -> int:
+    if odd: return int(np.floor(num/2))*2 + 1
+    else: return round(num/2)*2
 
 
 def toList(el) -> list:
