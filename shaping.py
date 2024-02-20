@@ -96,11 +96,9 @@ def decSchoolBus(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], int]
             start_n = from_needle
 
             for i in range(sects):
-                # for n in range(start_n-(sects-1-i)*size, start_n-i*r+1):
                 for n in range(start_n+i*r, start_n+(sects-1-i)*size+1): #TODO: #check
-                    if bnValid(from_bed, n, obj.gauge): obj.rackedXfer((from_bed, n), (xto_bed, n-r), reset_rack=False)
+                    if bnValid(from_bed, n, obj.gauge): obj.rackedXfer((from_bed, n), (xto_bed, n+r), reset_rack=False)
                 #
-                # for n in range((start_n-(sects-1-i)*size)-r, (start_n-i*r+1)-r):
                 for n in range((start_n+i*r)+r, (start_n+(sects-1-i)*size+1)+r): #TODO: #check
                         if bnValid(from_bed, n, obj.gauge): obj.rackedXfer((xto_bed, n), (from_bed, n), reset_rack=False)
             #
