@@ -141,7 +141,7 @@ def incEdge(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], int]):
                 # if bnValid(to_bed, to_needle-i-1, obj.gauge): obj.twist_bns.append(f"{to_bed}{to_needle-i-1}") #*
     else:
         ct = from_needle-to_needle
-        obj.k.comment(f"increase {from_needle-to_needle} on left") #debug
+        obj.k.comment(f"increase {ct} on left") #debug
         #
         for i in range(0, ct+2, 2):
             if bnValid(from_bed, from_needle+i//2, obj.gauge):
