@@ -17,7 +17,8 @@ if not __package__: #remove #?
     __package__ = DIR.name
 
 
-from .knitout_helpers import Carrier, InactiveCarrierWarning, UnalignedNeedlesWarning, StackedLoopWarning, HeldLoopWarning, UnstableLoopWarning, FloatWarning
+from .knitout_helpers import Carrier, InactiveCarrierWarning, UnalignedNeedlesWarning, FloatWarning, StackedLoopWarning, HeldLoopWarning, UnstableLoopWarning, EmptyXferWarning
+
 from .bed_needle import BedNeedleList
     
 
@@ -29,6 +30,7 @@ class KnitoutException(Enum):
     STACKED_LOOP = StackedLoopWarning
     HELD_LOOP = HeldLoopWarning #TODO
     UNSTABLE_LOOP = UnstableLoopWarning #TODO
+    EMPTY_XFER = EmptyXferWarning
     
 
 
@@ -100,7 +102,7 @@ class Writer(knitout.Writer):
         # self.row_ct = 0 #?
         self.hook_active = False
 
-        self.setExceptionHandling(enabled_warnings=(KnitoutException.FLOAT, KnitoutException.STACKED_LOOP, KnitoutException.HELD_LOOP, KnitoutException.UNSTABLE_LOOP), enabled_errors=(KnitoutException.INACTIVE_CARRIER, KnitoutException.UNALIGNED_NEEDLES)) #default (can be changed by calling it again with different values) (NOTE: any KnitoutExceptions not included in `enabled_warnings` or `enabled_errors` are ignored by default)
+        self.setExceptionHandling(enabled_warnings=(KnitoutException.FLOAT, KnitoutException.STACKED_LOOP, KnitoutException.UNSTABLE_LOOP, KnitoutException.EMPTY_XFER), enabled_errors=(KnitoutException.HELD_LOOP, KnitoutException.INACTIVE_CARRIER, KnitoutException.UNALIGNED_NEEDLES)) #default (can be changed by calling it again with different values) (NOTE: any KnitoutExceptions not included in `enabled_warnings` or `enabled_errors` are ignored by default)
     
     @property
     def row_ct(self):
@@ -236,6 +238,7 @@ class Writer(knitout.Writer):
         bn_to, (bed2, needle2) = shiftBedNeedle(argl)
         #
         UnalignedNeedlesWarning.check(self, warnings, self.rack_value, bed, needle, bed2, needle2)
+        EmptyXferWarning.check(self, warnings, self.bns, bed, needle)
         #
         self.operations.append('xfer ' + bn_from + ' ' + bn_to)
         #
@@ -252,6 +255,7 @@ class Writer(knitout.Writer):
         cs, carriers = shiftCarrierSet(argl, self.carriers)
         #
         UnalignedNeedlesWarning.check(self, warnings, self.rack_value, bed, needle, bed2, needle2)
+        EmptyXferWarning.check(self, warnings, self.bns, bed, needle)
         #
         for c in carriers:
             FloatWarning.check(self, warnings, self.carrier_map, c, needle)

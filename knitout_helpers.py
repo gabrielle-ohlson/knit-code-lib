@@ -1,7 +1,7 @@
 from __future__ import annotations #so we don't have to worry about situations that would require forward declarations
 from typing import Optional, Union, Tuple, List
 import re
-from multimethod import multimethod
+# from multimethod import multimethod
 
 
 class Carrier:
@@ -174,6 +174,27 @@ class UnalignedNeedlesWarning(UserWarning):
         else: return False
 
 
+class FloatWarning(UserWarning):
+    ENABLED = True
+    MAX_FLOAT_LEN = 6 #TODO: add option to adjust
+
+    def __init__(self, c: str, prev_needle: int, needle: int):
+        self.message = f"Float of length {abs(needle-prev_needle)} formed bringing carrier '{c}' from previous position, needle {prev_needle}, to needle {needle}." #TODO: phrase this better
+
+    def __str__(self):
+        return repr(self.message)
+    
+    @classmethod
+    def check(self, k, warnings, carrier_map, c, needle) -> bool:
+        prev_needle = carrier_map[c].needle
+        if prev_needle is None or abs(needle-prev_needle) <= self.MAX_FLOAT_LEN: return False
+        else:
+            if self.ENABLED: k.comment(f"float warning (carrier: {c}, length: {abs(needle-prev_needle)})")
+            # w_filter = next((w for w in warnings.filters if w[2] == self), None)
+            # if w_filter is not None and w_filter[0] != "ignore": k.comment("float warning")
+            warnings.warn(FloatWarning(c, prev_needle, needle))
+            return True
+
 
 class StackedLoopWarning(UserWarning):
     ENABLED = True
@@ -200,7 +221,7 @@ class StackedLoopWarning(UserWarning):
         else: return False
 
 
-class HeldLoopWarning(UserWarning):
+class HeldLoopWarning(UserWarning): #TODO: test this and make sure it actually works
     ENABLED = True
     MAX_HOLD_ROWS = 10 #TODO: see what this value is on shima
 
@@ -223,6 +244,7 @@ class HeldLoopWarning(UserWarning):
             return True
         else: return False
 
+
 class UnstableLoopWarning(UserWarning):
     ENABLED = True
 
@@ -237,23 +259,25 @@ class UnstableLoopWarning(UserWarning):
         raise NotImplementedError
     
 
-class FloatWarning(UserWarning):
+class EmptyXferWarning(UserWarning):
     ENABLED = True
-    MAX_FLOAT_LEN = 6 #TODO: add option to adjust
 
-    def __init__(self, c: str, prev_needle: int, needle: int):
-        self.message = f"Float of length {abs(needle-prev_needle)} formed bringing carrier '{c}' from previous position, needle {prev_needle}, to needle {needle}." #TODO: phrase this better
+    def __init__(self, bn: str):
+        self.message = f"Attempting to xfer from '{bn}', which is empty." #TODO: phrase this better
 
     def __str__(self):
         return repr(self.message)
     
     @classmethod
-    def check(self, k, warnings, carrier_map, c, needle) -> bool:
-        prev_needle = carrier_map[c].needle
-        if prev_needle is None or abs(needle-prev_needle) <= self.MAX_FLOAT_LEN: return False
-        else:
-            if self.ENABLED: k.comment(f"float warning (carrier: {c}, length: {abs(needle-prev_needle)})")
-            # w_filter = next((w for w in warnings.filters if w[2] == self), None)
-            # if w_filter is not None and w_filter[0] != "ignore": k.comment("float warning")
-            warnings.warn(FloatWarning(c, prev_needle, needle))
+    def check(self, k, warnings, bns, bed, needle) -> bool:
+        try:
+            bn = bns.get((bed,needle))
+            if bn.loop_ct > 0: return False
+            else:
+                if self.ENABLED: k.comment(f"empty xfer warning ({bed}{needle})")
+                warnings.warn(EmptyXferWarning(f"{bed}{needle}"))
+                return True
+        except ValueError:
+            if self.ENABLED: k.comment(f"empty xfer warning ({bed}{needle})")
+            warnings.warn(EmptyXferWarning(f"{bed}{needle}"))
             return True
