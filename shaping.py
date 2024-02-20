@@ -14,12 +14,12 @@ def decEdge(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], int]): #T
     if to_bed is None: to_bed = from_bed
     #
     if from_needle < to_needle:
-        obj.k.comment(f"decrease {to_needle-from_needle+1} on left") #debug
+        obj.k.comment(f"decrease {to_needle-from_needle} on left") #debug
         #
         for i in range(to_needle-from_needle):
             obj.rackedXfer((from_bed, from_needle+i), (to_bed, to_needle+i), reset_rack=False)
     else:
-        obj.k.comment(f"decrease {from_needle-to_needle+1} on right") #debug
+        obj.k.comment(f"decrease {from_needle-to_needle} on right") #debug
         #
         for i in range(from_needle-to_needle):
             obj.rackedXfer((from_bed, from_needle-i), (to_bed, to_needle-i), reset_rack=False)
@@ -126,23 +126,34 @@ def incEdge(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], int]):
     to_bed, to_needle = to_bn
     if to_bed is None: to_bed = from_bed
     #
+    empty_bns = [] #TODO: use a more sophisticated method here #*
     if from_needle < to_needle:
-        obj.k.comment(f"increase {to_needle-from_needle+1} on right") #debug
+        ct = to_needle-from_needle
+        obj.k.comment(f"increase {ct} on right") #debug
         #
-        for i in range(0, to_needle-from_needle+2, 2):
+        for i in range(0, ct+2, 2):
             if bnValid(from_bed, from_needle-i//2, obj.gauge):
+                if f"{to_bed}{to_needle-i}" in empty_bns: empty_bns.remove(f"{to_bed}{to_needle-i}") #*
+                #
                 obj.rackedXfer((from_bed, from_needle-i//2), (to_bed, to_needle-i), reset_rack=False)
                 #
-                if bnValid(to_bed, to_needle-i-1, obj.gauge): obj.twist_bns.append(f"{to_bed}{to_needle-i-1}")
+                empty_bns.append(f"{from_bed}{from_needle-i//2}") #*
+                # if bnValid(to_bed, to_needle-i-1, obj.gauge): obj.twist_bns.append(f"{to_bed}{to_needle-i-1}") #*
     else:
-        obj.k.comment(f"increase {from_needle-to_needle+1} on left") #debug
+        ct = from_needle-to_needle
+        obj.k.comment(f"increase {from_needle-to_needle} on left") #debug
         #
-        for i in range(0, from_needle-to_needle+2, 2):
+        for i in range(0, ct+2, 2):
             if bnValid(from_bed, from_needle+i//2, obj.gauge):
+                if f"{to_bed}{to_needle+i}" in empty_bns: empty_bns.remove(f"{to_bed}{to_needle+i}") #*
+                #
                 obj.rackedXfer((from_bed, from_needle+i//2), (to_bed, to_needle+i), reset_rack=False)
                 #
-                if bnValid(to_bed, to_needle+i+1, obj.gauge): obj.twist_bns.append(f"{to_bed}{to_needle+i+1}")
+                empty_bns.append(f"{from_bed}{from_needle+i//2}") #*
+                # if bnValid(to_bed, to_needle+i+1, obj.gauge): obj.twist_bns.append(f"{to_bed}{to_needle+i+1}") #*
     obj.k.rack(0)
+    #*
+    obj.twist_bns.extend(empty_bns) #*
     # obj.k.xfer(from_bn, to_bn)
     # obj.twist_bns.append(from_bn) #TODO
 
