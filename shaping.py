@@ -256,24 +256,34 @@ def incSchoolBus(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], int]
         min_n = obj.getMinNeedle(from_bed[0])
         if from_needle-ct+1 > min_n: # valid school bus operation
             w = from_needle-min_n+1
-            ct_2 = ct*ct
-            r = ct_2/(w-ct)
-            r = max(obj.gauge, int(r-math.fmod(r, obj.gauge))) #TODO: #check
-            assert r <= obj.MAX_RACK
+            #
+            r = max(obj.gauge, int(ct-math.fmod(ct, obj.gauge))) #TODO: #check
+            if r > obj.MAX_RACK: #TODO: #check
+                ct_2 = ct*ct
+                r = ct_2/(w-ct)
+                r = max(obj.gauge, int(r-math.fmod(r, obj.gauge))) #TODO: #check
+                assert r <= obj.MAX_RACK
 
-            sects = math.ceil(ct/r) #TODO: #check
-            start_n = from_needle - ct*sects + 1
+            sects = math.ceil(ct/r)
+            size = math.floor(w/(sects+1))
+
+            # start_n = from_needle - ct*sects + 1 #remove
+            start_n = from_needle - size*sects + 1
 
             for i in range(sects):
                 for m in range(i, sects):
-                    for n in range(start_n+i*r+m*ct, (start_n+i*r+m*ct)+ct):
+                    # for n in range(start_n+i*r+m*ct, (start_n+i*r+m*ct)+ct): #remove
+                    for n in range(start_n+i*r+m*size, (start_n+i*r+m*size)+size):
                         if bnValid(from_bed, n, obj.gauge): obj.rackedXfer((from_bed, n), (xto_bed, n+r), reset_rack=False)
-
+                
+                # assert n == from_needle+i*r #sanity check #remove #debug
                 for m in range(i, sects):
-                    for n in range((start_n+i*r+m*ct)+r, (start_n+i*r+m*ct)+ct+r):
+                    # for n in range((start_n+i*r+m*ct)+r, (start_n+i*r+m*ct)+ct+r): #remove
+                    for n in range((start_n+i*r+m*size)+r, (start_n+i*r+m*size)+size+r):
                         if bnValid(from_bed, n, obj.gauge): obj.rackedXfer((xto_bed, n), (from_bed, n), reset_rack=False)
                 
-                for n in range(start_n+i*r+i*ct, (start_n+i*r+i*ct)+r):
+                # for n in range(start_n+i*r+i*ct, (start_n+i*r+i*ct)+r): #remove
+                for n in range(start_n+i*r+i*size, (start_n+i*r+i*size)+r):
                     if bnValid(from_bed, n, obj.gauge): obj.twist_bns.append(f"{from_bed}{n}") #TODO: make these splits instead #?
             #
             obj.k.rack(0)

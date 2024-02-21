@@ -479,6 +479,8 @@ class KnitObject:
         self.k.comment("begin twisted stitch")
         d2 = toggleDirection(d)
         #
+        assert not bn in self.k.bns, f"requesting twisted stitch on needle that already has a loop, '{bn}'" #debug
+        #
         self.k.miss(d, bn, *cs)
         self.k.knit(d2, bn, *cs)
         self.k.miss(d, bn, *cs)
@@ -496,6 +498,9 @@ class KnitObject:
     def twistedStitch(self, d: str, bns: List[str], *cs: str) -> None:
         d2 = toggleDirection(d)
         for bn in bns:
+            #
+            assert not bn in self.k.bns, f"requesting twisted stitch on needle that already has a loop, '{bn}'" #debug
+            #
             self.k.comment("begin twisted stitch")
             self.k.miss(d, bn, *cs)
             self.k.knit(d2, bn, *cs)
@@ -513,7 +518,9 @@ class KnitObject:
     @twistedStitch.register
     def twistedStitch(self, d: str, bn: None, *cs: str) -> None:
         return
-        
+    
+    #TODO: add something similar to twist_bns for splits (during school bus increase)
+    
     @multimethod
     def rackedXfer(self, from_bed: str, from_needle: int, to_bed: str, to_needle: int, reset_rack: bool=True):
         rackedXfer(self, from_bed, from_needle, to_bed, to_needle, reset_rack)
