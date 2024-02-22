@@ -298,5 +298,15 @@ class Writer(knitout.Writer):
         self.carrier_map = dict()
         self.bns = BedNeedleList()
 
-
-
+    def write(self, filename):
+        for bn in self.bns:
+            HeldLoopWarning.check(self, warnings, self.bns, bn.bed, bn.needle) #new #check
+        #
+        version = ';!knitout-2\n'
+        content = version + '\n'.join(self.headers) + '\n' +  '\n'.join(self.operations)
+        try:
+            with open(filename, "w") as out:
+                print(content, file=out)
+            print('wrote file ' + filename)
+        except IOError as error:
+            print('Could not write to file ' + filename)
