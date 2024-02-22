@@ -286,7 +286,7 @@ class KnitObject:
         self.knitPass(StitchPattern.JERSEY, bed, needle_range, *cs, **kwargs)
     
     @multimethod
-    def bindoff(self, method: Union[BindoffMethod, int], bed: Optional[str], needle_range: Optional[Tuple[int, int]], *cs: str) -> None: #TODO
+    def bindoff(self, method: Union[BindoffMethod, int], bed: Optional[str], needle_range: Optional[Tuple[int, int]], *cs: str) -> None:
         method = BindoffMethod.parse(method) #check
         #
         if needle_range is None: needle_range = self.getNeedleRange(bed, *cs)
