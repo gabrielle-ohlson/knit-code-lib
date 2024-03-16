@@ -3,6 +3,58 @@ from typing import Optional, Union, Tuple, List
 import re
 # from multimethod import multimethod
 
+from collections import UserList
+
+
+class IncList(UserList):
+    def __init__(self, iterable=None):
+        if iterable is not None:
+            if hasattr(iterable, "__iter__") and not isinstance(iterable, str): self.increment(len(iterable))
+            else: self.increment(1)
+        #
+        super().__init__(iterable)
+
+    @staticmethod
+    def increment(n):
+        pass
+
+    # def __setitem__(self, i, item):
+    #     self.data[i] = item
+
+    def insert(self, i, item):
+        self.increment(1)
+        #
+        super().insert(i, item)
+
+
+    def append(self, item):
+        self.increment(1)
+        #
+        super().append(item)  
+
+    def extend(self, other):
+        self.increment(len(other))
+        #
+        super().extend(other)
+
+    # def __add__(self, other): # This is for something like `IncList([1, 2, 3]) + list([4, 5, 6])`...
+    #     return super().__add__(other)
+
+    def __iadd__(self, other): # This is for something like `l = IncList(); l += [1, 2, 3]`
+        self.increment(len(other))
+        #
+        return super().__iadd__(other)
+    
+    def remove(self, item):
+        self.increment(-1)
+        #
+        super().remove(item)
+
+    def pop(self, i):
+        self.increment(-1)
+        #
+        super().pop(i)
+
 
 class Carrier:
     def __init__(self, direction=None, bed=None, needle=None):
@@ -133,6 +185,23 @@ def rackedXfer(self, from_bed: str, from_needle: int, to_bed: str, to_needle: in
         self.k.xfer(xto_bed, to_needle, to_bed, to_needle)
 
 
+class AlreadyActiveCarrierWarning(UserWarning): #*#* #TODO: add this in
+    ENABLED = True
+
+    def __init__(self, c: str, op: str='use'):
+        self.message = f"Attempting to {op} carrier '{c}', which has already been brought in."
+
+    def __str__(self):
+        return repr(self.message)
+    
+    @classmethod
+    def check(self, k, warnings, carrier_map, c, op="use") -> bool:
+        if c in carrier_map:
+            if self.ENABLED: k.comment(f"already active carrier warning (carrier: {c})")
+            warnings.warn(AlreadyActiveCarrierWarning(c, op))
+            return True
+        else: return False
+
 class InactiveCarrierWarning(UserWarning):
     ENABLED = True
 
@@ -145,7 +214,7 @@ class InactiveCarrierWarning(UserWarning):
     @classmethod
     def check(self, k, warnings, carrier_map, c, op="use") -> bool:
         if c not in carrier_map:
-            if self.ENABLED: k.comment(f"inactive carrier warning (carrier: {c})")
+            # if self.ENABLED: k.comment(f"inactive carrier warning (carrier: {c})")
             warnings.warn(InactiveCarrierWarning(c, op))
             return True
         else: return False
@@ -163,12 +232,12 @@ class UnalignedNeedlesWarning(UserWarning):
     @classmethod
     def check(self, k, warnings, rack_value, bed, needle, bed2, needle2) -> bool:
         if bed[0] == bed2[0]:
-            if self.ENABLED: k.comment(f"unaligned needles warning: can't xfer to/from same bed ({bed}{needle} -> {bed2}{needle2})")
+            # if self.ENABLED: k.comment(f"unaligned needles warning: can't xfer to/from same bed ({bed}{needle} -> {bed2}{needle2})")
             print(f"can't xfer to/from to same bed ({bed} -> {bed2})")
             warnings.warn(UnalignedNeedlesWarning(rack_value, f"{bed}{needle}", f"{bed2}{needle2}"))
             return True
         elif (bed[0] == "f" and needle-needle2 != rack_value) or (bed[0] == "b" and needle2-needle != rack_value):
-            if self.ENABLED: k.comment(f"unaligned needles warning: invalid rack value ({bed}{needle} -> {bed2}{needle2} at rack {rack_value})")
+            # if self.ENABLED: k.comment(f"unaligned needles warning: invalid rack value ({bed}{needle} -> {bed2}{needle2} at rack {rack_value})")
             warnings.warn(UnalignedNeedlesWarning(rack_value, f"{bed}{needle}", f"{bed2}{needle2}"))
             return True
         else: return False
@@ -189,9 +258,7 @@ class FloatWarning(UserWarning):
         prev_needle = carrier_map[c].needle
         if prev_needle is None or abs(needle-prev_needle) <= self.MAX_FLOAT_LEN: return False
         else:
-            if self.ENABLED: k.comment(f"float warning (carrier: {c}, length: {abs(needle-prev_needle)})")
-            # w_filter = next((w for w in warnings.filters if w[2] == self), None)
-            # if w_filter is not None and w_filter[0] != "ignore": k.comment("float warning")
+            # if self.ENABLED: k.comment(f"float warning (carrier: {c}, length: {abs(needle-prev_needle)})")
             warnings.warn(FloatWarning(c, prev_needle, needle))
             return True
 
@@ -210,12 +277,12 @@ class StackedLoopWarning(UserWarning):
         return repr(self.message)
     
     @classmethod
-    def check(self, k, warnings, bns, bed, needle, MAX_STACK_CT=None) -> bool:
+    def check(self, k, warnings, bn, bed, needle, MAX_STACK_CT=None) -> bool:
         if MAX_STACK_CT is None: MAX_STACK_CT = self.MAX_STACK_CT
-        stack_ct = bns.getStackCt((bed,needle))
+        stack_ct = bn.loop_ct
         #
         if stack_ct > self.MAX_STACK_CT:
-            if self.ENABLED: k.comment(f"stacked loop warning ({stack_ct} on {bed}{needle})")
+            # if self.ENABLED: k.comment(f"stacked loop warning ({stack_ct} on {bed}{needle})")
             warnings.warn(StackedLoopWarning(f"{bed}{needle}", stack_ct))
             return True
         else: return False
@@ -232,14 +299,12 @@ class HeldLoopWarning(UserWarning): #TODO: test this and make sure it actually w
         return repr(self.message)
     
     @classmethod
-    def check(self, k, warnings, bns, bed, needle) -> bool: #new #check
-        try:
-            held_ct = bns.getHeldRowCt((bed,needle))
-        except ValueError: #not in bns list yet
-            return False
+    def check(self, k, warnings, row_ct, bn, bed, needle) -> bool:
+        if bn is None: return False
+        held_ct = max(0, row_ct-bn.current_row) #check #TODO: have current_row too #? 
         #
         if held_ct > self.MAX_HOLD_ROWS:
-            if self.ENABLED: k.comment(f"held loop warning ({held_ct} rows on {bed}{needle})")
+            # if self.ENABLED: k.comment(f"held loop warning ({held_ct} rows on {bed}{needle})")
             warnings.warn(HeldLoopWarning(f"{bed}{needle}", held_ct))
             return True
         else: return False
@@ -269,15 +334,15 @@ class EmptyXferWarning(UserWarning):
         return repr(self.message)
     
     @classmethod
-    def check(self, k, warnings, bns, bed, needle) -> bool:
-        try:
-            bn = bns.get((bed,needle))
-            if bn.loop_ct > 0: return False
-            else:
-                if self.ENABLED: k.comment(f"empty xfer warning ({bed}{needle})")
-                warnings.warn(EmptyXferWarning(f"{bed}{needle}"))
-                return True
-        except ValueError:
-            if self.ENABLED: k.comment(f"empty xfer warning ({bed}{needle})")
+    def check(self, k, warnings, bn, bed, needle) -> bool:
+        if bn is None:
+            # if self.ENABLED: k.comment(f"empty xfer warning ({bed}{needle})")
             warnings.warn(EmptyXferWarning(f"{bed}{needle}"))
             return True
+        else:
+            if bn.loop_ct > 0: return False
+            else:
+                # if self.ENABLED: k.comment(f"empty xfer warning ({bed}{needle})") #go back! #?
+                warnings.warn(EmptyXferWarning(f"{bed}{needle}"))
+                return True
+

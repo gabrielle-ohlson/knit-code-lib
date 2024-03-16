@@ -2,6 +2,8 @@ import os
 import sys
 sys.path.insert(0, os.getcwd())
 
+from typing import Union, Optional, Tuple, List, Dict
+
 from .helpers import tuckPattern, c2cs, flattenIter, modsHalveGauge, bnValid, toggleDirection, bnLast
 from .stitchPatterns import interlock
 
@@ -1087,7 +1089,7 @@ def sheetBindoff(k, start_n, end_n, c, bed="f", gauge=1, mod=None, use_sliders=F
     k.comment(f"end {bed} bed sheet bindoff")
 
 
-def closedTubeBindoff(k, start_n, end_n, c, gauge=1, bed_mods=None, use_sliders=False, add_tag=True, outhook=False, speedNumber=None, stitchNumber=None, xfer_stitchNumber=None): #TODO: #check support for gauge=2
+def closedTubeBindoff(k, start_n: int, end_n: int, c: Union[str,Tuple[str]], gauge: int=1, bed_mods: Dict[str,int]=None, use_sliders: bool=False, add_tag: bool=True, outhook: bool=False, speedNumber: Optional[int]=None, stitchNumber: Optional[int]=None, xfer_stitchNumber: Optional[int]=None): #TODO: #check support for gauge=2
     cs = c2cs(c) # ensure tuple type
 
     if bed_mods is None: bed_mods = {"f": 0, "b": gauge//2} #just use default
@@ -1207,7 +1209,7 @@ def closedTubeBindoff(k, start_n, end_n, c, gauge=1, bed_mods=None, use_sliders=
     return last_bn #in case we want to move it since it should be empty etc.
 
 
-def openTubeBindoff(k, start_n, end_n, c, gauge=2, bed_mods=None, use_sliders=False, add_tag=True, outhook=False, speedNumber=None, stitchNumber=None, xfer_stitchNumber=None):
+def openTubeBindoff(k, start_n: int, end_n: int, c: Union[str,Tuple[str]], gauge: int=2, bed_mods: Dict[str,int]=None, use_sliders: bool=False, add_tag: bool=True, outhook: bool=False, speedNumber: Optional[int]=None, stitchNumber: Optional[int]=None, xfer_stitchNumber: Optional[int]=None):
     # https://github.com/textiles-lab/knitout-examples/blob/master/J-30.js
     cs = c2cs(c) # ensure tuple type
 

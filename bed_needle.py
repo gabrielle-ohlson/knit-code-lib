@@ -1,9 +1,21 @@
 from __future__ import annotations #so we don't have to worry about situations that would require forward declarations
 from typing import Optional, Union, Tuple, List
-from copy import deepcopy
+# from copy import deepcopy
 from multimethod import multimethod
 
+#======
+import sys
+from pathlib import Path
+
+## Standalone boilerplate before relative imports
+if not __package__: #remove #?
+    DIR = Path(__file__).resolve().parent
+    sys.path.insert(0, str(DIR.parent))
+    __package__ = DIR.name
+
+
 from .knitout_helpers import getBedNeedle
+#======
 
 
 class BedNeedle:
@@ -31,7 +43,10 @@ class BedNeedle:
     #copy constructor
     @__init__.register
     def __init__(self, bn: BedNeedle):
-        self.__dict__ = deepcopy(bn.__dict__) #check
+        self.bed = bn.bed
+        self.needle = bn.needle
+        self.loop_ct = bn.loop_ct
+        self.stitch_ct = bn.stitch_ct
 
     @property
     def current_row(self):
@@ -53,36 +68,34 @@ class BedNeedle:
         return f"{self.bed}{self.needle}"
 
 
-# class BedNeedleTracker:
-#     def __init__(self):
-#         self.loops = BedNeedleList()
-#         self.stitches = BedNeedleList()
-
-#     def getActiveBns(self, bed: str) -> List[str]:
-#         active_bns = []
-#         for bn in self.loops:
-#             if bn.bed == bed:
-#                 bn_str = f"{bn.bed}{bn.needle}"
-#                 if bn_str not in active_bns: active_bns.append(bn_str)
-#         return [f"{bn.bed}{bn.needle}" for bn in self.loop_cts if bn.bed == bed]
-    
-#     def getStackCt(self, value: Union[BedNeedle,Tuple[str,int],str]):
-#         ct = 0
-#         for bn in self:
-#             if bn.isSame(value): ct += 1
-#         #
-#         return ct
-
 class BedNeedleList(list):
     def __init__(self, *args):
-        super().__init__(BedNeedle(item) for item in args)
-        # self.row_ct = 0
-
-    def get(self, item: Union[BedNeedle, Tuple[str,int], str]) -> BedNeedle:
-        for bn in self:
-            if bn.isSame(item): return bn
+        for item in args:
+            bn = BedNeedle(item)
+            self.__dict__[bn.format()] = bn
         #
-        raise ValueError(f"'{item}' not in list")
+        super().__init__(BedNeedle(item) for item in args) #TODO: consolidate this into above for loop
+
+    @multimethod
+    def get(self, item: str):
+        try:
+            return self.__dict__[item]
+        except KeyError:
+            return None
+    
+    @get.register
+    def get(self, item: Tuple[str,int]) -> BedNeedle:
+        try:
+            return self.__dict__[f"{item[0]}{item[1]}"]
+        except KeyError:
+            return None
+
+    @get.register
+    def get(self, item: BedNeedle) -> BedNeedle:
+        try:
+            return self.__dict__[item.format()]
+        except KeyError:
+            return None
 
     def getActiveBns(self, bed: str) -> List[str]:
         return [f"{bn.bed}{bn.needle}" for bn in self if bn.bed == bed]
@@ -98,28 +111,33 @@ class BedNeedleList(list):
     def getRowCt(self) -> int:
         return max([bn.stitch_ct for bn in self], default=0)
     
-    # def getLastRow(self, item: Union[BedNeedle, Tuple[str,int], str]):
-    #     bn = self.get(item)
-    #     return bn.init_row+bn.stitch_ct #check #TODO: have current_row too #? 
-    
     def getHeldRowCt(self, item: Union[BedNeedle, Tuple[str,int], str]):
         bn = self.get(item)
-        return max(0, self.getRowCt()-bn.current_row) #check #TODO: have current_row too #? 
+        return max(0, self.getRowCt()-bn.current_row) #TODO: have current_row too #? 
 
     def format(self) -> List[str]:
         return [bn.format() for bn in self]
 
-    #
-    def __contains__(self, item: Union[BedNeedle, Tuple[str,int], str]): #check
-        for bn in self:
-            if bn.isSame(item): return True
-        #
-        return False
+    @multimethod
+    def __contains__(self, item: str):
+        return item in self.__dict__
+    
+    @__contains__.register
+    def __contains__(self, item: BedNeedle):
+        return item.format() in self.__dict__
+    
+    @__contains__.register
+    def __contains__(self, item: Tuple[str,int]):
+        return f"{item[0]}{item[1]}" in self.__dict__
+    
+    def copy(self): #new
+        return BedNeedleList(*[bn for bn in self])
     
     @multimethod
     def append(self, item: BedNeedle) -> None:
         item.init_row = self.getRowCt() #check
         super().append(item)
+        self.__dict__[item.format()] = item #new
 
     @append.register
     def append(self, item: Union[str, Tuple[str,int]]) -> None:
@@ -128,6 +146,7 @@ class BedNeedleList(list):
     @multimethod
     def remove(self, item: BedNeedle) -> None:
         super().remove(self.get(item))
+        del self.__dict__[item.format()]
 
     @remove.register
     def remove(self, item: Union[str, Tuple[str,int]]) -> None:
@@ -141,15 +160,6 @@ class BedNeedleList(list):
             else:
                 bn.loop_ct = 1 #since knitted thru
                 bn.stitch_ct += 1
-
-        # if is_tuck:
-        #     if bn not in self: self.append(bn)
-        #     bn.loop_ct += 1
-        # else: #knit
-        #     if bn not in self:
-        #         self.append(bn)
-        #         bn.loop_ct += 1
-        #     else: bn.stitch_ct += 1
 
     @increment.register
     def increment(self, item: Union[Tuple[str,int], str], is_tuck=False) -> None:
@@ -167,9 +177,6 @@ class BedNeedleList(list):
         if bn_from.stitch_ct < bn_to.stitch_ct: #?
             bn_to.stitch_ct = bn_from.stitch_ct
             bn_to.init_row = bn_from.init_row
-        # from_info = deepcopy(bn_from.__dict__) #check
-        # from_info.bed = bn_to.bed
-        # from_info.needle = bn_to.needle
         #
         if is_split:
             bn_from.init_row = self.getRowCt()

@@ -6,3 +6,5 @@ wip/
 customDocstr.mustache
 
 *test.k
+test.py
+* copy*.py
