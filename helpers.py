@@ -376,18 +376,20 @@ def knitPass(k, start_n: int, end_n: int, c: Union[str, List[str], Tuple[str]], 
             elif n == end_n: k.miss("-", f"{bed}{n}", *cs)
 
 
-def rackedXfer(k, from_bn: Union[str, Tuple[str,int]], to_bn: Union[str, Tuple[str,int]]) -> None:
+def rackedXfer(k, from_bn: Union[str, Tuple[str,int]], to_bn: Union[str, Tuple[str,int]], reset_rack: bool=True) -> None:
     if type(from_bn) == str: b1, n1 = bnSplit(from_bn)
     else: b1, n1 = from_bn
 
     if type(to_bn) == str: b2, n2 = bnSplit(to_bn)
     else: b2, n2 = to_bn
 
-    if b1 == "f": k.rack(n1-n2)
-    else: k.rack(n2-n1)
+    if b1 == "f": r = n1-n2
+    else: r = n2-n1
+    k.rack(r)
+
     #
     k.xfer(f"{b1}{n1}", f"{b2}{n2}")
-    k.rack(0)
+    if reset_rack: k.rack(0)
 
 #-------------------------------------------------------------------------------
 

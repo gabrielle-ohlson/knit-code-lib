@@ -1062,7 +1062,7 @@ def sheetBindoff(k, start_n, end_n, c, bed="f", gauge=1, mod=None, use_sliders=F
 
     if use_sliders: bed2 += "s"
 
-    last_bn = bnLast(start_n, end_n, gauge, return_type=list)
+    last_bn = bnLast(start_n, end_n, gauge, bn_locs=bed, return_type=list)
     
     # edge_n = needle_range[-1]
 
