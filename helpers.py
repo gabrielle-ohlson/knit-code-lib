@@ -377,13 +377,17 @@ def knitPass(k, start_n: int, end_n: int, c: Union[str, List[str], Tuple[str]], 
 
 
 def rackedXfer(k, from_bn: Union[str, Tuple[str,int]], to_bn: Union[str, Tuple[str,int]]) -> None:
-    bn1, bn2 = bnFormat([from_bn, to_bn], sort=False, return_type=list)
-    if bn1[0][0] == "f": k.rack(bn1[1]-bn2[1])
-    else: k.rack(bn2[1]-bn1[1])
-    #
-    k.xfer(f"{bn1[0]}{bn1[1]}", f"{bn2[0]}{bn2[1]}")
-    k.rack(0)
+    if type(from_bn) == str: b1, n1 = bnSplit(from_bn)
+    else: b1, n1 = from_bn
 
+    if type(to_bn) == str: b2, n2 = bnSplit(to_bn)
+    else: b2, n2 = to_bn
+
+    if b1 == "f": k.rack(n1-n2)
+    else: k.rack(n2-n1)
+    #
+    k.xfer(f"{b1}{n1}", f"{b2}{n2}")
+    k.rack(0)
 
 #-------------------------------------------------------------------------------
 
