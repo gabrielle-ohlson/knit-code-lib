@@ -107,7 +107,7 @@ tube (single bed) example:
 e.g. for gauge 2:
 if mod == 0
 """
-def interlock(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List[str]], bed: Optional[str]=None, gauge: int=1, sequence: str="01", bn_locs: Dict[str,List[int]]={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, xfer_bns_back: bool=True, secure_start_n: bool=False, secure_end_n: bool=False, inhook: bool=False, releasehook: bool=False, tuck_pattern: bool=True, speedNumber: Optional[int]=None, stitchNumber: Optional[int]=None, xfer_speedNumber: Optional[int]=None, xfer_stitchNumber: Optional[int]=None, init_direction: Optional[str]=None) -> str:
+def interlock(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List[str]], bed: Optional[str]=None, gauge: int=1, sequence: str="01", bn_locs: Dict[str,List[int]]={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, xfer_bns_setup: bool=True, xfer_bns_back: bool=True, secure_start_n: bool=False, secure_end_n: bool=False, inhook: bool=False, releasehook: bool=False, tuck_pattern: bool=True, speedNumber: Optional[int]=None, stitchNumber: Optional[int]=None, xfer_speedNumber: Optional[int]=None, xfer_stitchNumber: Optional[int]=None, init_direction: Optional[str]=None) -> str: #TODO: add `xfer_bns_setup` to other stitchPattern functions
     '''
     Interlock stitch pattern: knits every other needle on alternating beds, mirroring this pattern with alternating passes. Starts on side indicated by which needle value is greater.
     In this function, passes is the number of total passes knit, so if you want an interlock segment that is 20 courses long on each bed set passes to 40.  Useful if you want to have odd passes of interlock.
@@ -207,7 +207,7 @@ def interlock(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str]
 
     if bn_locs is None: print("TODO: add caston") #debug
 
-    if bed is not None:
+    if xfer_bns_setup and bed is not None: #new #check (TODO: have option of single vs double bed #?)
         mods4 = [modsHalveGauge(gauge*2, mods2[0]), modsHalveGauge(gauge*2, mods2[1])]
 
         # transfer to get loops in place:
