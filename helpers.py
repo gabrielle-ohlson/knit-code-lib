@@ -111,12 +111,14 @@ def bnLast(start_n: int, end_n: int, gauge: int, bn_locs: Union[str, Dict[str,Li
             if return_type == str: bn = f"f{n}"
             elif return_type == tuple: bn = ("f", n)
             elif return_type == list: bn = ["f", n]
+            elif return_type == int: bn = n
             else: raise ValueError("unsupported return_type requested.")
             break
         elif n in _bn_locs.get("b", []):
             if return_type == str: bn = f"b{n}"
             elif return_type == tuple: bn = ("b", n)
             elif return_type == list: bn = ["b", n]
+            elif return_type == int: bn = n
             else: raise ValueError("unsupported return_type requested.")
             break
     #
@@ -202,8 +204,12 @@ def bnGauged(b: str, n: int, gauge: int=2) -> str:
 
 def modsHalveGauge(gauge: int, mod: Union[int, str]) -> Tuple[int,int]: # usage: n % (gauge*2) == mods[0] or n % (gauge*2) == mods[1]
     if type(mod) == str: #passed bed for it
-        if mod == "f": mod = 0
-        else: mod = gauge//2 # -1 #if gauge=1, this is 0 no matter what so works
+        if gauge == 1:
+            if mod == "f": return (0, 1)
+            else: return (1, 0)
+        else:
+            if mod == "f": mod = 0
+            else: mod = gauge//2 # -1 #if gauge=1, this is 0 no matter what so works
     #
     return (mod, mod+gauge)
 
