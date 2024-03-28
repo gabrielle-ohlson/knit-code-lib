@@ -1172,12 +1172,24 @@ def closedTubeBindoff(k, start_n: int, end_n: int, c: Union[str,Tuple[str]], gau
     if use_sliders: bed2 += "s"
     
     for n in needle_range:
-        if n == last_bn[1]: #TODO: change this to last_n (aka last needle based on gauge/mods)
+        if n == last_bn[1]:
+            last_bed = bed
+            #
+            if shift == 0:
+                if xfer_stitchNumber is not None: k.stitchNumber(xfer_stitchNumber)
+                k.xfer(f"{bed}{n}", f"{bed2}{n}")
+
+                if stitchNumber is not None: k.stitchNumber(stitchNumber)
+                k.knit(d, f"{bed2}{n}", *cs)
+                k.miss(d2, f"{bed2}{n}", *cs)
+
+                last_bed = bed2
+
             if add_tag:
                 if stitchNumber is not None: k.stitchNumber(stitchNumber)
-                bindoffTag(k, d, bed, n, cs)
+                bindoffTag(k, d, last_bed, n, cs)
             if outhook: k.outhook(*cs)
-            if add_tag: bindoffTag(k, d, bed, n, None) #drop it
+            if add_tag: bindoffTag(k, d, last_bed, n, None) #drop it
             break
         else:
             # if f"{bed}{n}" in empty_needles: continue # don't bind it off because it's empty
