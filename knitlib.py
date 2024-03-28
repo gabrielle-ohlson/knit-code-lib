@@ -466,9 +466,8 @@ def altTuckCaston(k, start_n, end_n, c, bed, gauge=1, inhook=False, releasehook=
 
     if abs(mods[1]-start_n%(gauge*2)) < abs(mods[0]-start_n%(gauge*2)): mods = mods[::-1] #so don't start knitting on most recently tucked needle
 
-    if inhook:
-        k.inhook(*cs)
-        if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=cs)
+    if inhook: k.inhook(*cs)
+    if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=cs)
         
     for n in n_range1:
         if n % (gauge*2) == mods[0]: k.tuck(d1, f"{bed}{n}", *cs)
@@ -479,9 +478,8 @@ def altTuckCaston(k, start_n, end_n, c, bed, gauge=1, inhook=False, releasehook=
             k.tuck(d2, f"{bed}{n}", *cs)
         elif n == n_range2[-1]: k.miss(d2, f"{bed}{n}", *cs)
 
-    if releasehook:
-        k.releasehook(*cs)
-        if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=None) # drop it
+    if releasehook: k.releasehook(*cs)
+    if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=None) # drop it
     
     if knit_after:
         if knit_stitchNumber is not None: k.stitchNumber(knit_stitchNumber)
@@ -495,7 +493,7 @@ def altTuckCaston(k, start_n, end_n, c, bed, gauge=1, inhook=False, releasehook=
     k.comment("end alternating tuck cast-on")
 
 
-def altTuckClosedCaston(k, start_n, end_n, c, gauge=2):
+def altTuckClosedCaston(k, start_n, end_n, c, gauge=2, inhook=False, releasehook=False, tuck_pattern=False):
     #TODO: add stuff for inhook, tuck_pattern, etc.
     cs = c2cs(c) # ensure tuple type
     
@@ -511,6 +509,9 @@ def altTuckClosedCaston(k, start_n, end_n, c, gauge=2):
         d2 = "-"
     
     last_n = None
+
+    if inhook: k.inhook(*cs) #new #check #v
+    if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=cs)
 
     if gauge == 1:
         for n in n_range1:
@@ -557,6 +558,9 @@ def altTuckClosedCaston(k, start_n, end_n, c, gauge=2):
             elif bnValid("b", n, gauge): k.knit(d2, f"b{n}", *cs)
             elif n == n_range2[-1]: k.miss(d2, f"f{n}", *cs)
 
+    if releasehook: k.releasehook(*cs) #new #check #v
+    if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=None) # drop it
+
     print(f"carrier {c} parked on {'left' if d2 == '-' else 'right'} side") #debug
 
 
@@ -598,9 +602,8 @@ def altTuckOpenTubeCaston(k, start_n, end_n, c, gauge=1, inhook=False, releaseho
         needle_range1 = range(start_n, end_n-1, -1)
         needle_range2 = range(end_n, start_n+1)
 
-    if inhook:
-        k.inhook(*cs)
-        if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=cs)
+    if inhook: k.inhook(*cs)
+    if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=cs)
 
     mods_f = modsHalveGauge(gauge, "f")
     mods_b = modsHalveGauge(gauge, "b")
@@ -617,9 +620,8 @@ def altTuckOpenTubeCaston(k, start_n, end_n, c, gauge=1, inhook=False, releaseho
         # if (gauge == 1 or n % gauge != 0) and ((((n-1)/gauge) % 2) == 0): k.knit(dir2, f"b{n}", *cs)
         # elif n == start_n: k.miss(dir2, f"b{n}", *cs)
 
-    if releasehook:
-        k.releasehook(*cs)
-        if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=None) # drop it
+    if releasehook: k.releasehook(*cs)
+    if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=None) # drop it
 
     for n in needle_range1:
         if n % (gauge*2) == mods_f[1]: k.knit(d1, f"f{n}", *cs)
@@ -649,7 +651,7 @@ def altTuckOpenTubeCaston(k, start_n, end_n, c, gauge=1, inhook=False, releaseho
 
 
 #--- FUNCTION FOR CASTING ON CLOSED TUBES (zig-zag) ---
-def zigzagCaston(k, start_n, end_n, c, gauge=1, inhook=False, releasehook=False, tuck_pattern=True): #TODO: adjust for gauge TODO: indicate that most recent needle needs to be skipped, or do something to secure it (such as `knit_after` param)
+def zigzagCaston(k, start_n, end_n, c, gauge=1, inhook=False, releasehook=False, tuck_pattern=False): #TODO: adjust for gauge TODO: indicate that most recent needle needs to be skipped, or do something to secure it (such as `knit_after` param)
     '''
     * k is the knitout Writer
     * start_n is the initial needle to cast-on
@@ -674,9 +676,8 @@ def zigzagCaston(k, start_n, end_n, c, gauge=1, inhook=False, releasehook=False,
         n_range = range(start_n, end_n-1, -1)
         b1, b2 = "b", "f"
     
-    if inhook:
-        k.inhook(*cs)
-        if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d, c=cs)
+    if inhook: k.inhook(*cs)
+    if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d, c=cs)
 
     # mods = {b1: modsHalveGauge(gauge, b1), b2: modsHalveGauge(gauge, b2)}
     k.rack(0.25)
@@ -688,9 +689,8 @@ def zigzagCaston(k, start_n, end_n, c, gauge=1, inhook=False, releasehook=False,
 
     k.rack(0)
 
-    if releasehook:
-        k.releasehook(*cs)
-        if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d, c=None) # drop it
+    if releasehook: k.releasehook(*cs)
+    if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d, c=None) # drop it
 
     k.comment("end zigzag cast-on")
 

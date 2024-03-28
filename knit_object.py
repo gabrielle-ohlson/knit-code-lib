@@ -189,17 +189,19 @@ class KnitObject:
         method = CastonMethod.parse(method) #check
         #
         not_in_cs = [c for c in cs if c not in self.k.carrier_map.keys()] #check
+        tuck_pat = False
         if len(not_in_cs):
+            tuck_pat = True
             self.k.inhook(*not_in_cs)
         #
         if method == CastonMethod.ALT_TUCK_CLOSED:
-            if bed != "f" and bed != "b": altTuckClosedCaston(self.k, needle_range[0], needle_range[1], c=cs, gauge=self.gauge)
-            else: altTuckCaston(self.k, needle_range[0], needle_range[1], c=cs, bed=bed, gauge=self.gauge)
+            if bed != "f" and bed != "b": altTuckClosedCaston(self.k, needle_range[0], needle_range[1], c=cs, gauge=self.gauge, tuck_pattern=tuck_pat)
+            else: altTuckCaston(self.k, needle_range[0], needle_range[1], c=cs, bed=bed, gauge=self.gauge, tuck_pattern=tuck_pat)
         elif method == CastonMethod.ALT_TUCK_OPEN:
             assert bed != "f" and bed != "b", "`CastonMethod.ALT_TUCK_OPEN` only valid for double bed knitting."
-            altTuckOpenTubeCaston(self.k, needle_range[0], needle_range[1], c=cs, gauge=self.gauge)
+            altTuckOpenTubeCaston(self.k, needle_range[0], needle_range[1], c=cs, gauge=self.gauge, tuck_pattern=tuck_pat)
         elif method == CastonMethod.ZIGZAG:
-            zigzagCaston(self.k, needle_range[0], needle_range[1], c=cs, gauge=self.gauge)
+            zigzagCaston(self.k, needle_range[0], needle_range[1], c=cs, gauge=self.gauge, tuck_pattern=tuck_pat)
             if needle_range[1] > needle_range[0]: xfer_range = range(needle_range[0], needle_range[1]+1)
             else: xfer_range = range(needle_range[0], needle_range[1]-1, -1)
             if bed == "f":

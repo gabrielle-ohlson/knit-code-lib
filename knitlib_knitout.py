@@ -191,7 +191,8 @@ class Writer(knitout.Writer):
         self.operations.append('inhook ' + cs)
         #
         for c in carriers:
-            self.q.put( (self.addCarrier, self.line_number, (c, "inhook")) ) #*
+            # self.q.put( (self.addCarrier, self.line_number, (c, "inhook")) ) #*
+            self.addCarrier(c, "inhook") #new
     
     def incarrier(self, *args): #NOTE: can't name func `in` since that is a keyword in python
         argl = list(args)
@@ -200,7 +201,8 @@ class Writer(knitout.Writer):
         self.operations.append('in ' + cs)
         #
         for c in carriers:
-            self.q.put( (self.addCarrier, self.line_number, (c, "in")) ) #*
+            # self.q.put( (self.addCarrier, self.line_number, (c, "in")) ) #*
+            self.addCarrier(c, "in") #new
 
     def outhook(self, *args):
         argl = list(args)
@@ -211,7 +213,8 @@ class Writer(knitout.Writer):
         self.operations.append('outhook ' + cs)
         #
         for c in carriers:
-            self.q.put( (self.removeCarrier, self.line_number, (c, "outhook")) ) #*
+            # self.q.put( (self.removeCarrier, self.line_number, (c, "outhook")) ) #*
+            self.removeCarrier(c, "outhook") #new
 
     def outcarrier(self, *args):
         argl = list(args)
@@ -220,7 +223,8 @@ class Writer(knitout.Writer):
         self.operations.append('out ' + cs)
         #
         for c in carriers:
-            self.q.put( (self.removeCarrier, self.line_number, (c, "out")) ) #*
+            # self.q.put( (self.removeCarrier, self.line_number, (c, "out")) ) #*
+            self.removeCarrier(c, "out") #new
 
     def releasehook(self, *args):
         argl = list(args)
@@ -232,7 +236,8 @@ class Writer(knitout.Writer):
         self.operations.append('releasehook ' + cs)
         #
         for c in carriers:
-            self.q.put( (InactiveCarrierWarning.check, self.line_number, (self, warnings, self.carrier_map,c, "releasehook")) ) #*
+            # self.q.put( (InactiveCarrierWarning.check, self.line_number, (self, warnings, self.carrier_map,c, "releasehook")) ) #*
+            InactiveCarrierWarning.check(self, warnings, self.carrier_map,c, "releasehook") #new
     
     def rack(self, r: Union[int,float]): #*#*
         if self.rack_value != r: #keep #?
@@ -248,9 +253,11 @@ class Writer(knitout.Writer):
         self.operations.append('knit ' + direction + ' ' + bn + ' ' + cs)
         #
         for c in carriers:
-            self.q.put( (FloatWarning.check, self.line_number, (self, warnings, self.carrier_map, c, needle)) ) #*
+            # self.q.put( (FloatWarning.check, self.line_number, (self, warnings, self.carrier_map, c, needle)) ) #*
+            FloatWarning.check(self, warnings, self.carrier_map, c, needle) #new
             #
-            self.q.put( (self.updateCarrier, self.line_number, (c, "knit", direction, bed, needle)) ) #*
+            # self.q.put( (self.updateCarrier, self.line_number, (c, "knit", direction, bed, needle)) ) #*
+            self.updateCarrier(c, "knit", direction, bed, needle) #new
         #
         self.q.put( (HeldLoopWarning.check, self.line_number, (self, warnings, self.row_ct, self.bns.get(bn), bed, needle)) ) #* #copy #?
         #
@@ -266,9 +273,11 @@ class Writer(knitout.Writer):
         self.operations.append('tuck ' + direction + ' ' + bn + ' ' + cs)
         #
         for c in carriers:
-            self.q.put( (FloatWarning.check, self.line_number, (self, warnings, self.carrier_map, c, needle)) ) #*
+            # self.q.put( (FloatWarning.check, self.line_number, (self, warnings, self.carrier_map, c, needle)) ) #*
+            FloatWarning.check(self, warnings, self.carrier_map, c, needle) #new
             #
-            self.q.put( (self.updateCarrier, self.line_number, (c, "tuck", direction, bed, needle)) ) #*
+            # self.q.put( (self.updateCarrier, self.line_number, (c, "tuck", direction, bed, needle)) ) #*
+            self.updateCarrier(c, "tuck", direction, bed, needle) #new
         #
         self.q.put( (HeldLoopWarning.check, self.line_number, (self, warnings, self.row_ct, self.bns.get(bn), bed, needle)) ) #* #copy #?
         #
@@ -301,9 +310,11 @@ class Writer(knitout.Writer):
         self.q.put( (EmptyXferWarning.check, self.line_number, (self, warnings, self.bns.get(bn_from), bed, needle)) ) #* #copy #?
         #
         for c in carriers:
-            self.q.put( (FloatWarning.check, self.line_number, (self, warnings, self.carrier_map, c, needle)) ) #* #TODO: deepcopy for these #*#*#*
+            # self.q.put( (FloatWarning.check, self.line_number, (self, warnings, self.carrier_map, c, needle)) ) #* #TODO: deepcopy for these #*#*#*
+            FloatWarning.check(self, warnings, self.carrier_map, c, needle) #new
             #
-            self.q.put( (self.updateCarrier, self.line_number, (c, "split", direction, bed, needle)) ) #* #TODO: deepcopy for these #? #*#*#*
+            # self.q.put( (self.updateCarrier, self.line_number, (c, "split", direction, bed, needle)) ) #* #TODO: deepcopy for these #? #*#*#*
+            self.updateCarrier(c, "split", direction, bed, needle) #new
         #
         self.q.put( (HeldLoopWarning.check, self.line_number, (self, warnings, self.row_ct, self.bns.get(bn_from), bed, needle)) ) #* #copy #?
         #
@@ -319,7 +330,8 @@ class Writer(knitout.Writer):
         self.operations.append('miss ' + direction + ' ' + bn + ' ' + cs)
         #
         for c in carriers:
-            self.q.put( (self.updateCarrier, self.line_number, (c, "miss", direction, bed, needle)) ) #*
+            # self.q.put( (self.updateCarrier, self.line_number, (c, "miss", direction, bed, needle)) ) #*
+            self.updateCarrier(c, "miss", direction, bed, needle) #new
     
     def drop(self, *args):
         argl = list(args)
@@ -356,4 +368,3 @@ class Writer(knitout.Writer):
             print('Could not write to file ' + filename)
         #
         self.thread.join()
-
