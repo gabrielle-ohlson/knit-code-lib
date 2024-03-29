@@ -256,8 +256,15 @@ class KnitObject:
             assert callable(pattern)
             func = pattern
             #
-            for key in func_args.keys():
-                assert key in func.__code__.co_varnames, f"'{func.__name__}' function does not use required parameter, '{key}'."
+            for key in list(func_args.keys()).copy():
+                if key == "passes" and key not in func.__code__.co_varnames and "iters" in func.__code__.co_varnames: #* #temp fix
+                    func_args["iters"] = func_args["passes"]
+                    del func_args["passes"]
+                elif key == "bed" and key not in func.__code__.co_varnames and "main_bed" in func.__code__.co_varnames: #* #temp fix
+                    func_args["main_bed"] = func_args["bed"]
+                    del func_args["bed"]
+                else:
+                    assert key in func.__code__.co_varnames, f"'{func.__name__}' function does not use required parameter, '{key}'."
         #
         for key, val in kwargs.items():
             if key in func.__code__.co_varnames: func_args[key] = val
@@ -288,17 +295,20 @@ class KnitObject:
         self.knitPass(StitchPattern.JERSEY, bed, needle_range, *cs, **kwargs)
     
     @multimethod
-    def bindoff(self, method: Union[BindoffMethod, int], bed: Optional[str], needle_range: Optional[Tuple[int, int]], *cs: str) -> None:
+    def bindoff(self, method: Union[BindoffMethod, int], bed: Optional[str], needle_range: Optional[Tuple[int, int]], *cs: str, **kwargs) -> None:
+        if "outhook" in kwargs: outhook = kwargs["outhook"]
+        else: outhook = False
+        #
         method = BindoffMethod.parse(method) #check
         #
         if needle_range is None: needle_range = self.getNeedleRange(bed, *cs)
         #
         if method == BindoffMethod.CLOSED:
-            if bed == "f" or bed == "b": sheetBindoff(self.k, needle_range[0], needle_range[1], cs, bed, self.gauge)
-            else: closedTubeBindoff(self.k, needle_range[0], needle_range[1], cs, self.gauge)
+            if bed == "f" or bed == "b": sheetBindoff(self.k, needle_range[0], needle_range[1], cs, bed, self.gauge, outhook=outhook)
+            else: closedTubeBindoff(self.k, needle_range[0], needle_range[1], cs, self.gauge, outhook=outhook)
         elif method == BindoffMethod.OPEN:
             assert bed != "f" and bed != "b", "`BindoffMethod.OPEN` only valid for double bed knitting."
-            openTubeBindoff(self.k, needle_range[0], needle_range[1], cs, self.gauge)
+            openTubeBindoff(self.k, needle_range[0], needle_range[1], cs, self.gauge, outhook=outhook)
         elif method == BindoffMethod.DROP:
             if bed == "b": front_needle_ranges = []
             else: front_needle_ranges = sorted(self.getNeedleRange("f", *cs))
@@ -306,16 +316,12 @@ class KnitObject:
             if bed == "f": back_needle_ranges = []
             else: back_needle_ranges = sorted(self.getNeedleRange("b", *cs))
             #
-            dropFinish(self.k, front_needle_ranges=front_needle_ranges, back_needle_ranges=back_needle_ranges)
-            # if needle_range[1] > needle_range[0]: left_n, right_n = needle_range[0], needle_range[1]
-            # else: left_n, right_n = needle_range[1], needle_range[0]
-            # #
-            # dropFinish(self.k, front_needle_ranges=([] if bed == "b" else [left_n,right_n]), back_needle_ranges=([] if bed == "f" else [left_n,right_n]))
+            dropFinish(self.k, front_needle_ranges=front_needle_ranges, back_needle_ranges=back_needle_ranges, out_carriers=cs if outhook else [])
         else: raise ValueError("unsupported bindoff method")
     
     @bindoff.register
-    def bindoff(self, method: Union[BindoffMethod, int], bed: Optional[str], *cs: str) -> None: #TODO
-        self.bindoff(method, bed, None, *cs)
+    def bindoff(self, method: Union[BindoffMethod, int], bed: Optional[str], *cs: str, **kwargs) -> None:
+        self.bindoff(method, bed, None, *cs, **kwargs)
 
     def isEndNeedle(self, direction: str, bed: str, needle: int) -> bool:
         if direction == "-": #
@@ -400,17 +406,21 @@ class KnitObject:
                 if carrier.direction is not None:
                     d = carrier.direction
                     if d == "-" and (start_n is None or carrier.needle < start_n):
-                        if bed is not None and carrier.bed != bed and 0 < bed_max_n-carrier.needle < self.gauge: self.k.miss("+", bed, bed_max_n, c) #TODO: #check
+                        if bed is not None and carrier.bed != bed and 0 < bed_max_n-carrier.needle < self.gauge:
+                            self.k.miss("+", bed, bed_max_n, c)
+                            self.updateCarriers(toggleDirection(carrier.direction), None, None, c) #update it again to account for toggling #TODO: improve this #* #temp fix
                         start_n = carrier.needle
                     elif d == "+" and (start_n is None or carrier.needle > start_n):
-                        if bed is not None and carrier.bed != bed and 0 < carrier.needle-bed_min_n < self.gauge: self.k.miss("-", bed, bed_min_n, c) #TODO: #check
+                        if bed is not None and carrier.bed != bed and 0 < carrier.needle-bed_min_n < self.gauge:
+                            self.k.miss("-", bed, bed_min_n, c)
+                            self.updateCarriers(toggleDirection(carrier.direction), None, None, c) #update it again to account for toggling #TODO: improve this #* #temp fix
                         start_n = carrier.needle
             elif carrier.direction is not None:
                 d = carrier.direction
                 if d == "-" and (start_n is None or carrier.needle-1 < start_n): start_n = carrier.needle-1
                 elif d == "+" and (start_n is None or carrier.needle+1 > start_n): start_n = carrier.needle+1
         #
-        assert all([self.k.carrier_map[c].direction == d or self.k.carrier_map[c].direction is None for c in cs])
+        assert all([self.k.carrier_map[c].direction == d or self.k.carrier_map[c].direction is None for c in cs]), f"d: {d}, cs: {cs}, directions: {[self.k.carrier_map[c].direction for c in cs]}"
         #
         if d == "-":
             start_n = min(start_n, max_n)

@@ -119,6 +119,7 @@ class Writer(knitout.Writer):
         self.bns = BedNeedleList()
         # self.row_ct = 0 #?
         self.hook_active = False
+        self.use_hook = True
 
         self.setExceptionHandling(enabled_warnings=(KnitoutException.FLOAT, KnitoutException.STACKED_LOOP, KnitoutException.UNSTABLE_LOOP, KnitoutException.EMPTY_XFER), enabled_errors=(KnitoutException.HELD_LOOP, KnitoutException.INACTIVE_CARRIER, KnitoutException.UNALIGNED_NEEDLES)) #default (can be changed by calling it again with different values) (NOTE: any KnitoutExceptions not included in `enabled_warnings` or `enabled_errors` are ignored by default)
         #
@@ -195,6 +196,7 @@ class Writer(knitout.Writer):
             self.addCarrier(c, "inhook") #new
     
     def incarrier(self, *args): #NOTE: can't name func `in` since that is a keyword in python
+        self.use_hook = False
         argl = list(args)
         cs, carriers = shiftCarrierSet(argl, self.carriers)
         #
@@ -353,6 +355,12 @@ class Writer(knitout.Writer):
         self.bns = BedNeedleList()
 
     def write(self, filename):
+        # ensure all carriers have been taken out:
+        for c in self.carrier_map:
+            print(f"WARNING: taking carrier {c} out in 'write' func")
+            if self.use_hook: self.outhook(c)
+            else: self.outcarrier(c)
+        
         for bn in self.bns:
             self.q.put( (HeldLoopWarning.check, self.line_number, (self, warnings, self.row_ct, self.bns.get(bn), bn.bed, bn.needle)) ) #* #copy #?
         #

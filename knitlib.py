@@ -811,14 +811,19 @@ def bindoffTag(k, d, bed, edge_n, c, outhook=False, drop=False):
 
     cs = c2cs(c) # ensure tuple type
 
-    if d == "+": shift = -1 #will knit the tag to the left of edge_n
-    else: shift = 1 #will knit the tag to the right of edge_n
+    if d == "+":
+        d2 = "-"
+        shift = -1 #will knit the tag to the left of edge_n
+    else:
+        d2 = "+"
+        shift = 1 #will knit the tag to the right of edge_n
 
-    for r in range(4):
-        k.knit(d, f"{bed}{edge_n}", *cs)
-        if r == 3:
-            k.tuck(d, f"{bed}{edge_n+shift}", *cs)
-        d = toggleDirection(d)
+    k.comment("begin tag")
+
+    k.miss(d, f"{bed}{edge_n}", *cs)
+    k.knit(d2, f"{bed}{edge_n}", *cs)
+    k.tuck(d2, f"{bed}{edge_n+shift}", *cs)
+    k.miss(d2, f"{bed}{edge_n+(shift*2)}", *cs)
 
     k.tuck(d, f"{bed}{edge_n+(shift*2)}", *cs)
     k.knit(d, f"{bed}{edge_n+(shift)}", *cs)

@@ -205,7 +205,7 @@ class BedNeedleList(list):
         super().sort(key=lambda bn: (-bn.needle,bn.bed))
         if not reverse: super().reverse() # bed `f` comes first (so works for when knitting at e.g. `rack 0.25`)
     
-    def sorted(self, bed: str, reverse=False) -> BedNeedleList:
+    def sorted(self, bed: Optional[str], reverse=False) -> BedNeedleList:
         if bed is None: res = sorted(self, key=lambda bn: (-bn.needle,bn.bed))
         else: res = sorted([bn for bn in self if bn.bed == bed], key=lambda bn: (-bn.needle,bn.bed))
         #
