@@ -423,7 +423,7 @@ def wasteSection(k, left_n, right_n, closed_caston=True, waste_c="1", draw_c="2"
 # ---------------
 # --- CASTONS ---
 # ---------------
-def altTuckCaston(k, start_n, end_n, c, bed, gauge=1, inhook=False, releasehook=False, tuck_pattern=False, speedNumber=None, stitchNumber=None, knit_after=True, knit_stitchNumber=None): #TODO #check
+def altTuckCaston(k, start_n, end_n, c, bed, gauge=1, mod=None, inhook=False, releasehook=False, tuck_pattern=False, speedNumber=None, stitchNumber=None, knit_after=True, knit_stitchNumber=None):
     '''
     for sheet caston
 
@@ -462,7 +462,8 @@ def altTuckCaston(k, start_n, end_n, c, bed, gauge=1, inhook=False, releasehook=
         n_range1 = range(start_n, end_n-1, -1)
         n_range2 = range(end_n, start_n+1)
 
-    mods = modsHalveGauge(gauge, bed)
+    if mod is None: mods = modsHalveGauge(gauge, bed)
+    else: mods = modsHalveGauge(gauge, mod)
 
     if abs(mods[1]-start_n%(gauge*2)) < abs(mods[0]-start_n%(gauge*2)): mods = mods[::-1] #so don't start knitting on most recently tucked needle
 
@@ -1067,10 +1068,9 @@ def sheetBindoff(k, start_n, end_n, c, bed="f", gauge=1, mod=None, use_sliders=F
 
     if use_sliders: bed2 += "s"
 
-    last_bn = bnLast(start_n, end_n, gauge, bn_locs=bed, return_type=list)
+    bn_locs = {bed: [n for n in needle_range if n % gauge == mod]}
+    last_bn = bnLast(start_n, end_n, gauge, bn_locs=bn_locs, return_type=list)
     
-    # edge_n = needle_range[-1]
-
     for n in needle_range:
         if n == last_bn[1]:
             if add_tag:
