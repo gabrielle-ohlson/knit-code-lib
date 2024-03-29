@@ -330,7 +330,7 @@ def tuckPattern(k, first_n: int, direction: str, c: Optional[Union[str, List[str
         for n in range(first_n-1, first_n-6, -1):
             if c is None: k.drop(f"{bed}{n}")
             elif n % 2 == 0: k.tuck("-", f"{bed}{n}", *cs)
-            elif n == first_n-5: k.miss("-", f"{bed}{n}", *cs)
+            elif n == first_n-1 or n == first_n-5: k.miss("-", f"{bed}{n}", *cs)
             
         
         if c is not None:
@@ -341,7 +341,7 @@ def tuckPattern(k, first_n: int, direction: str, c: Optional[Union[str, List[str
         if c is not None and machine.lower() == "swgn2": #do it twice so always starting in negative direction
             for n in range(first_n+5, first_n, -1):
                 if n % 2 == 0: k.tuck("-", f"{bed}{n}", *cs)
-                elif n == first_n+1: k.miss("-", f"{bed}{n}", *cs)
+                elif n == first_n+5 or n == first_n+1: k.miss("-", f"{bed}{n}", *cs)
 
         for n in range(first_n+1, first_n+6):
             if c is None: k.drop(f"{bed}{n}")
