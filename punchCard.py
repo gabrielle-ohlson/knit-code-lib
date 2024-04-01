@@ -4,13 +4,15 @@ import cv2
 
 from .helpers import c2cs, toggleDirection, tuckPattern, flattenIter, bnValid, bnEdges
 
-MAX_FLOAT_WIDTH = 5
-
 TUCK = 0 # punch card: tuck on non-punched (white) pixels
 FAIRISLE = 1 # punch card: knit color 2 on punched (black) pixels
 SLIP = 2 # punch card: miss on non-punched (white) pixels
 LACE = 3 # punch card: xfer on punched (black) pixels TODO
 # WEAVE = 4 # punch card: TODO
+
+
+AMISS_INTERVAL = 2
+MAX_FLOAT_WIDTH = 5
 
 
 # The punched hole is the design stitch, with one exception. For tuck stitch it is the UNPUNCHED hole which tucks, so all the other spaces have to be punched (it was what drove me to buy electronic machines).
@@ -21,7 +23,7 @@ LACE = 3 # punch card: xfer on punched (black) pixels TODO
 # The punch card holes will be the plain knit stitch when knitting Tuck - and the plain knit stitch when knitting slip/skip.
 
 
-def generate(k, start_n, end_n, passes, c, bed, img_path, punch_card_width=24, punch_card_height=None, setting=TUCK, c2=None, color_change_mod=None, gauge=1, gauge_data=False, validate_setting=False, inhook_carriers=[], outhook_carriers=[]):
+def generate(k, start_n, end_n, passes, c, bed, img_path, punch_card_width=24, punch_card_height=None, setting=TUCK, c2=None, color_change_mod=None, gauge=1, gauge_data=False, validate_setting=False, inhook_carriers=[], outhook_carriers=[], add_amiss=False):
 	'''
 	Function to emulate a punch card for a domestic knitting machine on an industrial machine (programmed with knitout) using a binary (black and white) image.
 
@@ -55,6 +57,8 @@ def generate(k, start_n, end_n, passes, c, bed, img_path, punch_card_width=24, p
 	* (str, optional): if `c2 is not None` --- next direction to knit carrier `c2` in.
 	'''
 	if setting != TUCK and setting != FAIRISLE and setting != SLIP and setting != LACE: raise ValueError(f"Unsupported setting: {setting}.  Supported settings are {TUCK} (tuck), {FAIRISLE} (fairisle), {SLIP} (slip), and {LACE} (lace).")
+	#
+	k.fabricPresser("auto") #new #check #TODO: determine if should always be there
 	#
 	#get punch card data
 	img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
@@ -225,6 +229,13 @@ def generate(k, start_n, end_n, passes, c, bed, img_path, punch_card_width=24, p
 			tuckPattern(k, first_n=start_n, direction=d1, c=None) #drop it
 			k.releasehook(*cs)
 			do_releasehook = False
+		#
+		if add_amiss and p % AMISS_INTERVAL == AMISS_INTERVAL-1: #new #check
+			for n in n_ranges[toggleDirection(d)]:
+				k.amiss(f"{bed}{n}")
+
+			for n in n_ranges[d]:
+				k.amiss(f"{bed2}{n}")
 		#
 		directions[cs] = toggleDirection(directions[cs])
 		#
