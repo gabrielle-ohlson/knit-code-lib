@@ -6,11 +6,12 @@ pattern_names = ["jersey", "interlock", "rib", "seed", "garter", "tuckGarter", "
 
 patterns_TODO = ["moss", "bubble", "lace"]
 
+#TODO: add `mod` param to stitch pattern functions
 # --------------------------------
 # --- STITCH PATTERN FUNCTIONS ---
 # --------------------------------
 # if doing gauge == 2, want width to be odd so *actually* have number of stitches
-def jersey(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List[str]], bed: str="f", gauge: int=1, bn_locs={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, xfer_bns_back: bool=True, inhook: bool=False, releasehook: bool=False, tuck_pattern: bool=True, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, init_direction: Optional[str]=None) -> str:
+def jersey(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List[str]], bed: str="f", gauge: int=1, mod={"f": None, "b": None}, bn_locs={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, xfer_bns_back: bool=True, inhook: bool=False, releasehook: bool=False, tuck_pattern: bool=True, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, init_direction: Optional[str]=None) -> str:
 	'''
 	Jersey stitch pattern: Plain knit on specified bed
 
@@ -66,7 +67,7 @@ def jersey(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], L
 
 	if bn_locs is not None and len(bn_locs.get(bed2, [])):
 		for n in range(start_n, end_n+step, step):
-			if bnValid(bed, n, gauge) and n in bn_locs[bed2] and n not in avoid_bns[bed] and n not in avoid_bns[bed2]:
+			if bnValid(bed, n, gauge, mod=mod[bed]) and n in bn_locs[bed2] and n not in avoid_bns[bed] and n not in avoid_bns[bed2]:
 				k.xfer(f"{bed2}{n}", f"{bed}{n}")
 
 	if inhook:
@@ -83,7 +84,7 @@ def jersey(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], L
 			pass_start_n = end_n
 			pass_end_n = start_n
 
-		knitPass(k, start_n=pass_start_n, end_n=pass_end_n, c=c, bed=bed, gauge=gauge, avoid_bns=avoid_bns, init_direction=init_direction)
+		knitPass(k, start_n=pass_start_n, end_n=pass_end_n, c=c, bed=bed, gauge=gauge, mod=mod[bed], avoid_bns=avoid_bns, init_direction=init_direction)
 
 		if p == rh_p:
 			k.releasehook(*cs)
@@ -91,7 +92,7 @@ def jersey(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], L
 
 	if xfer_bns_back and bn_locs is not None and len(bn_locs.get(bed2, [])):
 		for n in range(start_n, end_n+step, step):
-			if bnValid(bed, n, gauge) and n in bn_locs[bed2] and n not in avoid_bns[bed] and n not in avoid_bns[bed2]:
+			if bnValid(bed, n, gauge, mod=mod[bed]) and n in bn_locs[bed2] and n not in avoid_bns[bed] and n not in avoid_bns[bed2]:
 				k.xfer(f"{bed}{n}", f"{bed2}{n}")
 
 	k.comment("end jersey")

@@ -87,8 +87,15 @@ def processImg(img_path: str, cs_cols: dict, resize_dims: Tuple[int,int]=()) -> 
 #===============================================================================
 #----------------------------- VALIDATION HELPERS ------------------------------
 #===============================================================================
-def bnValid(b: str, n: int, gauge: int=1) -> bool:
-	return (b == "f" and n % gauge == 0) or (b == "b" and n % gauge == (gauge//2))
+def bnValid(b: str, n: int, gauge: int=1, mod: Optional[int]=None) -> bool:
+	if b == "f":
+		if mod is None: return n % gauge == 0
+		else: return n % gauge == mod
+	elif b == "b":
+		if mod is None: return n % gauge == gauge//2
+		else: return n % gauge == mod
+	else: raise ValueError(f"'{b}' is not a valid bed")
+	# return (b == "f" and n % gauge == 0) or (b == "b" and n % gauge == (gauge//2))
 
 #-------------------------------------------------------------------------------
 
@@ -96,6 +103,21 @@ def bnValid(b: str, n: int, gauge: int=1) -> bool:
 #===============================================================================
 #----------------------------------- GETTERS -----------------------------------
 #===============================================================================
+def getNeedleRanges(start_n, end_n, return_direction=False):
+	n_ranges = {}
+	if start_n > end_n: # pass is neg
+		d = "-"
+		n_ranges["-"] = range(start_n, end_n-1, -1)
+		n_ranges["+"] = range(end_n, start_n+1)
+	else:
+		d = "+"
+		n_ranges["+"] = range(start_n, end_n+1) 
+		n_ranges["-"] = range(end_n, start_n-1)
+	#
+	if return_direction: return n_ranges, d
+	else: return n_ranges
+
+
 def bnLast(start_n: int, end_n: int, gauge: int, bn_locs: Union[str, Dict[str,List[int]]]={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, return_type: type=str) -> Union[str, tuple, list]:
 	bn = None
 	if end_n > start_n: step = 1
@@ -187,6 +209,9 @@ def toggleDirection(d: str) -> str:
 	else: return "-"
 
 
+def toggleBed(b: str) -> str:
+	return "f" if b == "b" else "b"
+
 def bnHalfG(b: str, n: int) -> int:
 	if b == "f": return n*2
 	else: return (n*2)+1
@@ -237,7 +262,7 @@ def bnSort(bn_list: List[str]=[], direction: str="+", unique: bool=True) -> List
 	else: return sorted_bns # bed `b` comes first
 
 
-def bnFormat(needles: Union[str, List[str], Tuple[str], Dict[str,int]], bed: Union[str, None]=None, gauge: int=2, sort: bool=True, unique: bool=True, return_type: type=list) -> Union[List[str], Tuple[str], Dict[str,int]]: #TODO: #check and test this #*
+def bnFormat(needles: Union[str, List[str], Tuple[str], Dict[str,int]], bed: Union[str, None]=None, gauge: int=2, mod={"f": None, "b": None}, sort: bool=True, unique: bool=True, return_type: type=list) -> Union[List[str], Tuple[str], Dict[str,int]]: #TODO: #check and test this #*
 	'''
 	Converts iterable of needles to uniform format that this program likes to work with.
 	e.g.: `bnFormat([1, 2, "f4", CarrierTracker(c, start_n=5), range(0, 10)])`
@@ -266,9 +291,9 @@ def bnFormat(needles: Union[str, List[str], Tuple[str], Dict[str,int]], bed: Uni
 			bed_keys = list(filter(regex.compile(r"^[f|b]s?$").match, [str(key) for key in val.keys()]))
 			#
 			for b, ns in val.items():
-				if b in bed_keys: out.extend(bnFormat(ns, bed=b, gauge=gauge, sort=sort, unique=unique))
-				else: out.extend(bnFormat(ns, bed=bed, gauge=gauge, sort=sort, unique=unique))
-		elif hasattr(val, "__iter__"): out.extend(bnFormat(val, bed=bed, gauge=gauge, sort=sort, unique=unique))
+				if b in bed_keys: out.extend(bnFormat(ns, bed=b, gauge=gauge, mod=mod, sort=sort, unique=unique, return_type=return_type))
+				else: out.extend(bnFormat(ns, bed=bed, gauge=gauge, mod=mod, sort=sort, unique=unique, return_type=return_type))
+		elif hasattr(val, "__iter__"): out.extend(bnFormat(val, bed=bed, gauge=gauge, mod=mod, sort=sort, unique=unique, return_type=return_type))
 		elif type(val) == str: out.append(val)
 		else:
 			if hasattr(val, "needle"): n = val.needle
@@ -282,8 +307,8 @@ def bnFormat(needles: Union[str, List[str], Tuple[str], Dict[str,int]], bed: Uni
 			if hasattr(val, "bed"): out.append(f"{val.bed}{n}")
 			elif bed is not None: out.append(f"{bed}{n}")
 			else:
-				if bnValid("f", n, gauge): out.append(f"f{n}")
-				elif bnValid("b", n, gauge): out.append(f"b{n}")
+				if bnValid("f", n, gauge, mod=mod["f"]): out.append(f"f{n}")
+				elif bnValid("b", n, gauge, mod=mod["b"]): out.append(f"b{n}")
 				else: raise ValueError(f"Cannot automatically detect bed for needle {n} in gauge {gauge}.")
 	#
 	if sort: out = bnSort(out, unique=unique)
@@ -354,7 +379,7 @@ def tuckPattern(k, first_n: int, direction: str, c: Optional[Union[str, List[str
 				elif n == first_n+1: k.miss("-", f"{bed}{n}", *cs)
 
 		
-def knitPass(k, start_n: int, end_n: int, c: Union[str, List[str], Tuple[str]], bed: str="f", gauge: int=1, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, init_direction: Optional[str]=None) -> None:
+def knitPass(k, start_n: int, end_n: int, c: Union[str, List[str], Tuple[str]], bed: str="f", gauge: int=1, mod=None, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, init_direction: Optional[str]=None) -> None:
 	'''
 	Plain knit a pass
 
@@ -374,11 +399,11 @@ def knitPass(k, start_n: int, end_n: int, c: Union[str, List[str], Tuple[str]], 
 	#
 	if end_n > start_n or init_direction == "+": #pass is pos
 		for n in range(start_n, end_n+1):
-			if f"{bed}{n}" not in avoid_bns_list and bnValid(bed, n, gauge): k.knit("+", f"{bed}{n}", *cs) 
+			if f"{bed}{n}" not in avoid_bns_list and bnValid(bed, n, gauge, mod=mod): k.knit("+", f"{bed}{n}", *cs) 
 			elif n == end_n: k.miss("+", f"{bed}{n}", *cs)
 	else: #pass is neg
 		for n in range(start_n, end_n-1, -1):
-			if f"{bed}{n}" not in avoid_bns_list and bnValid(bed, n, gauge): k.knit("-", f"{bed}{n}", *cs)
+			if f"{bed}{n}" not in avoid_bns_list and bnValid(bed, n, gauge, mod=mod): k.knit("-", f"{bed}{n}", *cs)
 			elif n == end_n: k.miss("-", f"{bed}{n}", *cs)
 
 

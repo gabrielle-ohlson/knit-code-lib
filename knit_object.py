@@ -129,11 +129,12 @@ INC_FUNCS = {
 
 
 class Settings:
-	def __init__(self, stitch_number=None, caston_stitch_number=None, xfer_stitch_number=None, speed_number=None):
+	def __init__(self, stitch_number=None, caston_stitch_number=None, xfer_stitch_number=None, tuck_stitch_number=None, speed_number=None):
 		# extensions:
 		self.stitch_number = stitch_number
 		self.caston_stitch_number = caston_stitch_number
-		self.xfer_stitch_number = xfer_stitch_number
+		self.xfer_stitch_number = xfer_stitch_number #TODO: make knitlib_knitout do these for xfer/tuck operations (and then reset) #v
+		self.tuck_stitch_number = tuck_stitch_number
 
 		self.speed_number = speed_number
 
@@ -149,6 +150,7 @@ class KnitObject:
 		#
 		self.k = k
 		self.gauge = gauge
+		self.mod = {"f": 0, "b": gauge//2} #TODO: add function to change this
 		self.settings = Settings()
 		self.setSettings(**settings_kwargs)
 		#
@@ -204,26 +206,40 @@ class KnitObject:
 	
 	def caston(self, method: Union[CastonMethod, int], bed: Optional[str], needle_range: Tuple[int, int], *cs: str) -> None:
 		if self.settings.caston_stitch_number is not None:
-			reset_stitch_number = self.k.stitch_number
+			if self.settings.stitch_number is not None: reset_stitch_number = self.settings.stitch_number
+			else: reset_stitch_number = self.k.stitch_number
 			self.k.stitchNumber(self.settings.caston_stitch_number) #check
-		else: reset_stitch_number = None
+		else:
+			if self.settings.stitch_number is not None: reset_stitch_number = self.settings.stitch_number
+			else: reset_stitch_number = None
 
 		method = CastonMethod.parse(method)
 		#
 		not_in_cs = [c for c in cs if c not in self.k.carrier_map.keys()]
-		tuck_pat = False
+		init_caston = False
 		if len(not_in_cs):
-			tuck_pat = True
+			init_caston = True
 			self.k.inhook(*not_in_cs)
 		#
 		if method == CastonMethod.ALT_TUCK_CLOSED:
-			if bed != "f" and bed != "b": altTuckClosedCaston(self.k, needle_range[0], needle_range[1], c=cs, gauge=self.gauge, tuck_pattern=tuck_pat)
-			else: altTuckCaston(self.k, needle_range[0], needle_range[1], c=cs, bed=bed, gauge=self.gauge, tuck_pattern=tuck_pat)
+			if bed != "f" and bed != "b":
+				altTuckClosedCaston(self.k, needle_range[0], needle_range[1], c=cs, gauge=self.gauge, tuck_pattern=init_caston, stitch_number=self.settings.caston_stitch_number)
+				#
+				if reset_stitch_number is not None: self.k.stitchNumber(reset_stitch_number) #check
+			else:
+				altTuckCaston(self.k, needle_range[0], needle_range[1], c=cs, bed=bed, gauge=self.gauge, tuck_pattern=init_caston, stitch_number=self.settings.caston_stitch_number, knit_after=init_caston, knit_stitch_number=reset_stitch_number)
+				#
+				if not init_caston and reset_stitch_number is not None: self.k.stitchNumber(reset_stitch_number) #check
 		elif method == CastonMethod.ALT_TUCK_OPEN:
 			assert bed != "f" and bed != "b", "`CastonMethod.ALT_TUCK_OPEN` only valid for double bed knitting."
-			altTuckOpenTubeCaston(self.k, needle_range[0], needle_range[1], c=cs, gauge=self.gauge, tuck_pattern=tuck_pat)
+			altTuckOpenTubeCaston(self.k, needle_range[0], needle_range[1], c=cs, gauge=self.gauge, tuck_pattern=init_caston, stitch_number=self.settings.caston_stitch_number, knit_after=init_caston, knit_stitch_number=reset_stitch_number)
+			#
+			if not init_caston and reset_stitch_number is not None: self.k.stitchNumber(reset_stitch_number) #check
 		elif method == CastonMethod.ZIGZAG:
-			zigzagCaston(self.k, needle_range[0], needle_range[1], c=cs, gauge=self.gauge, tuck_pattern=tuck_pat)
+			zigzagCaston(self.k, needle_range[0], needle_range[1], c=cs, gauge=self.gauge, tuck_pattern=init_caston, stitch_number=self.settings.caston_stitch_number)
+			#
+			if reset_stitch_number is not None: self.k.stitchNumber(reset_stitch_number) #check
+			#
 			if needle_range[1] > needle_range[0]: xfer_range = range(needle_range[0], needle_range[1]+1)
 			else: xfer_range = range(needle_range[0], needle_range[1]-1, -1)
 			if bed == "f":
@@ -237,11 +253,8 @@ class KnitObject:
 		else: raise ValueError("unsupported caston method")
 		#
 		if len(not_in_cs): self.k.releasehook(*not_in_cs)
-		#
-		if self.settings.stitch_number is not None: self.k.stitchNumber(self.settings.stitch_number) #check
-		elif reset_stitch_number is not None: self.k.stitchNumber(reset_stitch_number) #check #TODO: decide if should automatically do reset or main
+	
 
-	# def knitPass(self, cs: Union[str, Carrier, List[Carrier], CarrierSet, CarrierMap], bed: Optional[str], needle_range: Optional[Tuple[int,int]]=None, pattern: Union[StitchPattern, int, Callable]=StitchPattern.JERSEY, **kwargs) -> None:
 	@multimethod
 	def knitPass(self, pattern: Union[StitchPattern, int, Callable], bed: Optional[str], needle_range: Optional[Tuple[int,int]], *cs: str, **kwargs) -> None: #TODO: make sure still works with *cs before pattern
 		if self.settings.stitch_number is not None and self.k.stitch_number != self.settings.stitch_number: self.k.stitchNumber(self.settings.stitch_number) #check
@@ -604,15 +617,15 @@ class KnitObject:
 				elif count <= self.gauge: method = DecreaseMethod.EDGE
 				else: method = DecreaseMethod.SCHOOL_BUS
 			#
-			if bnValid("f", min_n, self.gauge):
+			if bnValid("f", min_n, self.gauge, mod=self.mod["f"]):
 				bed = "f"
-				if method == DecreaseMethod.SCHOOL_BUS or bnValid("f", min_n+count, self.gauge): bed2 = "f"
-				elif bnValid("b", min_n+count, self.gauge): bed2 = "b"
+				if method == DecreaseMethod.SCHOOL_BUS or bnValid("f", min_n+count, self.gauge, mod=self.mod["f"]): bed2 = "f"
+				elif bnValid("b", min_n+count, self.gauge, mod=self.mod["b"]): bed2 = "b"
 				else: raise NotImplementedError("TODO: decrease count until valid needle")
 			else:
 				bed = "b"
-				if method == DecreaseMethod.SCHOOL_BUS or bnValid("b", min_n+count, self.gauge): bed2 = "b"
-				elif bnValid("f", min_n+count, self.gauge): bed2 = "f"
+				if method == DecreaseMethod.SCHOOL_BUS or bnValid("b", min_n+count, self.gauge, mod=self.mod["b"]): bed2 = "b"
+				elif bnValid("f", min_n+count, self.gauge, mod=self.mod["f"]): bed2 = "f"
 				else: raise NotImplementedError("TODO: decrease count until valid needle")
 		else:
 			min_n = self.getMinNeedle(bed[0])
@@ -623,10 +636,10 @@ class KnitObject:
 				elif count <= self.gauge: method = DecreaseMethod.EDGE
 				else: method = DecreaseMethod.SCHOOL_BUS
 			#
-			if method == DecreaseMethod.SCHOOL_BUS or bnValid(bed[0], min_n+count, self.gauge): bed2 = bed
+			if method == DecreaseMethod.SCHOOL_BUS or bnValid(bed[0], min_n+count, self.gauge, mod=self.mod[bed[0]]): bed2 = bed
 			else:
 				bed2 = "b" if bed[0] == "f" else "f"
-				if not bnValid(bed2, min_n+count, self.gauge): raise NotImplementedError("TODO: decrease count until valid needle")
+				if not bnValid(bed2, min_n+count, self.gauge, mod=self.mod[bed2]): raise NotImplementedError("TODO: decrease count until valid needle")
 		#
 		self.decrease(method, (bed, min_n), (bed2, min_n+count))
 
@@ -650,15 +663,15 @@ class KnitObject:
 				elif count <= self.gauge: method = DecreaseMethod.EDGE
 				else: method = DecreaseMethod.SCHOOL_BUS
 			#
-			if bnValid("f", max_n, self.gauge):
+			if bnValid("f", max_n, self.gauge, mod=self.mod["f"]):
 				bed = "f"
-				if method == DecreaseMethod.SCHOOL_BUS or bnValid("f", max_n-count, self.gauge): bed2 = "f"
-				elif bnValid("b", max_n-count, self.gauge): bed2 = "b"
+				if method == DecreaseMethod.SCHOOL_BUS or bnValid("f", max_n-count, self.gauge, mod=self.mod["f"]): bed2 = "f"
+				elif bnValid("b", max_n-count, self.gauge, mod=self.mod["b"]): bed2 = "b"
 				else: raise NotImplementedError("TODO: decrease count until valid needle")
 			else:
 				bed = "b"
-				if method == DecreaseMethod.SCHOOL_BUS or bnValid("b", max_n-count, self.gauge): bed2 = "b"
-				elif bnValid("f", max_n-count, self.gauge): bed2 = "f"
+				if method == DecreaseMethod.SCHOOL_BUS or bnValid("b", max_n-count, self.gauge, mod=self.mod["b"]): bed2 = "b"
+				elif bnValid("f", max_n-count, self.gauge, mod=self.mod["f"]): bed2 = "f"
 				else: raise NotImplementedError("TODO: decrease count until valid needle")
 		else:
 			max_n = self.getMaxNeedle(bed[0])
@@ -669,10 +682,10 @@ class KnitObject:
 				elif count <= self.gauge: method = DecreaseMethod.EDGE
 				else: method = DecreaseMethod.SCHOOL_BUS
 			#
-			if method == DecreaseMethod.SCHOOL_BUS or bnValid(bed[0], max_n-count, self.gauge): bed2 = bed
+			if method == DecreaseMethod.SCHOOL_BUS or bnValid(bed[0], max_n-count, self.gauge, mod=self.mod[bed[0]]): bed2 = bed
 			else:
 				bed2 = "b" if bed[0] == "f" else "f"
-				if not bnValid(bed2, max_n-count, self.gauge): raise NotImplementedError("TODO: decrease count until valid needle")
+				if not bnValid(bed2, max_n-count, self.gauge, mod=self.mod[bed2]): raise NotImplementedError("TODO: decrease count until valid needle")
 		#
 		self.decrease(method, (bed, max_n), (bed2, max_n-count))
 
@@ -713,15 +726,15 @@ class KnitObject:
 				else: method = IncreaseMethod.SCHOOL_BUS
 			#
 			#
-			if bnValid("f", min_n, self.gauge):
+			if bnValid("f", min_n, self.gauge, mod=self.mod["f"]):
 				bed = "f"
-				if method == IncreaseMethod.SCHOOL_BUS or bnValid("f", x2n, self.gauge): bed2 = "f"
-				elif bnValid("b", x2n, self.gauge): bed2 = "b"
+				if method == IncreaseMethod.SCHOOL_BUS or bnValid("f", x2n, self.gauge, mod=self.mod["f"]): bed2 = "f"
+				elif bnValid("b", x2n, self.gauge, mod=self.mod["b"]): bed2 = "b"
 				else: raise NotImplementedError("TODO: decrease count until valid needle")
 			else:
 				bed = "b"
-				if method == IncreaseMethod.SCHOOL_BUS or bnValid("b", x2n, self.gauge): bed2 = "b"
-				elif bnValid("f", x2n, self.gauge): bed2 = "f"
+				if method == IncreaseMethod.SCHOOL_BUS or bnValid("b", x2n, self.gauge, mod=self.mod["b"]): bed2 = "b"
+				elif bnValid("f", x2n, self.gauge, mod=self.mod["f"]): bed2 = "f"
 				else: raise NotImplementedError("TODO: decrease count until valid needle")
 		else:
 			min_n = self.getMinNeedle(bed[0])
@@ -733,10 +746,10 @@ class KnitObject:
 				elif count <= self.gauge: method = IncreaseMethod.EDGE
 				else: method = IncreaseMethod.SCHOOL_BUS
 			#
-			if method == IncreaseMethod.SCHOOL_BUS or bnValid(bed[0], x2n, self.gauge): bed2 = bed
+			if method == IncreaseMethod.SCHOOL_BUS or bnValid(bed[0], x2n, self.gauge, mod=self.mod[bed[0]]): bed2 = bed
 			else:
 				bed2 = "b" if bed[0] == "f" else "f"
-				if not bnValid(bed2, x2n, self.gauge): raise NotImplementedError("TODO: decrease count until valid needle")
+				if not bnValid(bed2, x2n, self.gauge, mod=self.mod[bed2]): raise NotImplementedError("TODO: decrease count until valid needle")
 		#
 		self.increase(method, (bed, min_n), (bed2, x2n))
 
@@ -761,15 +774,15 @@ class KnitObject:
 				elif count <= self.gauge: method = IncreaseMethod.EDGE
 				else: method = IncreaseMethod.SCHOOL_BUS
 			#
-			if bnValid("f", max_n, self.gauge):
+			if bnValid("f", max_n, self.gauge, mod=self.mod["f"]):
 				bed = "f"
-				if method == IncreaseMethod.SCHOOL_BUS or bnValid("f", x2n, self.gauge): bed2 = "f"
-				elif bnValid("b", x2n, self.gauge): bed2 = "b"
+				if method == IncreaseMethod.SCHOOL_BUS or bnValid("f", x2n, self.gauge, mod=self.mod["f"]): bed2 = "f"
+				elif bnValid("b", x2n, self.gauge, mod=self.mod["b"]): bed2 = "b"
 				else: raise NotImplementedError("TODO: decrease count until valid needle")
 			else:
 				bed = "b"
-				if method == IncreaseMethod.SCHOOL_BUS or bnValid("b", x2n, self.gauge): bed2 = "b"
-				elif bnValid("f", x2n, self.gauge): bed2 = "f"
+				if method == IncreaseMethod.SCHOOL_BUS or bnValid("b", x2n, self.gauge, mod=self.mod["b"]): bed2 = "b"
+				elif bnValid("f", x2n, self.gauge, mod=self.mod["f"]): bed2 = "f"
 				else: raise NotImplementedError("TODO: decrease count until valid needle")
 		else:
 			max_n = self.getMaxNeedle(bed[0])
@@ -781,10 +794,10 @@ class KnitObject:
 				elif count <= self.gauge: method = IncreaseMethod.EDGE
 				else: method = IncreaseMethod.SCHOOL_BUS
 			#
-			if method == IncreaseMethod.SCHOOL_BUS or bnValid(bed[0], x2n, self.gauge): bed2 = bed
+			if method == IncreaseMethod.SCHOOL_BUS or bnValid(bed[0], x2n, self.gauge, mod=self.mod[bed[0]]): bed2 = bed
 			else:
 				bed2 = "b" if bed[0] == "f" else "f"
-				if not bnValid(bed2, x2n, self.gauge): raise NotImplementedError("TODO: decrease count until valid needle")
+				if not bnValid(bed2, x2n, self.gauge, mod=self.mod[bed2]): raise NotImplementedError("TODO: decrease count until valid needle")
 		#
 		self.increase(method, (bed, max_n), (bed2, x2n))
 	
