@@ -219,7 +219,6 @@ def incEdge(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], int]):
 				obj.rackedXfer((from_bed, from_needle-i//2), (to_bed, to_needle-i), reset_rack=False)
 				#
 				empty_bns.append(f"{from_bed}{from_needle-i//2}") #*
-				# if bnValid(to_bed, to_needle-i-1, obj.gauge): obj.twist_bns.append(f"{to_bed}{to_needle-i-1}") #*
 	else:
 		ct = from_needle-to_needle
 		obj.k.comment(f"increase {ct} on left") #debug
@@ -231,12 +230,10 @@ def incEdge(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], int]):
 				obj.rackedXfer((from_bed, from_needle+i//2), (to_bed, to_needle+i), reset_rack=False)
 				#
 				empty_bns.append(f"{from_bed}{from_needle+i//2}") #*
-				# if bnValid(to_bed, to_needle+i+1, obj.gauge): obj.twist_bns.append(f"{to_bed}{to_needle+i+1}") #*
 	obj.k.rack(0)
 	#*
-	obj.twist_bns.extend(empty_bns) #*
-	# obj.k.xfer(from_bn, to_bn)
-	# obj.twist_bns.append(from_bn) #TODO
+	if obj.SPLIT_ON_EMPTY: obj.split_bns.extend(empty_bns) #*
+	else: obj.twist_bns.extend(empty_bns) #*
 
 
 def incSchoolBus(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], int]):
@@ -284,7 +281,9 @@ def incSchoolBus(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], int]
 				
 				# for n in range(start_n+i*r+i*ct, (start_n+i*r+i*ct)+r): #remove
 				for n in range(start_n+i*r+i*size, (start_n+i*r+i*size)+r):
-					if bnValid(from_bed, n, obj.gauge): obj.twist_bns.append(f"{from_bed}{n}") #TODO: make these splits instead #?
+					if bnValid(from_bed, n, obj.gauge):
+						if obj.SPLIT_ON_EMPTY: obj.split_bns.append(f"{from_bed}{n}")
+						else: obj.twist_bns.append(f"{from_bed}{n}") #TODO: make these splits instead #?
 			#
 			obj.k.rack(0)
 		else:
@@ -322,8 +321,8 @@ def incSchoolBus(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], int]
 				
 				for n in range(start_n-i*r-i*ct, (start_n-i*r-i*ct)-r, -1):
 					if bnValid(from_bed, n, obj.gauge):
-						# print(f"twist: {n}") #remove #debug
-						obj.twist_bns.append(f"{from_bed}{n}")
+						if obj.SPLIT_ON_EMPTY: obj.split_bns.append(f"{from_bed}{n}")
+						else: obj.twist_bns.append(f"{from_bed}{n}")
 			#
 			obj.k.rack(0)
 		else:
@@ -368,7 +367,9 @@ def incSchoolBus_new(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], 
 						if bnValid(from_bed, n, obj.gauge): obj.rackedXfer((xto_bed, n), (from_bed, n), reset_rack=False)
 				
 				for n in range(start_n+i*r+i*ct, (start_n+i*r+i*ct)+r):
-					if bnValid(from_bed, n, obj.gauge): obj.twist_bns.append(f"{from_bed}{n}") #TODO: make these splits instead #?
+					if bnValid(from_bed, n, obj.gauge):
+						if obj.SPLIT_ON_EMPTY: obj.split_bns.append(f"{from_bed}{n}")
+						else: obj.twist_bns.append(f"{from_bed}{n}") #TODO: make these splits instead #?
 			#
 			obj.k.rack(0)
 		else:
@@ -448,13 +449,17 @@ def incSchoolBus_new(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], 
 				
 				if from_bed is None:
 					for n in range(start_n-i*r-i*ct, (start_n-i*r-i*ct)-r, -1):
-						if bnValid("f", n, obj.gauge): obj.twist_bns.append(f"f{n}") #check
-						elif bnValid("b", n, obj.gauge): obj.twist_bns.append(f"b{n}") #check
+						if bnValid("f", n, obj.gauge):
+							if obj.SPLIT_ON_EMPTY: obj.split_bns.append(f"f{n}")
+							else: obj.twist_bns.append(f"f{n}") #check
+						elif bnValid("b", n, obj.gauge):
+							if obj.SPLIT_ON_EMPTY: obj.split_bns.append(f"b{n}")
+							else: obj.twist_bns.append(f"b{n}") #check
 				else:
 					for n in range(start_n-i*r-i*ct, (start_n-i*r-i*ct)-r, -1):
 						if bnValid(from_bed, n, obj.gauge):
-							# print(f"twist: {n}") #remove #debug
-							obj.twist_bns.append(f"{from_bed}{n}")
+							if obj.SPLIT_ON_EMPTY: obj.split_bns.append(f"{from_bed}{n}")
+							else: obj.twist_bns.append(f"{from_bed}{n}")
 			#
 			obj.k.rack(0)
 		else:

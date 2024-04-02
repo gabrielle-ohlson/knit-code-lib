@@ -42,7 +42,7 @@ from .helpers import gauged, toggleDirection, bnValid
 from .stitch_patterns import jersey, interlock, rib, garter, seed
 # from .helpers import multidispatchmethod
 
-from .knitout_helpers import getBedNeedle, rackedXfer, HeldLoopWarning #, findNextValidNeedle
+from .knitout_helpers import getBedNeedle, rackedXfer
 from .shaping import decEdge, decSchoolBus, decBindoff, incEdge, incSchoolBus, incCaston, incSplit
 
 
@@ -128,6 +128,33 @@ INC_FUNCS = {
 }
 
 
+class RangeOp(Enum):
+	PATTERN = 0
+	TWIST = 1
+	SPLIT = 2
+	#
+	@classmethod
+	def parse(self, val):
+		if isinstance(val, self): return val
+		elif isinstance(val, int): return self._value2member_map_[val]
+		else: raise ValueError
+
+
+class FuncRange:
+	def __init__(self, op, *args):
+		self.op = RangeOp.parse(op)
+		self.args = args
+
+	# needle_ranges, twisted_stitches = self.twistNeedleRanges(needle_range, bed)
+	# 	for n_range, twisted_stitch in zip(needle_ranges, twisted_stitches):
+	# 		func_args["start_n"] = n_range[0]
+	# 		func_args["end_n"] = n_range[1]
+	# 		#
+	# 		func(**func_args)
+	# 		#
+	# 		self.twistedStitch(d, twisted_stitch, *cs) #TODO: handle splits too
+
+
 class Settings:
 	def __init__(self, stitch_number=None, caston_stitch_number=None, xfer_stitch_number=None, tuck_stitch_number=None, speed_number=None):
 		# extensions:
@@ -159,7 +186,9 @@ class KnitObject:
 		#
 		self.active_carrier = None #TODO #*
 		self.avoid_bns = {"f": [], "b": []} #, "fs": [], "bs": []}
+		self.SPLIT_ON_EMPTY = True
 		self.twist_bns = list()
+		self.split_bns = list()
 		# self.st_cts = {} #?
 		#
 		self._row_ct = 0
@@ -315,6 +344,18 @@ class KnitObject:
 		if "avoid_bns" in func.__code__.co_varnames:
 			func_args["avoid_bns"] = deepcopy(self.avoid_bns)
 		#
+		func_ranges = self.funcRanges(needle_range, bed)
+		for func_range in func_ranges:
+			if func_range.op == RangeOp.TWIST:
+				self.twistedStitch(d, func_range.args, *cs)
+			elif func_range.op == RangeOp.SPLIT: self.splitStitch(d, func_range.args, *cs)
+			else:
+				func_args["start_n"] = func_range.args[0]
+				func_args["end_n"] = func_range.args[1]
+				#
+				func(**func_args)
+		
+		"""
 		needle_ranges, twisted_stitches = self.twistNeedleRanges(needle_range, bed)
 		for n_range, twisted_stitch in zip(needle_ranges, twisted_stitches):
 			func_args["start_n"] = n_range[0]
@@ -323,6 +364,7 @@ class KnitObject:
 			func(**func_args)
 			#
 			self.twistedStitch(d, twisted_stitch, *cs) #TODO: handle splits too
+		"""
 
 	@knitPass.register
 	def knitPass(self, bed: Optional[str], *cs: str, **kwargs) -> None: #TODO: make sure still works with *cs before pattern
@@ -394,6 +436,30 @@ class KnitObject:
 				row_counted = True
 			self.k.carrier_map[c].update(direction, bed, needle)
 	
+	@multimethod
+	def rackedXfer(self, from_bed: str, from_needle: int, to_bed: str, to_needle: int, reset_rack: bool=True):
+		rackedXfer(self, from_bed, from_needle, to_bed, to_needle, reset_rack=reset_rack)
+	
+	@rackedXfer.register
+	def rackedXfer(self, from_bn: Tuple[str,int], to_bn: Tuple[str,int], reset_rack: bool=True):
+		self.rackedXfer(*from_bn, *to_bn, reset_rack=reset_rack)
+
+	@rackedXfer.register
+	def rackedXfer(self, from_bn: str, to_bn: str, reset_rack: bool=True):
+		self.rackedXfer(*getBedNeedle(from_bn), *getBedNeedle(to_bn), reset_rack=reset_rack)
+
+	@multimethod
+	def rackedSplit(self, d: str, from_bed: str, from_needle: int, to_bed: str, to_needle: int, cs: Union[List[str], Tuple[str]], reset_rack: bool=True):
+		rackedXfer(self, from_bed, from_needle, to_bed, to_needle, d=d, cs=cs, reset_rack=reset_rack)
+	
+	@rackedSplit.register
+	def rackedSplit(self, d: str, from_bn: Tuple[str,int], to_bn: Tuple[str,int], cs: Union[List[str], Tuple[str]], reset_rack: bool=True):
+		self.rackedSplit(d, *from_bn, *to_bn, cs, reset_rack=reset_rack)
+
+	@rackedSplit.register
+	def rackedSplit(self, d: str, from_bn: str, to_bn: str, cs: Union[List[str], Tuple[str]], reset_rack: bool=True):
+		self.rackedSplit(d, *getBedNeedle(from_bn), *getBedNeedle(to_bn), cs, reset_rack=reset_rack)
+
 	"""
 	@multimethod
 	def getNeedleRange(self, bed: Optional[str], *cs: str) -> Tuple[int, int]:
@@ -474,6 +540,212 @@ class KnitObject:
 		#
 		return start_n, end_n
 
+	def findNextLoop(self, bed: Optional[str], needle: int, d: str=None):
+		if d == "+":
+			for n in range(needle+1, self.getMaxNeedle(bed)+1):
+				if (bed == "f" or bed is None) and f"f{n}" in self.k.bns and f"f{n}" not in self.twist_bns and f"f{n}" not in self.split_bns: return ("f", n)
+				elif (bed == "b" or bed is None) and f"b{n}" in self.k.bns and f"b{n}" not in self.twist_bns and f"b{n}" not in self.split_bns: return ("b", n)
+		elif d == "-":
+			for n in range(needle-1, self.getMinNeedle(bed)-1, -1):
+				if (bed == "f" or bed is None) and f"f{n}" in self.k.bns and f"f{n}" not in self.twist_bns and f"f{n}" not in self.split_bns: return ("f", n)
+				elif (bed == "b" or bed is None) and f"b{n}" in self.k.bns and f"b{n}" not in self.twist_bns and f"b{n}" not in self.split_bns: return ("b", n)
+		else: # d is None
+			for n_1, n1 in zip(range(needle-1, self.getMinNeedle(bed)-1, -1), range(needle+1, self.getMaxNeedle(bed)+1)):
+				if bed == "f" or bed is None:
+					if f"f{n_1}" in self.k.bns and f"f{n_1}" not in self.twist_bns and f"f{n_1}" not in self.split_bns: return ("f", n_1)
+					elif f"f{n1}" in self.k.bns and f"f{n1}" not in self.twist_bns and f"f{n1}" not in self.split_bns: return ("f", n1)
+				
+				if bed == "b" or bed is None:
+					if f"b{n_1}" in self.k.bns and f"b{n_1}" not in self.twist_bns and f"b{n_1}" not in self.split_bns: return ("b", n_1)
+					elif f"b{n1}" in self.k.bns and f"b{n1}" not in self.twist_bns and f"b{n1}" not in self.split_bns: return ("b", n1)
+		#
+		return (None, None)
+
+	def funcRanges(self, needle_range: Tuple[int, int], bed: Union[str, None]=None) -> Tuple[List[Tuple[int, int]], List[Union[None, str, List[str]]]]:
+		res = []
+		#
+		if needle_range[1] > needle_range[0]:
+			d = "+"
+			shift = 1
+		else:
+			d = "-"
+			shift = -1
+		#
+		n0 = needle_range[0]
+		for n in range(needle_range[0], needle_range[1]+shift, shift):
+			# done = False
+			twisted_stitches = []
+			split_stitches = []
+			if bed != "b":
+				if f"f{n}" in self.twist_bns:
+					twisted_stitches.append(f"f{n}")
+					#
+					res.append(FuncRange(RangeOp.PATTERN, n0, n-shift))
+					n0 = n+shift
+				elif f"f{n}" in self.split_bns:
+					split_stitches.append(f"f{n}")
+					res.append(FuncRange(RangeOp.PATTERN, n0, n-shift))
+					_, n0 = self.findNextLoop(bed="f", needle=n, d=d)
+					n0 += shift
+			
+			if bed != "f":
+				if f"b{n}" in self.twist_bns:
+					if not len(twisted_stitches) and not len(split_stitches):
+						res.append(FuncRange(RangeOp.PATTERN, n0, n-shift))
+						n0 = n+shift
+					#
+					twisted_stitches.append(f"b{n}")
+				elif f"b{n}" in self.split_bns:
+					if not len(twisted_stitches) and not len(split_stitches):
+						res.append(FuncRange(RangeOp.PATTERN, n0, n-shift))
+						_, n0 = self.findNextLoop(bed="f", needle=n, d=d)
+						n0 += shift
+					#
+					split_stitches.append(f"b{n}")
+
+			if n == needle_range[1] and not len(twisted_stitches) and not len(split_stitches): res.append(FuncRange(RangeOp.PATTERN, n0, n))
+			else:
+				if len(twisted_stitches): res.append(FuncRange(RangeOp.TWIST, *twisted_stitches))
+				if len(split_stitches): res.append(FuncRange(RangeOp.SPLIT, *split_stitches))
+		# # n_ranges = []
+		# # twisted_stitches = []
+		# if needle_range[1] > needle_range[0]:
+		# 	n0 = needle_range[0]
+		# 	for n in range(needle_range[0], needle_range[1]+1):
+		# 		# done = False
+		# 		twist_bns = []
+		# 		split_bns = []
+		# 		if bed != "b":
+		# 			if f"f{n}" in self.twist_bns:
+		# 				twist_bns.append(f"f{n}")
+		# 				#
+		# 				res.append(FuncRange(RangeOp.PATTERN, n0, n-1))
+		# 				# done = True
+		# 				n0 = n+1
+		# 			elif f"f{n}" in self.split_bns:
+		# 				split_bns.append(f"f{n}")
+		# 				res.append(FuncRange(RangeOp.PATTERN, n0, n-1))
+		# 				n0 = n+1
+				
+
+		# 		if bed != "f":
+		# 			if f"b{n}" in self.twist_bns:
+		# 				twist_bns.append(f"b{n}")
+		# 				#
+		# 				if not len(twist_bns) and not len(split_bns):
+		# 					res.append(FuncRange(RangeOp.PATTERN, n0, n-1))
+		# 					n0 = n+1
+		# 			elif f"b{n}" in self.split_bns:
+		# 				split_bns.append(f"b{n}")
+		# 				#
+		# 				if not len(twist_bns) and not len(split_bns):
+		# 					res.append(FuncRange(RangeOp.PATTERN, n0, n-1))
+		# 					n0 = n+1
+
+		# 		if n == needle_range[1] and not len(twist_bns) and not len(split_bns): res.append(FuncRange(RangeOp.PATTERN, n0, n))
+		# 		else:
+		# 			if len(twist_bns): res.append(FuncRange(RangeOp.TWIST, *twist_bns))
+		# 			if len(split_bns): res.append(FuncRange(RangeOp.SPLIT, *split_bns))
+		# 		"""
+		# 		if bed != "b" and f"f{n}" in self.twist_bns:
+		# 			twist_bns.append(f"f{n}")
+		# 			#
+		# 			res.append(FuncRange(RangeOp.PATTERN, n0, n-1))
+		# 			# done = True
+		# 			n0 = n+1
+					
+		# 			# res.append(FuncRange(RangeOp.TWIST, f"f{n}"))
+					
+		# 		#
+		# 		if bed != "f" and f"b{n}" in self.twist_bns:
+		# 			if not len(twist_bns):
+		# 				res.append(FuncRange(RangeOp.PATTERN, n0, n-1))
+		# 				n0 = n+1
+		# 			#
+		# 			twist_bns.append(f"b{n}")
+		# 			# if not done:
+		# 			# 	res.append(FuncRange(RangeOp.PATTERN, n0, n-1))
+		# 			# 	# n_ranges.append((n0, n-1))
+		# 			# 	done = True
+		# 			# 	n0 = n+1
+		# 		#
+		# 		if len(twist_bns): res.append(FuncRange(RangeOp.TWIST, *twist_bns))
+		# 		elif n == needle_range[1]:
+		# 			res.append(FuncRange(RangeOp.PATTERN, n0, n))
+		# 			# n_ranges.append((n0, n))
+		# 			# twisted_stitches.append(None)
+		# 		"""
+		# else:
+		# 	n0 = needle_range[0]
+		# 	for n in range(needle_range[0], needle_range[1]-1, -1):
+		# 		twist_bns = []
+		# 		split_bns = []
+		# 		# done = False
+
+		# 		if bed != "b":
+		# 			if f"f{n}" in self.twist_bns:
+		# 				twist_bns.append(f"f{n}")
+		# 				#
+		# 				res.append(FuncRange(RangeOp.PATTERN, n0, n+1))
+		# 				# done = True
+		# 				n0 = n-1
+		# 			elif f"f{n}" in self.split_bns:
+		# 				split_bns.append(f"f{n}")
+		# 				res.append(FuncRange(RangeOp.PATTERN, n0, n+1))
+		# 				n0 = n-1
+				
+
+		# 		if bed != "f":
+		# 			if f"b{n}" in self.twist_bns:
+		# 				twist_bns.append(f"b{n}")
+		# 				#
+		# 				if not len(twist_bns) and not len(split_bns):
+		# 					res.append(FuncRange(RangeOp.PATTERN, n0, n+1))
+		# 					n0 = n-1
+		# 			elif f"b{n}" in self.split_bns:
+		# 				split_bns.append(f"b{n}")
+		# 				#
+		# 				if not len(twist_bns) and not len(split_bns):
+		# 					res.append(FuncRange(RangeOp.PATTERN, n0, n+1))
+		# 					n0 = n-1
+
+		# 		if n == needle_range[1] and not len(twist_bns) and not len(split_bns): res.append(FuncRange(RangeOp.PATTERN, n0, n))
+		# 		else:
+		# 			if len(twist_bns): res.append(FuncRange(RangeOp.TWIST, *twist_bns))
+		# 			if len(split_bns): res.append(FuncRange(RangeOp.SPLIT, *split_bns))
+
+
+
+
+		# 		# if bed != "b" and f"f{n}" in self.twist_bns:
+		# 		# 	twisted_stitches.append(f"f{n}")
+		# 		# 	done = True
+		# 		# 	n_ranges.append((n0, n+1))
+		# 		# 	n0 = n-1
+		# 		# #
+		# 		# if bed != "f" and f"b{n}" in self.twist_bns:
+		# 		# 	if done:
+		# 		# 		twisted_stitches[-1] = [twisted_stitches[-1], f"b{n}"]
+		# 		# 	else:
+		# 		# 		twisted_stitches.append(f"b{n}")
+		# 		# 		done = True
+		# 		# 		n_ranges.append((n0, n+1))
+		# 		# 		n0 = n-1
+		# 		# #
+		# 		# if not done and n == needle_range[1]:
+		# 		# 	n_ranges.append((n0, n))
+		# 		# 	twisted_stitches.append(None)
+		#
+		if not len(res):
+			res.append(RangeOp.PATTERN, *needle_range)
+		#
+		return res
+		# if not len(n_ranges):
+		# 	n_ranges.append(needle_range)
+		# 	twisted_stitches.append(None)
+		# #
+		# return n_ranges, twisted_stitches
+	
 	def twistNeedleRanges(self, needle_range: Tuple[int, int], bed: Union[str, None]=None) -> Tuple[List[Tuple[int, int]], List[Union[None, str, List[str]]]]:
 		n_ranges = []
 		twisted_stitches = []
@@ -531,6 +803,11 @@ class KnitObject:
 	@multimethod
 	def twistedStitch(self, d: str, bn: str, *cs: str) -> None:
 		self.k.comment("begin twisted stitch")
+		if self.settings.caston_stitch_number is not None:
+			reset_stitch_number = self.k.stitch_number
+			self.k.stitchNumber(self.settings.caston_stitch_number) #check
+		else: reset_stitch_number = None
+
 		d2 = toggleDirection(d)
 		#
 		assert not bn in self.k.bns, f"requesting twisted stitch on needle that already has a loop, '{bn}'" #debug
@@ -539,6 +816,8 @@ class KnitObject:
 		self.k.knit(d2, bn, *cs)
 		self.k.miss(d, bn, *cs)
 		self.k.comment("end twisted stitch")
+		if reset_stitch_number is not None: self.k.stitchNumber(reset_stitch_number) #check
+
 		#
 		bed, needle = getBedNeedle(bn) #TODO: move this to updateCarriers instead #?
 		self.updateCarriers(d, bed, needle, *cs)
@@ -549,13 +828,19 @@ class KnitObject:
 		self.twist_bns.remove(bn) #TODO: decide what should go in twist_bns (str or tuple?)
 
 	@twistedStitch.register
-	def twistedStitch(self, d: str, bns: List[str], *cs: str) -> None:
+	def twistedStitch(self, d: str, bns: Union[Tuple[str], List[str]], *cs: str) -> None:
+		if self.settings.caston_stitch_number is not None:
+			reset_stitch_number = self.k.stitch_number
+			self.k.stitchNumber(self.settings.caston_stitch_number) #check
+		else: reset_stitch_number = None
+
 		d2 = toggleDirection(d)
 		for bn in bns:
 			#
 			assert not bn in self.k.bns, f"requesting twisted stitch on needle that already has a loop, '{bn}'" #debug
 			#
 			self.k.comment("begin twisted stitch")
+			
 			self.k.miss(d, bn, *cs)
 			self.k.knit(d2, bn, *cs)
 			self.k.miss(d, bn, *cs)
@@ -568,24 +853,26 @@ class KnitObject:
 			# else: self.st_cts[bn] += 1
 			#
 			self.twist_bns.remove(bn)
+		#
+		if reset_stitch_number is not None: self.k.stitchNumber(reset_stitch_number) #check
 
 	@twistedStitch.register
 	def twistedStitch(self, d: str, bn: None, *cs: str) -> None:
 		return
 	
 	#TODO: add something similar to twist_bns for splits (during school bus increase)
-	
-	@multimethod
-	def rackedXfer(self, from_bed: str, from_needle: int, to_bed: str, to_needle: int, reset_rack: bool=True):
-		rackedXfer(self, from_bed, from_needle, to_bed, to_needle, reset_rack)
-	
-	@rackedXfer.register
-	def rackedXfer(self, from_bn: Tuple[str,int], to_bn: Tuple[str,int], reset_rack: bool=True):
-		self.rackedXfer(*from_bn, *to_bn, reset_rack)
-
-	@rackedXfer.register
-	def rackedXfer(self, from_bn: str, to_bn: str, reset_rack: bool=True):
-		self.rackedXfer(*getBedNeedle(from_bn), *getBedNeedle(to_bn), reset_rack)
+	def splitStitch(self, d: str, bns: Union[Tuple[str], List[str]], *cs: str) -> None:
+		for bn in bns:
+			assert not bn in self.k.bns, f"requesting split stitch on needle that already has a loop, '{bn}'" #debug
+			#
+			bed, needle = getBedNeedle(bn) #TODO: move this to updateCarriers instead
+			bed2 = "b" if bed == "f" else "f"
+			#
+			_, next_n = self.findNextLoop(bed=bed, needle=needle, d=d)
+			self.rackedSplit(d, f"{bed}{next_n}", f"{bed2}{needle}", cs, reset_rack=True)
+			self.k.xfer(f"{bed2}{needle}", f"{bed}{needle}")
+			#
+			self.split_bns.remove(bn) #TODO: decide what should go in twist_bns (str or tuple?)
 
 	def write(self, out_fn: str):
 		if len(self.k.carrier_map.keys()):
@@ -809,9 +1096,3 @@ class KnitObject:
 	
 
 #===============================================================================
-
-
-
-
-
-

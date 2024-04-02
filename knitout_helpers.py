@@ -76,51 +76,51 @@ def getBedNeedle(bn: str):
 	else: raise ValueError(f"'{bn}' is not a valid bed-needle string.")
 
 
-def findNextValidNeedle(self, bed: Optional[str], needle: int, d: str=None, in_limits: bool=True) -> Tuple[str, int]: #TODO: add code for in_limits=False (aka can search outside of limits with min_n and max_n)
-	min_ns = {"f": self.getMinNeedle("f"), "b": self.getMinNeedle("b")} #NOTE: must have `getMinNeedle` and `getMaxNeedle` attributes to use this method
-	max_ns = {"f": self.getMaxNeedle("f"), "b": self.getMaxNeedle("b")}
+def findNextValidNeedle(obj, bed: Optional[str], needle: int, d: str=None, in_limits: bool=True) -> Tuple[str, int]: #TODO: add code for in_limits=False (aka can search outside of limits with min_n and max_n)
+	min_ns = {"f": obj.getMinNeedle("f"), "b": obj.getMinNeedle("b")} #NOTE: must have `getMinNeedle` and `getMaxNeedle` attributes to use this method
+	max_ns = {"f": obj.getMaxNeedle("f"), "b": obj.getMaxNeedle("b")}
 	if bed is not None: min_n, max_n = min_ns[bed[0]], max_ns[bed[0]]
 	else: min_n, max_n = min(min_ns["f"], min_ns["b"]), max(max_ns["f"], max_ns["b"])
 	#
 	n_1, n1 = needle, needle
 	if d is None:
 		for n_1, n1 in zip(range(needle, min_n-1, -1), range(needle, max_n+1)):
-			if bed != "f" and n_1 >= min_ns["b"] and not n_1 in self.avoid_bns.get("b", []):
+			if bed != "f" and n_1 >= min_ns["b"] and not n_1 in obj.avoid_bns.get("b", []):
 				return ("b", n_1)
-			elif bed != "b" and n_1 >= min_ns["f"] and not n_1 in self.avoid_bns.get("f", []):
+			elif bed != "b" and n_1 >= min_ns["f"] and not n_1 in obj.avoid_bns.get("f", []):
 				return ("f", n_1)
-			elif bed != "b" and n1 <= max_ns["f"] and not n1 in self.avoid_bns.get("f", []):
+			elif bed != "b" and n1 <= max_ns["f"] and not n1 in obj.avoid_bns.get("f", []):
 				return ("f", n1)
-			elif bed != "f" and n1 <= max_ns["b"] and not n1 in self.avoid_bns.get("b", []):
+			elif bed != "f" and n1 <= max_ns["b"] and not n1 in obj.avoid_bns.get("b", []):
 				return ("b", n1)
 	else: assert d == "-" or d == "+"
 	#
 	if d == "-" or n_1 != min_n:
 		for n_1 in range(n_1, min_n-1, -1):
-			if bed != "f" and n_1 >= min_ns["b"] and not n_1 in self.avoid_bns.get("b", []):
+			if bed != "f" and n_1 >= min_ns["b"] and not n_1 in obj.avoid_bns.get("b", []):
 				return ("b", n_1)
-			elif bed != "b" and n_1 >= min_ns["f"] and not n_1 in self.avoid_bns.get("f", []):
+			elif bed != "b" and n_1 >= min_ns["f"] and not n_1 in obj.avoid_bns.get("f", []):
 				return ("f", n_1)
 	#
 	if d == "+" or n1 != max_n:
 		for n1 in range(n1, max_n+1):
-			if bed != "b" and n1 <= max_ns["f"] and not n1 in self.avoid_bns.get("f", []):
+			if bed != "b" and n1 <= max_ns["f"] and not n1 in obj.avoid_bns.get("f", []):
 				return ("f", n1)
-			elif bed != "f" and n1 <= max_ns["b"] and not n1 in self.avoid_bns.get("b", []):
+			elif bed != "f" and n1 <= max_ns["b"] and not n1 in obj.avoid_bns.get("b", []):
 				return ("b", n1)
 	#
 	return (None, None)
 
 
-def rackedXfer(self, from_bed: str, from_needle: int, to_bed: str, to_needle: int, reset_rack: bool=True): #TODO: deal with if no sliders on machine
+def rackedXfer(obj, from_bed: str, from_needle: int, to_bed: str, to_needle: int, d=None, cs=None, reset_rack: bool=True): #TODO: deal with if no sliders on machine
 	ct = from_needle-to_needle
 	if from_bed.startswith("f"):
 		par = 1
-		if to_needle in self.avoid_bns.get("b", []): #NOTE: must have `avoid_bns` attribute to use this method
+		if to_needle in obj.avoid_bns.get("b", []): #NOTE: must have `avoid_bns` attribute to use this method
 			assert to_bed != "b", f"requesting to transfer to an invalid needle, '{to_needle}' (specified as to-avoid on to_bed, '{to_bed}')"
 			xto_bed = "bs"
 			if to_bed is None:
-				assert to_needle not in self.avoid_bns.get("f", []), f"requesting to transfer to an invalid needle, '{to_needle}' (specified as to-avoid on both beds)"
+				assert to_needle not in obj.avoid_bns.get("f", []), f"requesting to transfer to an invalid needle, '{to_needle}' (specified as to-avoid on both beds)"
 				to_bed = "f"
 		else:
 			if to_bed is None:
@@ -130,11 +130,11 @@ def rackedXfer(self, from_bed: str, from_needle: int, to_bed: str, to_needle: in
 			else: xto_bed = "b"
 	else: #startswith("b")
 		par = -1
-		if to_needle in self.avoid_bns.get("f", []):
+		if to_needle in obj.avoid_bns.get("f", []):
 			assert to_bed != "f", f"requesting to transfer to an invalid needle, '{to_needle}' (specified as to-avoid on to_bed, '{to_bed}')"
 			xto_bed = "fs"
 			if to_bed is None:
-				assert to_needle not in self.avoid_bns.get("b", []), f"requesting to transfer to an invalid needle, '{to_needle}' (specified as to-avoid on both beds)"
+				assert to_needle not in obj.avoid_bns.get("b", []), f"requesting to transfer to an invalid needle, '{to_needle}' (specified as to-avoid on both beds)"
 				to_bed = "b"
 		else:
 			if to_bed is None:
@@ -143,46 +143,19 @@ def rackedXfer(self, from_bed: str, from_needle: int, to_bed: str, to_needle: in
 			elif to_bed == "fs" or to_bed.startswith("b"): xto_bed = "fs"
 			else: xto_bed = "f"
 	#
-	"""
-	next_bed, next_needle = xto_bed, to_needle
-	#
-	if next_needle in self.avoid_bns.get(next_bed[0], []): #NOTE: must have `avoid_bns` attribute to use this method
-		if to_bed is None:
-			next_bed = from_bed
-			assert not next_needle in self.avoid_bns.get(next_bed[0], [])
-		else:
-			assert not (to_bed, to_needle) != (next_bed, next_needle), "requesting to transfer to an invalid needle (specified as to-avoid)"
-			(next_bed, next_needle) = findNextValidNeedle(self, xto_bed, next_needle)
-			assert next_needle is not None
-			ct = from_needle-next_needle
-	#
-	self.k.rack(par*ct)
-	self.k.xfer(from_bed, from_needle, next_bed, next_needle)
-	if reset_rack: self.k.rack(0)
-	#
-	if to_bed is None: to_bed = next_bed
-	#
-	if next_bed != to_bed:
-		if next_needle == to_needle:
-			if not reset_rack: self.k.rack(0)
-			self.k.xfer(next_bed, next_needle, to_bed, to_needle)
-		else:
-			ct = next_needle-to_needle
-			self.k.rack(-1*par*ct)
-			self.k.xfer(next_bed, next_needle, to_bed, to_needle)
-			if reset_rack: self.k.rack(0)
-	"""
-	#
-	self.k.rack(par*ct)
-	self.k.xfer(from_bed, from_needle, xto_bed, to_needle)
-	if reset_rack: self.k.rack(0)
+	obj.k.rack(par*ct)
+	if cs is not None:
+		assert d is not None
+		obj.k.split(d, from_bed, from_needle, xto_bed, to_needle, *cs) #new #check
+	else: obj.k.xfer(from_bed, from_needle, xto_bed, to_needle)
+	if reset_rack: obj.k.rack(0)
 	#
 	# if to_bed is None: to_bed = next_bed
 	#
 	if xto_bed != to_bed:
 		assert xto_bed[0] != to_bed[0] #sanity check
-		if not reset_rack: self.k.rack(0)
-		self.k.xfer(xto_bed, to_needle, to_bed, to_needle)
+		if not reset_rack: obj.k.rack(0)
+		obj.k.xfer(xto_bed, to_needle, to_bed, to_needle)
 
 
 class AlreadyActiveCarrierWarning(UserWarning): #*#* #TODO: add this in
