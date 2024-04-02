@@ -138,17 +138,19 @@ class Settings:
 		self.speed_number = speed_number
 
 		# SETTINGS/CONSTANTS:
+		self.machine = "swgn2"
 		self.max_rack = 4
 
 
 class KnitObject:
-	def __init__(self, k, gauge=1, machine="swgn2"):
+	def __init__(self, k, gauge=1, **settings_kwargs):
 		rack_value_op = getattr(k, "rack_value", None)
 		assert rack_value_op is not None, "'k' must come from the 'knitlib_knitout' module" #debug
 		#
 		self.k = k
 		self.gauge = gauge
-		self.machine = machine
+		self.settings = Settings()
+		self.setSettings(**settings_kwargs)
 		#
 		# self.min_n = {"f": float("inf"), "b": float("inf")}
 		# self.max_n = {"f": float("-inf"), "b": float("-inf")}
@@ -172,8 +174,6 @@ class KnitObject:
 			# "bn_locs"
 			# "avoid_bns": {"f": [], "b": []}
 		}
-
-		self.settings = Settings()
 	
 	@property
 	def row_ct(self):
