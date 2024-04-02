@@ -204,7 +204,7 @@ class KnitObject:
 		except AssertionError:
 			return float("-inf")
 	
-	def caston(self, method: Union[CastonMethod, int], bed: Optional[str], needle_range: Tuple[int, int], *cs: str) -> None:
+	def caston(self, method: Union[CastonMethod, int], bed: Optional[str], needle_range: Tuple[int, int], *cs: str, **kwargs) -> None:
 		if self.settings.caston_stitch_number is not None:
 			if self.settings.stitch_number is not None: reset_stitch_number = self.settings.stitch_number
 			else: reset_stitch_number = self.k.stitch_number
@@ -221,18 +221,20 @@ class KnitObject:
 			init_caston = True
 			self.k.inhook(*not_in_cs)
 		#
+		knit_after = kwargs.get("knit_after", init_caston)
+		#
 		if method == CastonMethod.ALT_TUCK_CLOSED:
 			if bed != "f" and bed != "b":
 				altTuckClosedCaston(self.k, needle_range[0], needle_range[1], c=cs, gauge=self.gauge, tuck_pattern=init_caston, stitch_number=self.settings.caston_stitch_number)
 				#
 				if reset_stitch_number is not None: self.k.stitchNumber(reset_stitch_number) #check
 			else:
-				altTuckCaston(self.k, needle_range[0], needle_range[1], c=cs, bed=bed, gauge=self.gauge, tuck_pattern=init_caston, stitch_number=self.settings.caston_stitch_number, knit_after=init_caston, knit_stitch_number=reset_stitch_number)
+				altTuckCaston(self.k, needle_range[0], needle_range[1], c=cs, bed=bed, gauge=self.gauge, tuck_pattern=init_caston, stitch_number=self.settings.caston_stitch_number, knit_after=knit_after, knit_stitch_number=reset_stitch_number)
 				#
 				if not init_caston and reset_stitch_number is not None: self.k.stitchNumber(reset_stitch_number) #check
 		elif method == CastonMethod.ALT_TUCK_OPEN:
 			assert bed != "f" and bed != "b", "`CastonMethod.ALT_TUCK_OPEN` only valid for double bed knitting."
-			altTuckOpenTubeCaston(self.k, needle_range[0], needle_range[1], c=cs, gauge=self.gauge, tuck_pattern=init_caston, stitch_number=self.settings.caston_stitch_number, knit_after=init_caston, knit_stitch_number=reset_stitch_number)
+			altTuckOpenTubeCaston(self.k, needle_range[0], needle_range[1], c=cs, gauge=self.gauge, tuck_pattern=init_caston, stitch_number=self.settings.caston_stitch_number, knit_after=knit_after, knit_stitch_number=reset_stitch_number)
 			#
 			if not init_caston and reset_stitch_number is not None: self.k.stitchNumber(reset_stitch_number) #check
 		elif method == CastonMethod.ZIGZAG:
