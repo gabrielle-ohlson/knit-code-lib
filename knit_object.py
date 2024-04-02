@@ -238,13 +238,13 @@ class KnitObject:
 		#
 		if len(not_in_cs): self.k.releasehook(*not_in_cs)
 		#
-		if self.settings.main_stitch_number is not None: self.k.stitchNumber(self.settings.main_stitch_number) #check
+		if self.settings.stitch_number is not None: self.k.stitchNumber(self.settings.stitch_number) #check
 		elif reset_stitch_number is not None: self.k.stitchNumber(reset_stitch_number) #check #TODO: decide if should automatically do reset or main
 
 	# def knitPass(self, cs: Union[str, Carrier, List[Carrier], CarrierSet, CarrierMap], bed: Optional[str], needle_range: Optional[Tuple[int,int]]=None, pattern: Union[StitchPattern, int, Callable]=StitchPattern.JERSEY, **kwargs) -> None:
 	@multimethod
 	def knitPass(self, pattern: Union[StitchPattern, int, Callable], bed: Optional[str], needle_range: Optional[Tuple[int,int]], *cs: str, **kwargs) -> None: #TODO: make sure still works with *cs before pattern
-		if self.settings.main_stitch_number is not None and self.k.stitch_number != self.settings.main_stitch_number: self.k.stitchNumber(self.settings.main_stitch_number) #check
+		if self.settings.stitch_number is not None and self.k.stitch_number != self.settings.stitch_number: self.k.stitchNumber(self.settings.stitch_number) #check
 
 		if needle_range is None: needle_range = self.getNeedleRange(bed, *cs)
 		#
