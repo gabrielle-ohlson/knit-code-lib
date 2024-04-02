@@ -1,526 +1,1145 @@
 from typing import Union, Optional, Tuple, List, Dict
-from abc import ABC, abstractmethod
-from copy import deepcopy
-import warnings
 
-import numpy as np
-from multimethod import multimethod
+from .helpers import c2cs, modsHalveGauge, bnValid, toggleDirection, bnEdges, tuckPattern, knitPass
 
-# if __name__ == "__main__":
-# 	from helpers import c2cs, tuckPattern
-# 	from knitout_helpers import getBedNeedle, rackedXfer
-# else:
-# 	from .helpers import c2cs, tuckPattern
-# 	from .knitout_helpers import getBedNeedle, rackedXfer
+pattern_names = ["jersey", "interlock", "rib", "seed", "garter", "tuckGarter", "tuckStitch", "altKnitTuck"]
 
+patterns_TODO = ["moss", "bubble", "lace"]
 
-import sys
-from pathlib import Path
+# --------------------------------
+# --- STITCH PATTERN FUNCTIONS ---
+# --------------------------------
+# if doing gauge == 2, want width to be odd so *actually* have number of stitches
+def jersey(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List[str]], bed: str="f", gauge: int=1, bn_locs={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, xfer_bns_back: bool=True, inhook: bool=False, releasehook: bool=False, tuck_pattern: bool=True, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, init_direction: Optional[str]=None) -> str:
+	'''
+	Jersey stitch pattern: Plain knit on specified bed
 
-## Standalone boilerplate before relative imports
-if not __package__: #remove #?
-	DIR = Path(__file__).resolve().parent
-	sys.path.insert(0, str(DIR.parent))
-	__package__ = DIR.name
+	Parameters:
+	----------
+	* `k` (class instance): instance of the knitout Writer class.
+	* `start_n` (int): the initial needle to knit on in a pass.
+	* `end_n` (int): the last needle to knit on in a pass (inclusive).
+	* `passes` (int): number of rows.
+	* `c` (str or list): the carrier to use for the cast-on (or list of carriers, if plating).
+	* `bed` (str, optional): bed to do the knitting on. Defaults to `"f"`.
+	* `gauge` (int, optional): gauge to knit in. Defaults to `1`.
+	* `bn_locs` (dict, optional): dict with bed as keys and values as list of needles indices for working loops that are currently on the given bed. Value of `None` indicates we should cast-on first. Defaults to `{"f": [], "b": []}` (aka assume loops are on the specified `bed`, and if `bed is None`, assume loops are on both beds to start so we need to transfer them to get them in place for the stitch pattern).
+	* `avoid_bns` (dict, optional): dict with bed as keys and values as list of needles that should stay empty (aka avoid knitting on). Defaults to `{"f": [], "b": []}` (aka don't avoid any needles outside of gauging).
+	* `xfer_bns_back` (bool, optional): whether to return loops back to their specified locations in `bn_locs` after knitting (NOTE: not applicable if `bn_locs` is None or empty lists). Defaults to `True`.
+	* `inhook` (bool, optional): whether to have the function do an inhook. Defaults to `False`.
+	* `releasehook` (bool, optional): whether to have the function do a releasehook (after 2 passes). Defaults to `False`.
+	* `tuck_pattern` (bool, optional): whether to include a tuck pattern for extra security when bringing in the carrier (only applicable if `inhook` or `releasehook` == `True`). Defaults to `False`.
+	* `speed_number` (int, optional): value to set for the `x-speed-number` knitout extension. Defaults to `None`.
+	* `stitch_number` (int, optional): value to set for the `x-stitch-number` knitout extension. Defaults to `None`.
+	* `init_direction` (str, optional): in *rare* cases (i.e., when only one needle is being knit), the initial pass direction might not be able to be inferred by the values of `start_n` and `end_n`.  In this case, one can specify the direction using this parameter (otherwise, can leave it as the default value, `None`, which indicates that the direction should/can be inferred).
 
+	Raises:
+	------
+	* ValueError: if `releasehook` and `passes < 2` and `tuck_pattern = False`.
 
-from .helpers import c2cs, tuckPattern
-from .knitout_helpers import getBedNeedle, rackedXfer
+	Returns:
+	-------
+	* direction (str): next direction to knit in.
+	'''
+	if releasehook:
+		if passes < 2:
+			if not tuck_pattern: raise ValueError("not safe to releasehook with less than 2 passes. Try adding a tuck pattern.")
+			else: rh_p = 0
+		else: rh_p = 1
+	else: rh_p = -1
 
+	cs = c2cs(c) # ensure tuple type
 
-KNIT = 1
-TUCK = 2
-MISS = 3
+	k.comment("begin jersey")
 
+	if speed_number is not None: k.speedNumber(speed_number)
+	if stitch_number is not None: k.stitchNumber(stitch_number)
 
-class StitchPattern(ABC):
-	def __init__(self, k, left_n: int, right_n: int, c: Union[str, Tuple[str], List[str]], home_bed: Optional[str], gauge: int=1, avoid_bns={"f": [], "b": []}, init_direction: str="-", xfer_back_after: bool=False, inhook: bool=False, *args, **kwargs):
-		rack_value_op = getattr(k, "rack_value", None)
-		print(type(k)) #remove #debug
-		assert rack_value_op is not None, "'k' must come from the 'knitlib_knitout' module" #debug
-		#
-		self.k = k
-		self.left_n = left_n
-		self.right_n = right_n
-		self.cs = c2cs(c)
-		self.home_bed = home_bed #TODO: deal with if no home bed
-		self.gauge = gauge
-		self.avoid_bns = avoid_bns
-		self.direction = init_direction
-		#
-		self.xfer_back_after = xfer_back_after
-		self.inhook = inhook
-		self.tuck_pat_args = None
-		#
-		# self.avoid_bns = {"f": [], "b": []}
-		#
-		self.n_passes = 0
-		#
-		# self.bn_locs = {"f": [], "b": [], "fs": [], "bs": []}
-		self.xbns = {"f": [], "b": []} #new
-		self.knit_anyway = {"f": [], "b": []} #new
-		#
-		self.speedNumber = None
-		self.stitchNumber = None
-		self.xfer_speedNumber = None
-		self.xfer_stitchNumber = None
-		#
-		self.beds = np.array(["b", "f"])
-		self.ops = {
-			# 0: self.k.miss,
-			1: self.k.knit,
-			2: self.k.tuck,
-			3: self.k.miss
-		}
-		#
-		self.sequence = self.initSequence(*args, **kwargs)
-		assert len(self.sequence.shape) == 3, "sequence must be a 3D array"
-		self.exclude_edge_ns = False #when to exclude the edge-most needles from xfer_sequence
-		self.xfer_sequence = self.initXferSequence(*args, **kwargs)
-		# assert len(self.xfer_sequence.shape) == 3, f"xfer_sequence must be a 3D array (got shape: {self.xfer_sequence.shape})" #go back! #?
-		# assert self.xfer_sequence.dtype == "<U1", "xfer_sequence must be an array of bed-needle strings indicating which bn to transfer to in the sequence"
+	if end_n > start_n or init_direction == "+":
+		d1, d2 = "+", "-"
+		step = 1
+	else:
+		d1, d2 = "-", "+"
+		step = -1
 
-	@abstractmethod
-	def initSequence(self, *args, **kwargs) -> np.ndarray: #TODO: ensure sequence is 3D
-		pass
+	bed2 = "f" if bed == "b" else "b"
 
-	# @abstractmethod #optional
-	def initXferSequence(self, *args, **kwargs) -> np.ndarray: #TODO: ensure sequence is 3D
-		# 
-		return np.empty((1,1,0), dtype=str) #TODO: deal with all of this
+	if bn_locs is not None and len(bn_locs.get(bed2, [])):
+		for n in range(start_n, end_n+step, step):
+			if bnValid(bed, n, gauge) and n in bn_locs[bed2] and n not in avoid_bns[bed] and n not in avoid_bns[bed2]:
+				k.xfer(f"{bed2}{n}", f"{bed}{n}")
 
-	def getMinNeedle(self, bed=None) -> Union[int,float]:
-		m = self.n_passes % self.sequence.shape[0] #check
-		row = self.sequence[m]
-		#
-		if bed is not None:
-			bed_idx = np.where(self.beds == bed[0])[0]
-			for n in range(self.left_n, self.right_n+1):
-				ops = row[n//self.gauge % len(row)]
-				if self.gaugeValid(n) and (ops[bed_idx] != 0 or n in self.knit_anyway[bed[0]]): return n
+	if inhook:
+		k.inhook(*cs)
+		if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=cs)
+
+	if bn_locs is None: print("TODO: add caston") #debug
+
+	for p in range(passes):
+		if p % 2 == 0:
+			pass_start_n = start_n
+			pass_end_n = end_n
 		else:
-			for n in range(self.left_n, self.right_n+1):
-				ops = row[n//self.gauge % len(row)]
-				if self.gaugeValid(n) and (len(np.where(ops)[0]) != 0 or n in self.knit_anyway["b"] or n in self.knit_anyway["f"]): return n
-		#
-		return float("inf") #if no needle that matches
+			pass_start_n = end_n
+			pass_end_n = start_n
 
-	def getMaxNeedle(self, bed=None) -> Union[int,float]:
-		m = self.n_passes % self.sequence.shape[0] #check
-		row = self.sequence[m]
-		#
-		if bed is not None:
-			bed_idx = np.where(self.beds == bed[0])[0]
-			for n in range(self.right_n, self.left_n-1, -1):
-				ops = row[n//self.gauge % len(row)]
-				if self.gaugeValid(n) and (ops[bed_idx] != 0 or n in self.knit_anyway[bed[0]]): return n
-		else:
-			for n in range(self.right_n, self.left_n-1, -1):
-				ops = row[n//self.gauge % len(row)]
-				if self.gaugeValid(n) and (len(np.where(ops)[0]) != 0 or n in self.knit_anyway["b"] or n in self.knit_anyway["f"]): return n
-		#
-		return float("-inf") #if no needle that matches
+		knitPass(k, start_n=pass_start_n, end_n=pass_end_n, c=c, bed=bed, gauge=gauge, avoid_bns=avoid_bns, init_direction=init_direction)
 
-	def ensureEmpty(self, bed, needle, n_range) -> bool: #returns whether it was empty (or in avoid_bns) to start with
-		row = self.sequence[self.n_passes % self.sequence.shape[0]]
-		#
-		if (bed,needle) in self.k.bns and needle not in self.avoid_bns.get(bed[0], []): #new #check
-			bed_idx = np.where(self.beds == bed)[0]
-			bed2_idx = bed_idx-1
-			bed2 = self.beds[bed2_idx][0]
-			# b, b2 = self.beds[bed_idx][0], self.beds[bed_idx-1][0]
-			#
-			done = False
-			# for n in n_range[n_range.index(needle)+1:]:
-			for n in n_range[n_range.index(needle):]:
-				if self.gaugeValid(n):
-					ops = row[n//self.gauge % len(row)]
-					#
-					if ops[bed2_idx] != 0 and n not in self.avoid_bns.get(bed2, []):
-						self.rackedXfer(bed, needle, bed2, n)
-						done = True
-						break
-					elif ops[bed_idx] != 0 and n not in self.avoid_bns.get(bed, []):
-						self.rackedXfer(bed, needle, bed, n)
-						done = True
-						break
+		if p == rh_p:
+			k.releasehook(*cs)
+			if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=None) # drop it
 
-					# if ops[bed_idx] != 0 and n not in self.avoid_bns.get(b, []):
-					# 	self.rackedXfer(b, needle, f"{b2}s", n)
-					# 	# self.rackedXfer(b, needle, f"{b2}s", n)
-					# 	# self.rackedXfer(f"{b2}s", n, b, n)
-					# 	done = True
-					# 	break
-					# elif ops_[bed_idx-1] != 0 and n not in self.avoid_bns.get(b2, []):
-					# 	self.rackedXfer((b, n), (b2, n_))
-					# 	done = True
-					# 	break
-			#
-			if not done: self.knit_anyway[bed].append(needle) #new #check
-			return False
-		else: return True
+	if xfer_bns_back and bn_locs is not None and len(bn_locs.get(bed2, [])):
+		for n in range(start_n, end_n+step, step):
+			if bnValid(bed, n, gauge) and n in bn_locs[bed2] and n not in avoid_bns[bed] and n not in avoid_bns[bed2]:
+				k.xfer(f"{bed}{n}", f"{bed2}{n}")
 
-	@classmethod
-	def getXferSeqBn(self, needle_idx: int, needle: int, to_bn: str):
-		(to_bed, needle2_idx) = getBedNeedle(to_bn)
-		#
-		# n = needle//self.gauge % len(xrow)
-		#
-		diff = needle2_idx-needle_idx
-		to_needle = needle+diff #check
-		return to_bed, to_needle
+	k.comment("end jersey")
 
-	def setup(self, p, n_range):
-		self.knit_anyway = {"f": [], "b": []} #reset
-		#
-		row = self.sequence[self.n_passes % self.sequence.shape[0]]
-		#
-		xrow = self.xfer_sequence[self.n_passes % self.xfer_sequence.shape[0]] #new #check
+	# return next direction:
+	if passes % 2 == 0: return d1
+	else: return d2
 
-		for n in n_range:
-			if self.gaugeValid(n):
-				if xrow.size and (not self.exclude_edge_ns or (n != self.left_n and n != self.right_n)):
-					xn_idx = n//self.gauge % len(xrow)
-					xops = xrow[xn_idx]
-					#
-					for bed, to_bn in zip(self.beds, xops):
-						if len(to_bn) and n not in self.avoid_bns.get(bed, []):
-							(to_bed, to_needle) = self.getXferSeqBn(xn_idx, n, str(to_bn)) #check
-							#
-							if to_needle not in self.avoid_bns.get(to_bed, []) and self.left_n <= to_needle <= self.right_n:
-								self.rackedXfer(bed, n, to_bed, to_needle)
-								if p == 0 and self.xfer_back_after: self.xbns[bed].append(n)
-				#
-				ops = row[n//self.gauge % len(row)]
-				#
-				for bed, op in zip(self.beds, ops):
-					if n not in self.avoid_bns.get(bed, []):
-						if op == 0:
-							if self.exclude_edge_ns and (n == self.left_n or n == self.right_n) and (bed,n) in self.k.bns: #new #check
-								self.knit_anyway[bed].append(n)
-							else:
-								was_empty = self.ensureEmpty(bed, n, n_range)
-								if p == 0 and not was_empty and self.xfer_back_after: self.xbns[bed].append(n)
 
-	def doPass(self, n_range): #TODO: think of a better name for this #?
-		m = self.n_passes % self.sequence.shape[0] #check
-		row = np.copy(self.sequence[m])
-		#
-		last_ns = n_range[-self.gauge:-1]
-		#
-		for n in n_range:
-			if self.gaugeValid(n):
-				ops = np.copy(row[n//self.gauge % len(row)])
-				if n in self.knit_anyway["b"]: ops[0] = KNIT
-				if n in self.knit_anyway["f"]: ops[1] = KNIT
+"""
+tube (single bed) example:
+-------------------------
+e.g. for gauge 2:
+if mod == 0
+"""
+def interlock(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List[str]], bed: Optional[str]=None, gauge: int=1, sequence: str="01", bn_locs: Dict[str,List[int]]={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, xfer_bns_setup: bool=True, xfer_bns_back: bool=True, secure_start_n: bool=False, secure_end_n: bool=False, inhook: bool=False, releasehook: bool=False, tuck_pattern: bool=True, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, xfer_speed_number: Optional[int]=None, xfer_stitch_number: Optional[int]=None, init_direction: Optional[str]=None) -> str: #TODO: add `xfer_bns_setup` to other stitchPattern functions
+	'''
+	Interlock stitch pattern: knits every other needle on alternating beds, mirroring this pattern with alternating passes. Starts on side indicated by which needle value is greater.
+	In this function, passes is the number of total passes knit, so if you want an interlock segment that is 20 courses long on each bed set passes to 40.  Useful if you want to have odd passes of interlock.
 
-				idxs = np.where((ops != 0) & (ops < 3))[0]
-				#
-				if len(idxs) == 2:
-					# if self.k.rack_value == 0: self.k.rack(0.25)
-					self.k.rack(0.25)
-					if self.direction == "+": idxs = idxs[::-1] #start with f 
-					#
-					for idx in idxs:
-						# if ops[idx] == MISS: continue
-						if n in last_ns and ops[idx] == TUCK:
-							warnings.warn("skipping tuck on edge needle") #check
-							continue
-						b = self.beds[idx]
-						self.ops[ops[idx]](self.direction, f"{b}{n}", *self.cs)
-						# if n not in self.bn_locs[b]: self.bn_locs[b].append(n) #go back! #?
-				elif len(idxs) == 1:
-					idx = idxs[0]
-					b = self.beds[idx]
-					self.ops[ops[idx]](self.direction, f"{b}{n}", *self.cs)
-					# if n not in self.bn_locs[b]: self.bn_locs[b].append(n) #go back! #?
-				else: self.k.miss(self.direction, f"f{n}", *self.cs) #TODO: disallow tucks on the edges (miss instead #?)
-			elif n == n_range[-1]: self.k.miss(self.direction, f"f{n}", *self.cs) #miss last needle
+	* `k` (class instance): instance of the knitout Writer class.
+	* `start_n` (int): the initial needle to knit on in a pass.
+	* `end_n` (int): the last needle to knit on in a pass (inclusive).
+	* `passes` (int): total number of passes to knit (NOTE: there are two passes per row in interlock).
+	* `c` (str or list): the carrier to use for the cast-on (or list of carriers, if plating).
+	* `bed` (str, optional): the primary bed, that the loops belong to if knitting a single-bed variation (aka if knitting an open tube with separate stitch patterns on either side).  Valid values are `f`, `b`, or `None`.  If `f` or `b`, will halve the gauge and transfer loops to the other bed to get them in place for knitting, and then finally transfer the loops back to at the end.  Defaults to `None` (which means knitting regular closed double bed interlock).
+	* `gauge` (int, optional): gauge to knit in. Defaults to `1`.
+	* `sequence` (str, optional): mod sequence for consecutive interlock passes (indicates whether to reverse the needle sequence we start with for interlock passes).  Valid values are "01" and "10".  This is useful for when calling this function one pass at a time, e.g., for open tubes, toggling knitting on either bed (so you might, for example, knit on the front bed and start with `passes=1, c=carrier, bed="f", gauge=2, sequence="01"`, then do a pass on the back bed, and then call `passes=1, c=carrier, bed="f", gauge=2, sequence="10"`). Otherwise, you can just ignore this.
+	* `bn_locs` (dict, optional): dict with bed as keys and values as list of needles indices for working loops that are currently on the given bed. Value of `None` indicates we should cast-on first. Defaults to `{"f": [], "b": []}` (aka assume loops are on the specified `bed`, and if `bed is None`, assume loops are on both beds to start so we will likely need to transfer them to get them in place for the stitch pattern).
+	* `avoid_bns` (dict, optional): dict with bed as keys and values as list of needles that should stay empty (aka avoid knitting on). Defaults to `{"f": [], "b": []}` (aka don't avoid any needles outside of gauging).
+	* `xfer_bns_back` (bool, optional): whether to return loops back to their specified locations in `bn_locs` after knitting (NOTE: not applicable if `bn_locs` is None or empty lists). Defaults to `True`.
+	* `secure_start_n` and ...
+	* `secure_end_n` are booleans that indicate whether or not we should refrain from xferring the edge-most needles, for security (NOTE: this should be True if given edge needle is on the edge of the piece [rather than in the middle of it]).
+	* `inhook` (bool, optional): whether to have the function do an inhook. Defaults to `False`.
+	* `releasehook` (bool, optional): whether to have the function do a releasehook (after 2 passes). Defaults to `False`.
+	* `speed_number` (int, optional): value to set for the `x-speed-number` knitout extension. Defaults to `None`.
+	* `stitch_number` (int, optional): value to set for the `x-stitch-number` knitout extension. Defaults to `None`.
+	* `xfer_speed_number` (int, optional): value to set for the `x-speed-number` knitout extension when transferring. Defaults to `None`.
+	* `xfer_stitch_number` (int, optional): value to set for the `x-stitch-number` knitout extension when transferring. Defaults to `None`.
+	* `init_direction` (str, optional): in *rare* cases (i.e., when only one needle is being knit), the initial pass direction might not be able to be inferred by the values of `start_n` and `end_n`.  In this case, one can specify the direction using this parameter (otherwise, can leave it as the default value, `None`, which indicates that the direction should/can be inferred).
 
-	def generate(self, passes: int, start_n: Optional[int]=None, end_n: Optional[int]=None):
-		if self.speedNumber is not None: self.k.speedNumber(self.speedNumber)
-		if self.stitchNumber is not None: self.k.stitchNumber(self.stitchNumber)
-		# left_n, right_n = self.left_n, self.right_n #for now
-		#
-		if start_n is None: #defaults
-			if self.direction == "+": start_n = self.left_n
-			else: start_n = self.right_n
+	Raises:
+	------
+	* ValueError: if `releasehook` and `passes < 2` and `tuck_pattern = False`.
+
+	Returns:
+	-------
+	* direction (str): next direction to knit in.
+	'''
+	assert sequence == "01" or sequence == "10", f"Invalid sequence argument, '{sequence}' (must be '01' or '10')."
+
+	if releasehook:
+		if passes < 2:
+			if not tuck_pattern: raise ValueError("not safe to releasehook with less than 2 passes. Try adding a tuck pattern.")
+			else: rh_p = 0
+		else: rh_p = 1
+	else: rh_p = -1
+
+	cs = c2cs(c) # ensure tuple type
+
+	k.comment("begin interlock")
+
+	if speed_number is not None: k.speedNumber(speed_number)
+	if stitch_number is not None: k.stitchNumber(stitch_number)
+
+	if end_n > start_n or init_direction == "+": #first pass is pos
+		d1, d2 = "+", "-"
+		left_n = start_n
+		right_n = end_n
+		seq1_idx, seq2_idx = int(sequence[1]), int(sequence[0])
+		# if reverse_seq: seq1_idx, seq2_idx = 0, 1
+		# else: seq1_idx, seq2_idx = 1, 0 #this ensures that if `passes=1` (e.g., when knitting open tubes and switching between beds), we are still toggling which sequence we start with for the first pass in the function
+	else: #first pass is neg
+		d1, d2 = "-", "+"
+		left_n = end_n
+		right_n = start_n
+		seq1_idx, seq2_idx = int(sequence[0]), int(sequence[1])
+		# if reverse_seq: seq1_idx, seq2_idx = 1, 0
+		# else: seq1_idx, seq2_idx = 0, 1
+
+	if bed is None:
+		# single_bed = False
+		bed1, bed2 = "f", "b"
+
+		if bn_locs is None or (not len(bn_locs.get("f", [])) and not len(bn_locs.get("b", []))): _bn_locs = {"f": [n for n in range(left_n, right_n+1) if bnValid("f", n, gauge) and n not in avoid_bns.get("f", [])], "b": [n for n in range(left_n, right_n+1) if bnValid("b", n, gauge) and n not in avoid_bns.get("b", [])]}
+		else: _bn_locs = bn_locs.copy() #internal version, so not modifying arg
+	else:
+		# single_bed = True
+		if bed == "f": bed1, bed2 = "f", "b"
+		else: bed1, bed2 = "b", "f"
+
+		if bn_locs is None or (not len(bn_locs.get("f", [])) and not len(bn_locs.get("b", []))): _bn_locs = {bed1: [n for n in range(left_n, right_n+1) if bnValid(bed1, n, gauge) and n not in avoid_bns[bed1]]}
+		else: _bn_locs = bn_locs.copy() #internal version, so not modifying arg
+
+	secure_needles = {"f": [], "b": []}
+
+	edge_bns = bnEdges(left_n, right_n, gauge, bn_locs=_bn_locs, avoid_bns=avoid_bns, return_type=list)
+
+	if d1 == "+": #first pass is pos
+		if secure_start_n: secure_needles[edge_bns[0][0]].append(edge_bns[0][1])
+		if secure_end_n: secure_needles[edge_bns[1][0]].append(edge_bns[1][1])
+	else: #first pass is neg
+		if secure_end_n: secure_needles[edge_bns[0][0]].append(edge_bns[0][1])
+		if secure_start_n: secure_needles[edge_bns[1][0]].append(edge_bns[1][1])
 		
-		if end_n is None: #defaults
-			if self.direction == "+": end_n = self.right_n
-			else: end_n = self.left_n
+	mods2 = modsHalveGauge(gauge, bed1)
 
-		if end_n > start_n: # pass is pos
-			self.direction = "+"
-		elif start_n > end_n: # pass is neg
-			self.direction = "-"
+	n_ranges = {"+": range(left_n, right_n+1), "-": range(right_n, left_n-1, -1)}
 
-		if self.direction == "+":
-			left_n, right_n = start_n, end_n
-			n_range = range(start_n, end_n+1)
-		else:
-			left_n, right_n = end_n, start_n
-			n_range = range(start_n, end_n-1, -1)
-		#
-		#update each time:
-		self.left_n = min(self.left_n, left_n)
-		self.right_n = max(self.right_n, right_n)
-		# if left_n < self.left_n: self.left_n = left_n #remove
-		# if right_n > self.right_n: self.right_n = right_n #remove
+	if inhook:
+		k.inhook(*cs)
+		if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=cs)
 
-		if self.inhook:
-			self.k.inhook(*self.cs)
-			#
-			self.tuck_pat_args = {"first_n": start_n, "direction": self.direction}
-			tuckPattern(self.k, c=self.cs, **self.tuck_pat_args)
+	if bn_locs is None: print("TODO: add caston") #debug
 
-		# self.setup(n_range)
-		#
-		for p in range(passes):
-			self.setup(p, n_range)
-			self.doPass(n_range)
-			# self.postPassUpdate(p, n_range, *args, **kwargs)
-			#
-			self.n_passes += 1
-			self.toggleDirection()
-			n_range = n_range[::-1] #reversed(n_range)
-			#
-			if self.tuck_pat_args is not None and self.n_passes > 1:
-				self.k.releasehook(*self.cs)
-				tuckPattern(self.k, c=None, **self.tuck_pat_args) # drop it
-				self.tuck_pat_args = None
-		#
-		self.k.rack(0) #reset
-		#
-		if self.xfer_back_after: self.xferBack()
+	if xfer_bns_setup and bed is not None: #new #check (TODO: have option of single vs double bed #?)
+		mods4 = [modsHalveGauge(gauge*2, mods2[0]), modsHalveGauge(gauge*2, mods2[1])]
 
-	#===========================================================================
-	#--------------------------------- SETTERS: --------------------------------
-	#===========================================================================
-	#concrete method
-	def setExtensions(self, speedNumber=None, stitchNumber=None, xfer_speedNumber=None, xfer_stitchNumber=None):
-		if speedNumber is not None: self.speedNumber = speedNumber
-		if stitchNumber is not None: self.stitchNumber = stitchNumber
-		if xfer_speedNumber is not None: self.xfer_speedNumber = xfer_speedNumber
-		if xfer_stitchNumber is not None: self.xfer_stitchNumber = xfer_stitchNumber
+		# transfer to get loops in place:
+		if xfer_speed_number is not None: k.speedNumber(xfer_speed_number)
+		if xfer_stitch_number is not None: k.stitchNumber(xfer_stitch_number)
 
-	#===========================================================================
-	#--------------------------------- HELPERS: --------------------------------
-	#===========================================================================
-	def gaugeValid(self, n: int):
-		return (self.home_bed == "f" and n % self.gauge == 0) or (self.home_bed == "b" and n % self.gauge == (self.gauge//2))
-	
-	# @classmethod
-	# def bnValid(self, b: str, n: int):
-	# 	return n not in self.avoid_bns[b] and ((b == "f" and n % self.gauge == 0) or (b == "b" and n % self.gauge == (self.gauge//2)))
-
-	@multimethod
-	def rackedXfer(self, from_bed: str, from_needle: int, to_bed: str, to_needle: int, reset_rack: bool=True) -> None:
-		rackedXfer(self, from_bed, from_needle, to_bed, to_needle, reset_rack)
-	
-	"""
-	def rackedXfer(self, from_bn: Tuple[str,int], to_bn: Tuple[str,int], reset_rack=True) -> None: #TODO: just use regular xfer instead #?
-		from_bed, from_needle = from_bn
-		to_bed, to_needle = to_bn
-		#
-		assert from_bed[0] != to_bed[0], "cannot xfer to/from the same bed"
-		#
-		r = 0
-		if from_bed[0] == "f": r = from_needle-to_needle
-		else: r = to_needle-from_needle
-		#
-		self.k.rack(r)
-		self.k.xfer(from_bn, to_bn)
-		if reset_rack: self.k.rack(0)
-		#
-		return r
-	"""
-	
-	@rackedXfer.register
-	def rackedXfer(self, from_bn: Tuple[str, int], to_bn: Tuple[str, int], reset_rack=True) -> int:
-		return self.rackedXfer(*from_bn, *to_bn, reset_rack)
-	
-	@rackedXfer.register
-	def rackedXfer(self, from_bn: str, to_bn: str, reset_rack: bool=True):
-		self.rackedXfer(*getBedNeedle(from_bn), *getBedNeedle(to_bn), reset_rack)
-
-	def toggleDirection(self) -> None:
-		if self.direction == "-": self.direction = "+"
-		else: self.direction = "-"
-
-	def xferBack(self):
-		f_xbns = sorted(self.xbns["f"].copy()) #TODO: see if need to do deepcopy
-		b_xbns = sorted(self.xbns["b"].copy())
-		#
-		for n in f_xbns:
-			self.rackedXfer("b", n, "f", n, reset_rack=False)
-			# self.bn_locs["b"].remove(n)
-			# self.bn_locs["f"].append(n)
-		#
-		for n in b_xbns:
-			self.rackedXfer("f", n, "b", n, reset_rack=False)
-			# self.bn_locs["f"].remove(n)
-			# self.bn_locs["b"].append(n)
-
-
-
-#===============================================================================
-class SeqHelpers:
-	@classmethod
-	def rowFlip(self, row: np.ndarray) -> np.ndarray:
-		assert len(row.shape) == 2 and row.shape[1] == 2, "row must be a n x 2 array"
-		return np.flip(row)
-
-	@classmethod
-	def bedFlip(self, row: np.ndarray) -> np.ndarray:
-		assert len(row.shape) == 2 and row.shape[1] == 2, "row must be a n x 2 array"
-		return np.flip(row, axis=1)
-"""
-KEY:
-(rows x columns x 2) matrix -> (m x n x b), where m is the number of rows (vertical repeats), n is the number of needles in a horizontal repeat, and b is for back and front bed (first number is back bed op, second is front bed op)
-
-OPS:
-0: empty needle
-1: knit
-2: tuck
-3: miss
-TODO: xfer and split
-"""
-# # rib
-# rib_fb = np.array([
-# 	[[0, 1], [1, 0]]
-# ])
-
-
-# rib_ffb = np.array([
-# 	[[0, 1], [0, 1], [1, 0]]
-# ])
-
-# # garter ffb
-# garter_ffb = np.array([
-# 	[[0, 1]],
-# 	[[0, 1]],
-# 	[[1, 0]]
-# ])
-
-# # seed fb
-# seed_fb = np.array([
-# 	[[0, 1], [1, 0]],
-# 	[[1, 0], [0, 1]]
-# ])
-
-# # seed ffb
-# seed_fb = np.array([
-# 	[[0, 1], [0, 1], [1, 0]],
-# 	[[1, 0], [1, 0], [0, 1]]
-# ])
-
-class Rib1x1(StitchPattern): #for example purposes
-	def initSequence(self) -> np.ndarray:
-		return np.array([
-			[[0, 1], [0, 1]]
-		])
-
-#
-
-class Jersey(StitchPattern):
-	def initSequence(self) -> np.ndarray:
-		if self.home_bed == "b": sequence = np.array([[[1, 0]]])
-		else: sequence = np.array([[[0, 1]]])
-		#
-		print(sequence) #remove #debug
-		return sequence
-
-
-
-class Rib(StitchPattern):
-	def initSequence(self, bed_seq: str="fb") -> np.ndarray:
-		sequence = np.empty((1, len(bed_seq), 2))
-		for i in range(len(bed_seq)):
-			if bed_seq[i] == "f": sequence[0][i] = [0, 1] #TODO: #check
-			else: sequence[0][i] = [1, 0]
-		#
-		print(sequence) #remove #debug
-		return sequence
-
-
-class Garter(StitchPattern):
-	def initSequence(self, bed_seq: str="fb") -> np.ndarray:
-		sequence = np.empty((len(bed_seq), 1, 2))
-		for i in range(len(bed_seq)):
-			if bed_seq[i] == "f": sequence[i][0] = [0, 1] #TODO: #check
-			else: sequence[i][0] = [1, 0]
-		#
-		print(sequence) #remove #debug
-		return sequence
-
+		for n in range(left_n, right_n+1):
+			if n in avoid_bns.get("f", []) or n in avoid_bns.get("b", []) or n in secure_needles[bed1]: continue
+			elif n % (gauge*2) == mods2[1] and n in _bn_locs[bed1]: k.xfer(f"{bed1}{n}", f"{bed2}{n}")
 		
-class Seed(StitchPattern):
-	def initSequence(self, bed_seq: str="fb") -> np.ndarray:
-		sequence = np.empty((2, len(bed_seq), 2))
-		for i in range(len(bed_seq)):
-			if bed_seq[i] == "f": sequence[0][i] = [0, 1] #TODO: #check
-			else: sequence[0][i] = [1, 0]
-		#
-		sequence[1] = SeqHelpers.bedFlip(sequence[0])
-		#
-		print(sequence) #remove #debug
-		return sequence
+		# reset settings
+		if speed_number is not None: k.speedNumber(speed_number)
+		if stitch_number is not None: k.stitchNumber(stitch_number)
+
+		def passSequence1(d):
+			for n in n_ranges[d]:
+				if n % (gauge*4) == mods4[0][seq1_idx] and n not in avoid_bns[bed1]: k.knit(d, f"{bed1}{n}", *cs)
+				elif n % (gauge*4) == mods4[1][seq1_idx] and n not in avoid_bns[bed2]: k.knit(d, f"{bed2}{n}", *cs)
+				elif n == n_ranges[d][-1]: k.miss(d, f"{bed1}{n}", *cs)
+
+		def passSequence2(d):
+			for n in n_ranges[d]:
+				if n % (gauge*4) == mods4[0][seq2_idx] and n not in avoid_bns[bed1]: k.knit(d, f"{bed1}{n}", *cs)
+				elif n % (gauge*4) == mods4[1][seq2_idx] and n not in avoid_bns[bed2]: k.knit(d, f"{bed2}{n}", *cs)
+				elif n == n_ranges[d][-1]: k.miss(d, f"{bed1}{n}", *cs)
+	else:
+		def passSequence1(d):
+			for n in n_ranges[d]:
+				if n % (gauge*2) == mods2[seq1_idx] and n not in avoid_bns[bed1]: k.knit(d, f"{bed1}{n}", *cs)
+				elif n % (gauge*2) == mods2[seq2_idx] and n not in avoid_bns[bed2]: k.knit(d, f"{bed2}{n}", *cs)
+				elif n == n_ranges[d][-1]: k.miss(d, f"{bed1}{n}", *cs)
+		
+		def passSequence2(d):
+			for n in n_ranges[d]:
+				if n % (gauge*2) == mods2[seq2_idx] and n not in avoid_bns[bed1]: k.knit(d, f"{bed1}{n}", *cs)
+				elif n % (gauge*2) == mods2[seq1_idx] and n not in avoid_bns[bed2]: k.knit(d, f"{bed2}{n}", *cs)
+				elif n == n_ranges[d][-1]: k.miss(d, f"{bed1}{n}", *cs)
+
+	#--- the knitting ---
+	for p in range(passes):
+		if p % 2 == 0: passSequence1(d1)
+		else: passSequence2(d2)
+
+		if p == rh_p:
+			k.releasehook(*cs)
+			if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=None) # drop it
+
+
+	# return the loops back
+	if xfer_bns_back:
+		if bed is not None:
+			if xfer_speed_number is not None: k.speedNumber(xfer_speed_number)
+			if xfer_stitch_number is not None: k.stitchNumber(xfer_stitch_number)
+
+			for n in range(left_n, right_n+1):
+				if avoid_bns.get("f", []) or n in avoid_bns.get("b", []) or n in secure_needles[bed1] or not bnValid(bed1, n, gauge): continue
+				elif n % (gauge*2) == mods2[1]: k.xfer(f"{bed2}{n}", f"{bed1}{n}")
+			
+			# reset settings
+			if speed_number is not None: k.speedNumber(speed_number)
+			if stitch_number is not None: k.stitchNumber(stitch_number)
+		elif bn_locs is not None and (len(bn_locs.get("f", [])) or len(bn_locs.get("b", []))):
+			if xfer_speed_number is not None: k.speedNumber(xfer_speed_number)
+			if xfer_stitch_number is not None: k.stitchNumber(xfer_stitch_number)
+
+			for n in range(left_n, right_n+1):
+				if avoid_bns.get("f", []) or n in avoid_bns.get("b", []) or n in secure_needles[bed1] or not bnValid(bed1, n, gauge): continue
+				elif n not in bn_locs.get("f", []) and n in bn_locs.get("b", []): k.xfer(f"f{n}", f"b{n}")
+				elif n not in bn_locs.get("b", []) and n in bn_locs.get("f", []): k.xfer(f"b{n}", f"f{n}")
+				elif n not in bn_locs.get("f", []) and n not in bn_locs.get("b", []): raise ValueError("TODO: handle this situation")
+			
+			# reset settings
+			if speed_number is not None: k.speedNumber(speed_number)
+			if stitch_number is not None: k.stitchNumber(stitch_number)
+
+
+	k.comment("end interlock")
+
+	# return next direction:
+	if passes % 2 == 0: return d1
+	else: return d2
+
+
+def rib(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List[str]], bed: Optional[str]=None, gauge: int=1, sequence: str="fb", bn_locs: Dict[str,List[int]]={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, xfer_bns_back: bool=True, secure_start_n: bool=False, secure_end_n: bool=False, inhook: bool=False, releasehook: bool=False, tuck_pattern: bool=True, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, xfer_speed_number: Optional[int]=None, xfer_stitch_number: Optional[int]=None, init_direction: Optional[str]=None) -> str: #TODO: #check to make sure this is working well for gauge > 1 #*
+	'''
+	Rib stitch pattern: alternates between front and back bed in a row based on given sequence.
+
+	Parameters:
+	----------
+	* `k` (class instance): instance of the knitout Writer class.
+	* `start_n` (int): the initial needle to knit on in a pass.
+	* `end_n` (int): the last needle to knit on in a pass (inclusive).
+	* `passes` (int): total number of passes to knit (NOTE: there are two passes per row in interlock).
+	* `c` (str or list): the carrier to use for the cast-on (or list of carriers, if plating).
+	* `bed` (str, optional): the primary bed, that the loops are on, or belong to if knitting a single-bed variation (aka if knitting an open tube with separate stitch patterns on either side).  Valid values are `f`, `b`, or `None`.  If `f` or `b`, will halve the gauge and transfer loops to the other bed to get them in place for knitting, and then finally transfer the loops back to at the end.  Defaults to `None` (which means knitting regular closed double bed rib; will by default gauge based on front bed, aka `n % gauge == 0`).
+	* `gauge` (int, optional): gauge to knit in. Defaults to `1`.
+	* `sequence` (str, optional): repeating stitch pattern sequence for alternating needle-wise between front and back bed in a pass (e.g. "fb" of "bf" for 1x1, "ffbb" for 2x2, "fbffbb" for 1x1x2x2, etc.). Defaults to `"fb"`.
+	* `bn_locs` (dict, optional): dict with bed as keys and values as list of needles indices for working loops that are currently on the given bed. Value of `None` indicates we should cast-on first. Defaults to `{"f": [], "b": []}` (aka assume loops are on the specified `bed`, and if `bed is None`, assume loops are on both beds to start so we will likely need to transfer them to get them in place for the stitch pattern).
+	* `avoid_bns` (dict, optional): dict with bed as keys and values as list of needles that should stay empty (aka avoid knitting on). Defaults to `{"f": [], "b": []}` (aka don't avoid any needles outside of gauging).
+	* `xfer_bns_back` (bool, optional): whether to return loops back to their specified locations in `bn_locs` after knitting (NOTE: not applicable if `bn_locs` is None or empty lists). Defaults to `True`.
+	* `secure_start_n` and ...
+	* `secure_end_n` are booleans that indicate whether or not we should refrain from xferring the edge-most needles, for security (NOTE: this should be True if given edge needle is on the edge of the piece [rather than in the middle of it]).
+	* `inhook` (bool, optional): whether to have the function do an inhook. Defaults to `False`.
+	* `releasehook` (bool, optional): whether to have the function do a releasehook (after 2 passes). Defaults to `False`.
+	* `speed_number` (int, optional): value to set for the `x-speed-number` knitout extension. Defaults to `None`.
+	* `stitch_number` (int, optional): value to set for the `x-stitch-number` knitout extension. Defaults to `None`.
+	* `xfer_speed_number` (int, optional): value to set for the `x-speed-number` knitout extension when transferring. Defaults to `None`.
+	* `xfer_stitch_number` (int, optional): value to set for the `x-stitch-number` knitout extension when transferring. Defaults to `None`.
+	* `init_direction` (str, optional): in *rare* cases (i.e., when only one needle is being knit), the initial pass direction might not be able to be inferred by the values of `start_n` and `end_n`.  In this case, one can specify the direction using this parameter (otherwise, can leave it as the default value, `None`, which indicates that the direction should/can be inferred).
+
+
+	Raises:
+	------
+	* ValueError: if `releasehook` and `passes < 2` and `tuck_pattern = False`.
+
+	Returns:
+	-------
+	* direction (str): next direction to knit in.
+	'''
+	if releasehook:
+		if passes < 2:
+			if not tuck_pattern: raise ValueError("not safe to releasehook with less than 2 passes. Try adding a tuck pattern.")
+			else: rh_p = 0
+		else: rh_p = 1
+	else: rh_p = -1
+
+	cs = c2cs(c) # ensure tuple type
+
+	k.comment(f"begin rib ({sequence})")
+
+	if speed_number is not None: k.speedNumber(speed_number)
+	if stitch_number is not None: k.stitchNumber(stitch_number)
+
+	if gauge > 1:
+		gauged_sequence = ""
+		for char in sequence:
+			gauged_sequence += char * gauge
+		sequence = gauged_sequence
 	
-
-class Lace(StitchPattern):
-	def initSequence(self) -> np.ndarray:
-		if self.home_bed == "b": sequence = np.array([[[1, 0]]])
-		else: sequence = np.array([[[0, 1]]])
-		return sequence
+	if end_n > start_n or init_direction == "+": #first pass is pos
+		d1 = "+"
+		d2 = "-"
+		n_ranges = {d1: range(start_n, end_n+1), d2: range(end_n, start_n-1, -1)}
+	else: #first pass is neg
+		d1 = "-"
+		d2 = "+"
+		n_ranges = {d1: range(start_n, end_n-1, -1), d2: range(end_n, start_n+1)}
 	
-	def initXferSequence(self, seq: str="01") -> np.ndarray:
-		#0 indicates xfer, 1 indicates no xfer (aka receive)
-		assert seq[-1] != "0", "sequence shouldn't end with an xfer"
-		self.exclude_edge_ns = True #TODO: make it secure_edge_ns instead #?
-		#
-		# bn of who to xfer to
-		sequence = []
-		for i in range(len(seq)):
-			if seq[i] == "0":
-				for j in range(i+1, len(seq)):
-					if seq[j] == "1":
-						sequence.append(f"{self.home_bed}{j}")
-						break
-			else: sequence.append("")
-		#
-		if self.home_bed == "b": return np.array([
-				np.empty((1,0)),
-				np.array([[s, ""] for s in sequence])
-		], dtype=object)
-		else: return np.array([
-				# np.array([[]], dtype=str),
-				np.empty((1,0)),
-				np.array([["", s] for s in sequence]) #, dtype=str)
-		], dtype=object)
-		# return super().initXferSequence(*args, **kwargs)
+	if bed is None:
+		bed1, bed2 = "f", "b"
+		if bn_locs is None or (not len(bn_locs.get("f", [])) and not len(bn_locs.get("b", []))): _bn_locs = {"f": [n for n in n_ranges[d1] if bnValid("f", n, gauge)], "b": [n for n in n_ranges[d1] if bnValid("b", n, gauge)]} #make sure we transfer to get them where we want #TODO: #check
+		else: _bn_locs = bn_locs.copy()
+	else:
+		if bed == "f": bed1, bed2 = "f", "b"
+		else: bed1, bed2 = "b", "f"
+		if bn_locs is None or (not len(bn_locs.get("f", [])) and not len(bn_locs.get("b", []))): _bn_locs = {bed1: [n for n in n_ranges[d1] if bnValid(bed1, n, gauge)]} #make sure we transfer to get them where we want #TODO: #check
+		else: _bn_locs = bn_locs.copy()
+
+	secure_needles = {"f": [], "b": []}
+
+	if d1 == "+": #first pass is pos
+		edge_bns = bnEdges(start_n, end_n, gauge, bn_locs=_bn_locs, avoid_bns=avoid_bns, return_type=list)
+		if secure_start_n: secure_needles[edge_bns[0][0]].append(edge_bns[0][1])
+		if secure_end_n: secure_needles[edge_bns[1][0]].append(edge_bns[1][1])
+	else: #first pass is neg
+		edge_bns = bnEdges(end_n, start_n, gauge, bn_locs=_bn_locs, avoid_bns=avoid_bns, return_type=list)
+		if secure_end_n: secure_needles[edge_bns[0][0]].append(edge_bns[0][1])
+		if secure_start_n: secure_needles[edge_bns[1][0]].append(edge_bns[1][1])
+
+	# now let's make sure we have *all* the info in one dict
+	xfer_bns = {"f": [n for n in _bn_locs.get("f", []) if sequence[n % len(sequence)] == "b" and bnValid(bed1, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles["f"]], "b": [n for n in _bn_locs.get("b", []) if sequence[n % len(sequence)] == "f" and bnValid(bed1, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles["b"]]}
+	# xfer_bns = {"f": [n for n in list(set(_bn_locs.get("f", [])+bn_locs.get("f", []))) if sequence[n % len(sequence)] == "b" and bnValid(bed1, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles["f"]], "b": [n for n in list(set(_bn_locs.get("b", [])+bn_locs.get("b", []))) if sequence[n % len(sequence)] == "f" and bnValid(bed1, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles["b"]]}
+
+	if len(xfer_bns["f"]) or len(xfer_bns["b"]): # indicates that we might need to start by xferring to proper spots
+		if xfer_speed_number is not None: k.speedNumber(xfer_speed_number)
+		if xfer_stitch_number is not None: k.stitchNumber(xfer_stitch_number)
+
+		for n in n_ranges[d1]: #TODO: #check adjustment for gauge
+			if n in xfer_bns["f"]: k.xfer(f"f{n}", f"b{n}")
+			elif n in xfer_bns["b"]: k.xfer(f"b{n}", f"f{n}")
+
+		if speed_number is not None: k.speedNumber(speed_number)
+		if stitch_number is not None: k.stitchNumber(stitch_number)
+
+	if inhook:
+		k.inhook(*cs)
+		if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=cs)
 	
+	if bn_locs is None: print("TODO: add caston") #debug
 
-		# if self.home_bed == "b": seq = [1, 0]
-		# else: seq = [0, 1]
-		# return np.array([
-		# 	[seq, seq],
-		# 	[seq, [0,0]]
-		# ])
+	#TODO: maybe change stitch size for rib? k.stitchNumber(math.ceil(specs.stitchNumber/2)) (if so -- remember to reset settings)
+	for p in range(passes):
+		if p % 2 == 0:
+			d = d1
+			last_n = end_n
+		else:
+			d = d2
+			last_n = start_n
+
+		for n in n_ranges[d]:
+			if n in secure_needles["f"] and n not in _bn_locs.get("b", []): k.knit(d, f"f{n}", *cs) #TODO: #check
+			elif n in secure_needles["b"] and n not in _bn_locs.get("f", []): k.knit(d, f"b{n}", *cs) #TODO: #check
+			elif sequence[n % len(sequence)] == "f" and n not in avoid_bns.get("f", []) and bnValid(bed1, n, gauge): k.knit(d, f"f{n}", *cs) #xferred it or bed1 == "f", ok to knit
+			elif sequence[n % len(sequence)] == "b" and n not in avoid_bns.get("b", []) and bnValid(bed1, n, gauge): k.knit(d, f"b{n}", *cs) #xferred it or bed1 == "b", ok to knit
+			elif n == last_n: k.miss(d, f"f{n}", *cs)
+
+		if p == rh_p:
+			k.releasehook(*cs)
+			if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=None) # drop it
+
+	# return the loops:
+	if xfer_bns_back and (len(xfer_bns["f"]) or len(xfer_bns["b"])):
+		if xfer_speed_number is not None: k.speedNumber(xfer_speed_number)
+		if xfer_stitch_number is not None: k.stitchNumber(xfer_stitch_number)
+
+		for n in n_ranges[d1]:
+			if n in xfer_bns["f"]: k.xfer(f"b{n}", f"f{n}")
+			elif n in xfer_bns["b"]: k.xfer(f"f{n}", f"b{n}")
+			
+		if speed_number is not None: k.speedNumber(speed_number)
+		if stitch_number is not None: k.stitchNumber(stitch_number)
+
+	k.comment("end rib")
+
+	# return next direction:
+	if passes % 2 == 0: return d1
+	else: return d2
+
+
+def seed(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List[str]], bed: Optional[str]="f", gauge: int=1, sequence: str="fb", bn_locs: Dict[str,List[int]]={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, xfer_bns_back: bool=True, secure_start_n=True, secure_end_n=True, inhook: bool=False, releasehook: bool=False, tuck_pattern: bool=True, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, xfer_speed_number: Optional[int]=None, xfer_stitch_number: Optional[int]=None, init_direction: Optional[str]=None) -> str:
+	'''
+	Seed stitch pattern: alternates bes needle-wise based on specified sequence, mirroring the sequence pass-wise.
+
+	Parameters:
+	----------
+	* `k` (class instance): instance of the knitout Writer class.
+	* `start_n` (int): the initial needle to knit on in a pass.
+	* `end_n` (int): the last needle to knit on in a pass (inclusive).
+	* `passes` (int): total number of passes to knit (NOTE: there are two passes per row in interlock).
+	* `c` (str or list): the carrier to use for the cast-on (or list of carriers, if plating).
+	* `bed` (str, optional): the primary bed, that the loops are on, or belong to if knitting a single-bed variation (aka if knitting an open tube with separate stitch patterns on either side).  Valid values are `f`, `b`, or `None`.  If `f` or `b`, will halve the gauge and transfer loops to the other bed to get them in place for knitting, and then finally transfer the loops back to at the end.  Defaults to `None` (which means knitting regular closed double bed garter; will by default gauge based on front bed, aka `n % gauge == 0`).
+	* `gauge` (int, optional): gauge to knit in. Defaults to `1`.
+	* `sequence` (str, optional): repeating stitch pattern sequence for alternating needle-wise between passes of knits on front and back bed. Defaults to `"fb"`.
+	* `bn_locs` (dict, optional): dict with bed as keys and values as list of needles that are currently on the given bed (aka avoid knitting on). Defaults to `{"f": [], "b": []}` (aka assume loops are on the specified `bed`, and if `bed is None`, assume loops are on both beds to start so will likely need to transfer them to get them in place for the stitch pattern).
+	* `avoid_bns` (dict, optional): dict with bed as keys and values as list of needles that should stay empty (aka avoid knitting on). Defaults to `{"f": [], "b": []}` (aka don't avoid any needles outside of gauging).
+	* `xfer_bns_back` (bool, optional): *TODO: add code for this* whether to return loops back to their specified locations in `bn_locs` after knitting (NOTE: not applicable if `bn_locs` is None or empty lists). Defaults to `True`.
+	* `secure_start_n` and ...
+	* `secure_end_n` are booleans that indicate whether or not we should refrain from xferring the edge-most needles, for security (NOTE: this should be True if given edge needle is on the edge of the piece [rather than in the middle of it]).
+	* `inhook` (bool, optional): whether to have the function do an inhook. Defaults to `False`.
+	* `releasehook` (bool, optional): whether to have the function do a releasehook (after 2 passes). Defaults to `False`.
+	* `speed_number` (int, optional): value to set for the `x-speed-number` knitout extension. Defaults to `None`.
+	* `stitch_number` (int, optional): value to set for the `x-stitch-number` knitout extension. Defaults to `None`.
+	* `xfer_speed_number` (int, optional): value to set for the `x-speed-number` knitout extension when transferring. Defaults to `None`.
+	* `xfer_stitch_number` (int, optional): value to set for the `x-stitch-number` knitout extension when transferring. Defaults to `None`.
+	* `init_direction` (str, optional): in *rare* cases (i.e., when only one needle is being knit), the initial pass direction might not be able to be inferred by the values of `start_n` and `end_n`.  In this case, one can specify the direction using this parameter (otherwise, can leave it as the default value, `None`, which indicates that the direction should/can be inferred).
+
+	Raises:
+	------
+	* ValueError: if `releasehook` and `passes < 2` and `tuck_pattern = False`.
+
+	Returns:
+	-------
+	* direction (str): next direction to knit in.
+	'''
+	if releasehook:
+		if passes < 2:
+			if not tuck_pattern: raise ValueError("not safe to releasehook with less than 2 passes. Try adding a tuck pattern.")
+			else: rh_p = 0
+		else: rh_p = 1
+	else: rh_p = -1
+
+	cs = c2cs(c) # ensure tuple type
+
+	k.comment(f"begin seed ({sequence})")
+
+	if speed_number is not None: k.speedNumber(speed_number)
+	if stitch_number is not None: k.stitchNumber(stitch_number)
+
+	if end_n > start_n or init_direction == "+": #first pass is pos
+		d1, d2 = "+", "-"
+		n_ranges = {d1: range(start_n, end_n+1), d2: range(end_n, start_n-1, -1)}
+	else: #first pass is neg
+		d1, d2 = "-", "+"
+		n_ranges = {d1: range(start_n, end_n-1, -1), d2: range(end_n, start_n+1)}
+	
+	if bed is None:
+		bed1, bed2 = "f", "b"
+		if bn_locs is None or (not len(bn_locs.get("f", [])) and not len(bn_locs.get("b", []))): _bn_locs = {"f": [n for n in n_ranges[d1] if bnValid("f", n, gauge)], "b": [n for n in n_ranges[d1] if bnValid("b", n, gauge)]} #make sure we transfer to get them where we want #TODO: #check
+		else: _bn_locs = bn_locs.copy()
+	else:
+		if bed == "f": bed1, bed2 = "f", "b"
+		else: bed1, bed2 = "b", "f"
+		if bn_locs is None or (not len(bn_locs.get("f", [])) and not len(bn_locs.get("b", []))): _bn_locs = {bed1: [n for n in n_ranges[d1] if bnValid(bed1, n, gauge)]} #make sure we transfer to get them where we want #TODO: #check
+		else: _bn_locs = bn_locs.copy()
+
+	# if bed is not None: _bn_locs = {bed: [n for n in n_ranges[d1] if bnValid(bed, n, gauge)]} #make sure we transfer to get them where we want #TODO; #check
+	# else: _bn_locs = bn_locs.copy()
+
+	if gauge > 1:
+		gauged_sequence = ""
+		for char in sequence:
+			gauged_sequence += char * gauge
+		sequence = gauged_sequence
+
+	secure_needles = {"f": [], "b": []}
+
+	if d1 == "+": #first pass is pos
+		edge_bns = bnEdges(start_n, end_n, gauge, bn_locs=_bn_locs, avoid_bns=avoid_bns, return_type=list)
+		if secure_start_n: secure_needles[edge_bns[0][0]].append(edge_bns[0][1])
+		if secure_end_n: secure_needles[edge_bns[1][0]].append(edge_bns[1][1])
+	else: #first pass is neg
+		edge_bns = bnEdges(end_n, start_n, gauge, bn_locs=_bn_locs, avoid_bns=avoid_bns, return_type=list)
+		if secure_end_n: secure_needles[edge_bns[0][0]].append(edge_bns[0][1])
+		if secure_start_n: secure_needles[edge_bns[1][0]].append(edge_bns[1][1])
+
+	xfer_bns = {"f": [n for n in _bn_locs.get("f", []) if sequence[n % len(sequence)] == "b" and bnValid(bed1, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles["f"]], "b": [n for n in _bn_locs.get("b", []) if sequence[n % len(sequence)] == "f" and bnValid(bed1, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles["b"]]}
+
+	if len(xfer_bns["f"]) or len(xfer_bns["b"]): # indicates that we might need to start by xferring to proper spots
+		if xfer_speed_number is not None: k.speedNumber(xfer_speed_number)
+		if xfer_stitch_number is not None: k.stitchNumber(xfer_stitch_number)
+
+		for n in n_ranges[d1]:
+			if n in xfer_bns["f"]: k.xfer(f"f{n}", f"b{n}")
+			elif n in xfer_bns["b"]: k.xfer(f"b{n}", f"f{n}")
+			
+		if speed_number is not None: k.speedNumber(speed_number)
+		if stitch_number is not None: k.stitchNumber(stitch_number)
+
+	if inhook:
+		k.inhook(*cs)
+		if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=cs)
+
+	for p in range(passes):
+		if p % 2 == 0:
+			d = d1
+			last_n = end_n
+
+			for n in n_ranges[d]:
+				if bnValid(bed1, n, gauge):
+					if n in secure_needles["f"] and n not in _bn_locs.get("b", []): k.knit(d, f"f{n}", *cs) #TODO: #check
+					elif n in secure_needles["b"] and n not in _bn_locs.get("f", []): k.knit(d, f"b{n}", *cs) #TODO: #check
+					else:
+						if n not in avoid_bns.get("f", []) and (sequence[n % len(sequence)] == "f" or (sequence[n % len(sequence)] == "b" and n in avoid_bns.get("b", []))): k.knit(d, f"f{n}", *cs) #xferred it or bed1 == "f", ok to knit
+						elif n not in avoid_bns.get("b", []) and (sequence[n % len(sequence)] == "b" or (sequence[n % len(sequence)] == "f" and n in avoid_bns.get("f", []))): k.knit(d, f"b{n}", *cs) #xferred it or bed1 == "b", ok to knit
+						elif n == last_n: k.miss(d, f"f{n}", *cs)
+				elif n == last_n: k.miss(d, f"f{n}", *cs)
+			
+			if xfer_speed_number is not None: k.speedNumber(xfer_speed_number)
+			if xfer_stitch_number is not None: k.stitchNumber(xfer_stitch_number)
+
+			if p < passes-1:
+				for n in n_ranges[d]:
+					if n in avoid_bns.get("f", []) or n in avoid_bns.get("b", []): continue
+					elif bnValid(bed1, n, gauge):
+						if sequence[n % len(sequence)] == "f" and n not in secure_needles["f"]: k.xfer(f"f{n}", f"b{n}")
+						elif sequence[n % len(sequence)] == "b" and n not in secure_needles["b"]: k.xfer(f"b{n}", f"f{n}")
+			elif xfer_bns_back:
+				# return the loops:
+				for n in n_ranges[d]:
+					if n in avoid_bns.get("f", []) or n in avoid_bns.get("b", []) or n in secure_needles["f"] or n in secure_needles["b"]: continue
+					elif bnValid(bed1, n, gauge):
+						if sequence[n % len(sequence)] == "f" and n in xfer_bns.get("b", []): k.xfer(f"f{n}", f"b{n}")
+						elif sequence[n % len(sequence)] == "b" and n in xfer_bns.get("f", []): k.xfer(f"b{n}", f"f{n}")
+
+			if speed_number is not None: k.speedNumber(speed_number)
+			if stitch_number is not None: k.stitchNumber(stitch_number)
+		else:
+			d = d2
+			last_n = start_n
+
+			for n in n_ranges[d]:
+				if bnValid(bed1, n, gauge):
+					if n in secure_needles["f"] and n not in _bn_locs.get("b", []): k.knit(d, f"f{n}", *cs) #TODO: #check
+					elif n in secure_needles["b"] and n not in _bn_locs.get("f", []): k.knit(d, f"b{n}", *cs) #TODO: #check
+					else:
+						if n not in avoid_bns.get("b", []) and (sequence[n % len(sequence)] == "f" or (sequence[n % len(sequence)] == "b" and n in avoid_bns.get("f", []))): k.knit(d, f"b{n}", *cs) #xferred it or bed1 == "f", ok to knit
+						elif n not in avoid_bns.get("f", []) and (sequence[n % len(sequence)] == "b" or (sequence[n % len(sequence)] == "f" and n in avoid_bns.get("b", []))): k.knit(d, f"f{n}", *cs) #xferred it or bed1 == "b", ok to knit
+						elif n == last_n: k.miss(d, f"f{n}", *cs)
+				elif n == last_n: k.miss(d, f"f{n}", *cs)
+
+			if xfer_speed_number is not None: k.speedNumber(xfer_speed_number)
+			if xfer_stitch_number is not None: k.stitchNumber(xfer_stitch_number)
+
+			if p < passes-1:
+				for n in n_ranges[d]:
+					if n in avoid_bns.get("f", []) or n in avoid_bns.get("b", []): continue
+					elif n not in secure_needles and bnValid(bed1, n, gauge):
+						if sequence[n % len(sequence)] == "f": k.xfer(f"b{n}", f"f{n}")
+						else: k.xfer(f"f{n}", f"b{n}")
+			elif xfer_bns_back:
+				# return the loops:
+				for n in n_ranges[d]: #TODO: adjust for gauge
+					if n in avoid_bns.get("f", []) or n in avoid_bns.get("b", []) or n in secure_needles["f"] or n in secure_needles["b"]: continue
+					elif bnValid(bed1, n, gauge):
+						if sequence[n % len(sequence)] == "f" and n in xfer_bns.get("f", []): k.xfer(f"b{n}", f"f{n}")
+						elif sequence[n % len(sequence)] == "b" and n in xfer_bns.get("b", []): k.xfer(f"f{n}", f"b{n}")
+			
+			if speed_number is not None: k.speedNumber(speed_number)
+			if stitch_number is not None: k.stitchNumber(stitch_number)
+		
+		if p == rh_p:
+			k.releasehook(*cs)
+			if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=None) # drop it
+
+	k.comment(f"end seed ({sequence})")
+
+	# return next direction
+	if bnValid(bed1, n, gauge) % 2 == 0: #TODO: #check
+		if end_n > start_n: return "+"
+		else: return "-"
+	else:
+		if end_n > start_n: return "-"
+		else: return "+"
+
+
+def garter(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List[str]], bed: Optional[str]=None, gauge: int=1, sequence: str="fb", bn_locs: Dict[str,List[int]]={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, xfer_bns_back: bool=True, secure_start_n=True, secure_end_n=True, inhook: bool=False, releasehook: bool=False, tuck_pattern: bool=True, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, xfer_speed_number: Optional[int]=None, xfer_stitch_number: Optional[int]=None, init_direction: Optional[str]=None) -> str:
+	'''
+	Garter stitch pattern: alternates between beds pass-wise.
+
+	Parameters:
+	----------
+	* `k` (class instance): instance of the knitout Writer class.
+	* `start_n` (int): the initial needle to knit on in a pass.
+	* `end_n` (int): the last needle to knit on in a pass (inclusive).
+	* `passes` (int): total number of passes to knit (NOTE: there are two passes per row in interlock).
+	* `c` (str or list): the carrier to use for the cast-on (or list of carriers, if plating).
+	* `bed` (str, optional): the primary bed, that the loops are on, or belong to if knitting a single-bed variation (aka if knitting an open tube with separate stitch patterns on either side).  Valid values are `f`, `b`, or `None`.  If `f` or `b`, will halve the gauge and transfer loops to the other bed to get them in place for knitting, and then finally transfer the loops back to at the end.  Defaults to `None` (which means knitting regular closed double bed garter; will by default gauge based on front bed, aka `n % gauge == 0`).
+	* `gauge` (int, optional): gauge to knit in. Defaults to `1`.
+	* `sequence` (str, optional): repeating stitch pattern sequence for alternating length-wise between passes of knits on front and back bed. Defaults to `"fb"`.
+	* `bn_locs` (dict, optional): dict with bed as keys and values as list of needles that are currently on the given bed (aka avoid knitting on). Defaults to `{"f": [], "b": []}` (aka assume loops are on the specified `bed`, and if `bed is None`, assume loops are on both beds to start so will likely need to transfer them to get them in place for the stitch pattern).
+	* `avoid_bns` (dict, optional): dict with bed as keys and values as list of needles that should stay empty (aka avoid knitting on). Defaults to `{"f": [], "b": []}` (aka don't avoid any needles outside of gauging).
+	* `xfer_bns_back` (bool, optional): whether to return loops back to their specified locations in `bn_locs` after knitting (NOTE: not applicable if `bn_locs` is None or empty lists). Defaults to `True`.
+	* `secure_start_n` and ...
+	* `secure_end_n` are booleans that indicate whether or not we should refrain from xferring the edge-most needles, for security (NOTE: this should be True if given edge needle is on the edge of the piece [rather than in the middle of it]).
+	* `inhook` (bool, optional): whether to have the function do an inhook. Defaults to `False`.
+	* `releasehook` (bool, optional): whether to have the function do a releasehook (after 2 passes). Defaults to `False`.
+	* `speed_number` (int, optional): value to set for the `x-speed-number` knitout extension. Defaults to `None`.
+	* `stitch_number` (int, optional): value to set for the `x-stitch-number` knitout extension. Defaults to `None`.
+	* `xfer_speed_number` (int, optional): value to set for the `x-speed-number` knitout extension when transferring. Defaults to `None`.
+	* `xfer_stitch_number` (int, optional): value to set for the `x-stitch-number` knitout extension when transferring. Defaults to `None`.
+	* `init_direction` (str, optional): in *rare* cases (i.e., when only one needle is being knit), the initial pass direction might not be able to be inferred by the values of `start_n` and `end_n`.  In this case, one can specify the direction using this parameter (otherwise, can leave it as the default value, `None`, which indicates that the direction should/can be inferred).
+
+	Raises:
+	------
+	* ValueError: if `releasehook` and `passes < 2` and `tuck_pattern = False`.
+
+	Returns:
+	-------
+	* direction (str): next direction to knit in.
+	'''
+	if releasehook:
+		if passes < 2:
+			if not tuck_pattern: raise ValueError("not safe to releasehook with less than 2 passes. Try adding a tuck pattern.")
+			else: rh_p = 0
+		else: rh_p = 1
+	else: rh_p = -1
+
+	cs = c2cs(c) # ensure tuple type
+
+	pattern_rows = {"f": sequence.count("f"), "b": sequence.count("b")}
+
+	k.comment(f"begin {pattern_rows['f']}x{pattern_rows['b']} garter")
+
+	if speed_number is not None: k.speedNumber(speed_number)
+	if stitch_number is not None: k.stitchNumber(stitch_number)
+
+	if end_n > start_n or init_direction == "+": #first pass is pos
+		d1, d2 = "+", "-"
+		n_ranges = {"+": range(start_n, end_n+1), "-": range(end_n, start_n-1, -1)}
+	else: #first pass is neg
+		d1, d2 = "-", "+"
+		n_ranges = {"-": range(start_n, end_n-1, -1), "+": range(end_n, start_n+1)}
+
+	if bed is None:
+		bed1, bed2 = "f", "b"
+		if not len(bn_locs.get("f", [])) and not len(bn_locs.get("b", [])):
+			_bn_locs = {"f": [n for n in n_ranges[d1] if bnValid("f", n, gauge)], "b": [n for n in n_ranges[d1] if bnValid("b", n, gauge)]} #assume loops on both beds
+		else: _bn_locs = bn_locs.copy()
+	else:
+		if bed == "f": bed1, bed2 = "f", "b"
+		else: bed1, bed2 = "b", "f"
+		if not len(bn_locs.get("f", [])) and not len(bn_locs.get("b", [])): _bn_locs = {bed1: [n for n in n_ranges[d1] if bnValid(bed1, n, gauge)]} #make sure we transfer to get them where we want #TODO: #check
+		else: _bn_locs = bn_locs.copy()
+
+	# if bed is not None: _bn_locs = {bed: [n for n in n_ranges[d1] if bnValid(bed, n, gauge)]} #make sure we transfer to get them where we want #TODO; #check
+	# else: _bn_locs = bn_locs.copy()
+
+	secure_needles = {"f": [], "b": []}
+
+	if d1 == "+": #first pass is pos
+		edge_bns = bnEdges(start_n, end_n, gauge, bn_locs=_bn_locs, avoid_bns=avoid_bns, return_type=list)
+		if secure_start_n: secure_needles[edge_bns[0][0]].append(edge_bns[0][1])
+		if secure_end_n: secure_needles[edge_bns[1][0]].append(edge_bns[1][1])
+	else: #first pass is neg
+		edge_bns = bnEdges(end_n, start_n, gauge, bn_locs=_bn_locs, avoid_bns=avoid_bns, return_type=list)
+		if secure_end_n: secure_needles[edge_bns[0][0]].append(edge_bns[0][1])
+		if secure_start_n: secure_needles[edge_bns[1][0]].append(edge_bns[1][1])
+	
+	# for now: (will be reset)
+	d = d1
+
+	if type(pattern_rows) != dict:
+		pat_rows = {}
+		pat_rows["f"] = pattern_rows
+		pat_rows["b"] = pattern_rows
+		pattern_rows = pat_rows
+	
+	b1 = sequence[0]
+	b2 = "f" if b1 == "b" else "b"
+
+	xfer_bns = {b2: [n for n in _bn_locs.get(b2, []) if bnValid(bed1, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles[b2]]}
+	# xfer_bns = {b2: [n for n in list(set(_bn_locs.get(b2, [])+bn_locs.get(b2, []))) if bnValid(bed, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles[b2]]}
+
+	if len(xfer_bns[b2]):
+		for n in n_ranges[d2]:
+			if n in xfer_bns[b2]: k.xfer(f"{b2}{n}", f"{b1}{n}")
+	
+	if inhook:
+		k.inhook(*cs)
+		if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=cs)
+
+	for p in range(passes):
+		if p % 2 == 0: d = d1
+		else: d = d2
+
+		if p > 0 and b1 != sequence[p % len(sequence)]: # transfer
+			if xfer_speed_number is not None: k.speedNumber(xfer_speed_number)
+			if xfer_stitch_number is not None: k.stitchNumber(xfer_stitch_number)
+			
+			for n in n_ranges[d]:
+				if n in avoid_bns.get("f", []) or n in avoid_bns.get("b", []): continue
+				elif bnValid(bed1, n, gauge) and n not in secure_needles[b1]: k.xfer(f"{b1}{n}", f"{sequence[p % len(sequence)]}{n}")
+
+			if speed_number is not None: k.speedNumber(speed_number)
+			if stitch_number is not None: k.stitchNumber(stitch_number)
+
+		b1 = sequence[p % len(sequence)]
+		b2 = "f" if b1 == "b" else "b"
+
+		for n in n_ranges[d]:
+			if bnValid(bed1, n, gauge):
+				if n in secure_needles[b2] or (n in avoid_bns[b1] and n not in avoid_bns[b2]): k.knit(d, f"{b2}{n}", *cs)
+				elif n not in avoid_bns[b1]: k.knit(d, f"{b1}{n}", *cs)
+				elif n == end_n: k.miss(d, f"{b1}{n}", *cs)
+			elif n == end_n: k.miss(d, f"{b1}{n}", *cs)
+		
+		if p == rh_p:
+			k.releasehook(*cs)
+			if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=None) # drop it
+	
+	#return loops
+	b2 = "f" if b1 == "b" else "b"
+	if xfer_bns_back and len(xfer_bns.get(b2, [])):
+		for n in n_ranges[d]:
+			if n in xfer_bns[b2]: k.xfer(f"{b1}{n}", f"{b2}{n}")
+
+	if type(pattern_rows) == dict: k.comment(f"end {pattern_rows['f']}x{pattern_rows['b']} garter")
+	else: k.comment(f"end {pattern_rows}x{pattern_rows} garter")
+
+	# return next direction:
+	if passes % 2 == 0: return d1
+	else: return d2
+	# return "-" if d == "+" else "+"
+
+
+def tuckGarter(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List[str]], bed: Optional[str]="f", gauge: int=1, sequence: str="ffb", tuck_sequence: str="tk", bn_locs: Dict[str,List[int]]={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, xfer_bns_back: bool=True, secure_start_n: bool=False, secure_end_n: bool=False, inhook: bool=False, releasehook: bool=False, tuck_pattern: bool=True, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, xfer_speed_number: Optional[int]=None, xfer_stitch_number: Optional[int]=None, init_direction: Optional[str]=None) -> str: #TODO: fix this for gauge 2 secure needles
+	'''
+	Garter with tucks on every other needle after first pass in repeated sequence.
+
+	Parameters:
+	----------
+	* `k` (class instance): instance of the knitout Writer class.
+	* `start_n` (int): the initial needle to knit on in a pass.
+	* `end_n` (int): the last needle to knit on in a pass (inclusive).
+	* `passes` (int): total number of passes to knit (NOTE: there are two passes per row in interlock).
+	* `c` (str or list): the carrier to use for the cast-on (or list of carriers, if plating).
+	* `bed` (str, optional): the primary bed, that the loops are on, or belong to if knitting a single-bed variation (aka if knitting an open tube with separate stitch patterns on either side).  Valid values are `f`, `b`, or `None`.  If `f` or `b`, will halve the gauge and transfer loops to the other bed to get them in place for knitting, and then finally transfer the loops back to at the end.  Defaults to `None` (which means knitting regular closed double bed garter; will by default gauge based on front bed, aka `n % gauge == 0`).
+	* `gauge` (int, optional): gauge to knit in. Defaults to `1`.
+	* `sequence` (str, optional): repeating stitch pattern sequence for alternating length-wise between passes of knits on front and back bed. Defaults to `"ffb"`.
+	* `tuck_sequence` (str, optional): repeating stitch pattern sequence for alternating needle-wise between knitting and tucking. (Will mirror this pattern in alternating passes).  Defaults to `"tk"`.
+	* `bn_locs` (dict, optional): dict with bed as keys and values as list of needles that are currently on the given bed (aka avoid knitting on). Defaults to `{"f": [], "b": []}` (aka assume loops are on the specified `bed`, and if `bed is None`, assume loops are on both beds to start so will likely need to transfer them to get them in place for the stitch pattern).
+	* `avoid_bns` (dict, optional): dict with bed as keys and values as list of needles that should stay empty (aka avoid knitting on). Defaults to `{"f": [], "b": []}` (aka don't avoid any needles outside of gauging).
+	* `xfer_bns_back` (bool, optional): *TODO: add code for this* whether to return loops back to their specified locations in `bn_locs` after knitting (NOTE: not applicable if `bn_locs` is None or empty lists). Defaults to `True`.
+	* `secure_start_n` and ...
+	* `secure_end_n` are booleans that indicate whether or not we should refrain from xferring the edge-most needles, for security (NOTE: this should be True if given edge needle is on the edge of the piece [rather than in the middle of it]).
+	* `inhook` (bool, optional): whether to have the function do an inhook. Defaults to `False`.
+	* `releasehook` (bool, optional): whether to have the function do a releasehook (after 2 passes). Defaults to `False`.
+	* `speed_number` (int, optional): value to set for the `x-speed-number` knitout extension. Defaults to `None`.
+	* `stitch_number` (int, optional): value to set for the `x-stitch-number` knitout extension. Defaults to `None`.
+	* `xfer_speed_number` (int, optional): value to set for the `x-speed-number` knitout extension when transferring. Defaults to `None`.
+	* `xfer_stitch_number` (int, optional): value to set for the `x-stitch-number` knitout extension when transferring. Defaults to `None`.
+	* `init_direction` (str, optional): in *rare* cases (i.e., when only one needle is being knit), the initial pass direction might not be able to be inferred by the values of `start_n` and `end_n`.  In this case, one can specify the direction using this parameter (otherwise, can leave it as the default value, `None`, which indicates that the direction should/can be inferred).
+
+	Raises:
+	------
+	* ValueError: if `releasehook` and `passes < 2` and `tuck_pattern = False`.
+
+	Returns:
+	-------
+	* direction (str): next direction to knit in.
+	'''
+	if releasehook:
+		if passes < 2:
+			if not tuck_pattern: raise ValueError("not safe to releasehook with less than 2 passes. Try adding a tuck pattern.")
+			else: rh_p = 0
+		else: rh_p = 1
+	else: rh_p = -1
+
+	cs = c2cs(c) # ensure tuple type
+
+	pattern_rows = {"f": sequence.count("f"), "b": sequence.count("b")}
+
+	if type(pattern_rows) == dict: k.comment(f"begin {pattern_rows['f']}x{pattern_rows['b']} garter with tucks")
+	else: k.comment(f"begin {pattern_rows}x{pattern_rows} garter with tucks")
+
+	if speed_number is not None: k.speedNumber(speed_number)
+	if stitch_number is not None: k.stitchNumber(stitch_number)
+
+	if end_n > start_n or init_direction == "+": #first pass is pos
+		d1, d2 = "+", "-"
+		n_ranges = {"+": range(start_n, end_n+1), "-": range(end_n, start_n-1, -1)}
+	else:
+		d1, d2 = "-", "+"
+		n_ranges = {"-": range(start_n, end_n-1, -1), "+": range(end_n, start_n+1)}
+
+	if bed is None:
+		bed1, bed2 = "f", "b"
+		if not len(bn_locs.get("f", [])) and not len(bn_locs.get("b", [])):
+			_bn_locs = {"f": [n for n in n_ranges[d1] if bnValid("f", n, gauge)], "b": [n for n in n_ranges[d1] if bnValid("b", n, gauge)]} #assume loops on both beds
+		else: _bn_locs = bn_locs.copy()
+	else:
+		if bed == "f": bed1, bed2 = "f", "b"
+		else: bed1, bed2 = "b", "f"
+		if not len(bn_locs.get("f", [])) and not len(bn_locs.get("b", [])): _bn_locs = {bed1: [n for n in n_ranges[d1] if bnValid(bed1, n, gauge)]} #make sure we transfer to get them where we want #TODO: #check
+		else: _bn_locs = bn_locs.copy()
+
+	secure_needles = {"f": [], "b": []}
+
+	if d1 == "+": #first pass is pos
+		edge_bns = bnEdges(start_n, end_n, gauge, bn_locs=_bn_locs, avoid_bns=avoid_bns, return_type=list)
+		if secure_start_n: secure_needles[edge_bns[0][0]].append(edge_bns[0][1])
+		if secure_end_n: secure_needles[edge_bns[1][0]].append(edge_bns[1][1])
+	else: #first pass is neg
+		edge_bns = bnEdges(end_n, start_n, gauge, bn_locs=_bn_locs, avoid_bns=avoid_bns, return_type=list)
+		if secure_end_n: secure_needles[edge_bns[0][0]].append(edge_bns[0][1])
+		if secure_start_n: secure_needles[edge_bns[1][0]].append(edge_bns[1][1])
+
+	# for now: (will be reset)
+	d = d1
+
+	if type(pattern_rows) != dict:
+		pat_rows = {"f": pattern_rows, "b": pattern_rows}
+		pattern_rows = pat_rows
+	
+	b1 = sequence[0]
+	b2 = "f" if b1 == "b" else "b"
+
+	pattern_rows[b1] += 1 #for the tucks
+
+	xfer_bns = {b2: [n for n in _bn_locs.get(b2, []) if bnValid(bed1, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles[b2]]}
+
+	if len(xfer_bns[b2]):
+		for n in n_ranges[d2]:
+			if n in xfer_bns.get(b2, []): k.xfer(f"{b2}{n}", f"{b1}{n}")
+
+	mods2 = modsHalveGauge(gauge, bed1)
+
+	if inhook:
+		k.inhook(*cs)
+		if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=cs)
+
+	pass_ct = 0
+	for p in range(passes):
+		if p > 0: b1, b2 = b2, b1 #toggle
+
+		for r in range(pattern_rows[b1]):
+			if b1 == sequence[0] and tuck_sequence[r % len(tuck_sequence)] == "t": # r == 0:
+				for n in n_ranges[d]:
+					if n not in avoid_bns.get(b1, []) and n % (gauge*2) == mods2[0] and n != edge_bns[0][1] and n != edge_bns[1][1]: k.tuck(d, f"{b1}{n}", *cs)
+					elif n == end_n: k.miss(d, f"{b1}{n}", *cs)
+			else:
+				for n in n_ranges[d]:
+					if bnValid(bed1, n, gauge):
+						if n in secure_needles[b2] or (n in avoid_bns.get(b1, []) and n not in avoid_bns.get(b2, [])): k.knit(d, f"{b2}{n}", *cs)
+						elif n not in avoid_bns.get(b1, []): k.knit(d, f"{b1}{n}", *cs)
+						elif n == end_n: k.miss(d, f"{b1}{n}", *cs)
+					elif n == end_n: k.miss(d, f"{b1}{n}", *cs)
+
+			d = toggleDirection(d)
+
+			if pass_ct == rh_p:
+				k.releasehook(*cs)
+				if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=None) # drop it
+
+			pass_ct += 1
+			if pass_ct == passes: break
+
+		if pass_ct == passes and b1 == bed1: break #don't need to return it
+
+		if xfer_speed_number is not None: k.speedNumber(xfer_speed_number)
+		if xfer_stitch_number is not None: k.stitchNumber(xfer_stitch_number)
+			
+		for n in n_ranges[d]:
+			if n in avoid_bns.get("f", []) or n in avoid_bns.get("b", []) or n in secure_needles.get("f", []) or n in secure_needles.get("b", []) or not bnValid(bed1, n, gauge): continue
+			elif n in _bn_locs.get(bed2, []): k.xfer(f"{bed1}{n}", f"{bed2}{n}") #TODO: #check
+			else: k.xfer(f"{b1}{n}", f"{b2}{n}")
+
+		if speed_number is not None: k.speedNumber(speed_number)
+		if stitch_number is not None: k.stitchNumber(stitch_number)
+
+		if pass_ct == passes: break
+
+	if type(pattern_rows) == dict: k.comment(f"end {pattern_rows['f']-1}x{pattern_rows['b']} garter with tucks")
+	else: k.comment(f"end {pattern_rows}x{pattern_rows} garter with tucks")
+
+	# return next direction:
+	if passes % 2 == 0: return d1
+	else: return d2
+
+
+def tuckStitch(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List[str]], bed: Optional[str]="f", gauge: int=1, sequence: str="kt", bn_locs: Dict[str,List[int]]={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, xfer_bns_back: bool=True, inhook: bool=False, releasehook: bool=False, tuck_pattern: bool=True, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, init_direction: Optional[str]=None) -> str:
+	'''TODO
+	_summary_
+
+	Parameters:
+	----------
+	* `k` (class instance): instance of the knitout Writer class.
+	* `start_n` (int): the initial needle to knit on in a pass.
+	* `end_n` (int): the last needle to knit on in a pass (inclusive).
+	* `passes` (int): total number of passes to knit (NOTE: there are two passes per row in interlock).
+	* `c` (str or list): the carrier to use for the cast-on (or list of carriers, if plating).
+	* `bed` (str, optional): the primary bed, that the loops are on, or belong to if knitting a single-bed variation (aka if knitting an open tube with separate stitch patterns on either side).  Valid values are `f`, `b`, or `None`.  If `f` or `b`, will halve the gauge and transfer loops to the other bed to get them in place for knitting, and then finally transfer the loops back to at the end.  Defaults to `None` (which means knitting regular closed double bed rib; will by default gauge based on front bed, aka `n % gauge == 0`).
+	* `gauge` (int, optional): gauge to knit in. Defaults to `1`.
+	* `sequence` (str, optional): repeating stitch pattern sequence for alternating needle-wise between knitting and tucking. (Will mirror this pattern in alternating passes).  Defaults to `"kt"`.
+	* `bn_locs` (dict, optional): dict with bed as keys and values as list of needles indices for working loops that are currently on the given bed. Value of `None` indicates we should cast-on first. Defaults to `{"f": [], "b": []}` (aka assume loops are on the specified `bed`, and if `bed is None`, assume loops are on both beds to start so we will likely need to transfer them to get them in place for the stitch pattern).
+	* `avoid_bns` (dict, optional): dict with bed as keys and values as list of needles that should stay empty (aka avoid knitting on). Defaults to `{"f": [], "b": []}` (aka don't avoid any needles outside of gauging).
+	* `xfer_bns_back` (bool, optional): whether to return loops back to their specified locations in `bn_locs` after knitting (NOTE: not applicable if `bn_locs` is None or empty lists). Defaults to `True`.
+	* `inhook` (bool, optional): whether to have the function do an inhook. Defaults to `False`.
+	* `releasehook` (bool, optional): whether to have the function do a releasehook (after 2 passes). Defaults to `False`.
+	* `speed_number` (int, optional): value to set for the `x-speed-number` knitout extension. Defaults to `None`.
+	* `stitch_number` (int, optional): value to set for the `x-stitch-number` knitout extension. Defaults to `None`.
+	* `xfer_speed_number` (int, optional): value to set for the `x-speed-number` knitout extension when transferring. Defaults to `None`.
+	* `xfer_stitch_number` (int, optional): value to set for the `x-stitch-number` knitout extension when transferring. Defaults to `None`.
+	* `init_direction` (str, optional): in *rare* cases (i.e., when only one needle is being knit), the initial pass direction might not be able to be inferred by the values of `start_n` and `end_n`.  In this case, one can specify the direction using this parameter (otherwise, can leave it as the default value, `None`, which indicates that the direction should/can be inferred).
+
+	Raises:
+	------
+	* ValueError: if `releasehook` and `passes < 2` and `tuck_pattern = False`.
+
+	Returns:
+	-------
+	* direction (str): next direction to knit in.
+	'''
+
+	# if releasehook and not tuck_pattern and passes < 2: raise ValueError("not safe to releasehook with less than 2 passes. Try adding a tuck pattern.")
+	if releasehook:
+		if passes < 2:
+			if not tuck_pattern: raise ValueError("not safe to releasehook with less than 2 passes. Try adding a tuck pattern.")
+			else: rh_p = 0
+		else: rh_p = 1
+	else: rh_p = -1
+
+	cs = c2cs(c) # ensure tuple type
+
+	k.comment(f"begin tuck stitch ({sequence})")
+
+	if speed_number is not None: k.speedNumber(speed_number)
+	if stitch_number is not None: k.stitchNumber(stitch_number)
+
+	if end_n > start_n or init_direction == "+":
+		d1, d2 = "+", "-"
+		n_ranges = {"+": range(start_n, end_n+1), "-": range(end_n, start_n-1, -1)}
+	else:
+		d1, d2 = "-", "+"
+		n_ranges = {"-": range(start_n, end_n-1, -1), "+": range(end_n, start_n+1)}
+
+	edge_bns = bnEdges(n_ranges["+"][0], n_ranges["+"][-1], gauge, bn_locs={bed: [n for n in n_ranges["+"] if bnValid(bed, n, gauge)]}, avoid_bns=avoid_bns, return_type=list)
+	
+	if gauge > 1:
+		gauged_sequence = ""
+		for char in sequence:
+			gauged_sequence += char*gauge
+		sequence = gauged_sequence
+	
+	bed2 = "f" if bed == "b" else "b"
+
+	if bn_locs is not None and len(bn_locs.get(bed2, [])):
+		for n in n_ranges[d2]:
+			if bnValid(bed, n, gauge) and n in bn_locs[bed2] and n not in avoid_bns[bed] and n not in avoid_bns[bed2]:
+				k.xfer(f"{bed2}{n}", f"{bed}{n}")
+
+	if inhook:
+		k.inhook(*cs)
+		if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=cs)
+
+	for p in range(passes):
+		if p % 2 == 0:
+			do_knit = "k"
+			d = d1
+			pass_start_n = start_n
+			pass_end_n = end_n
+		else:
+			do_knit = "t"
+			d = d2
+			pass_start_n = end_n
+			pass_end_n = start_n
+
+		for n in n_ranges[d]:
+			if bnValid(bed, n, gauge) and n not in avoid_bns[bed]: # and (n % (gauge*2) == mods2[0] or n % (gauge*2) == mods2[1]):
+				if sequence[n % len(sequence)] == do_knit or n == edge_bns[0][1] or n == edge_bns[1][1]: k.knit(d, f"{bed}{n}", *cs)
+				else: k.tuck(d, f"{bed}{n}", *cs)
+			elif n == pass_end_n: k.miss(d, f"{bed}{n}", *cs)
+
+		if p == rh_p:
+			k.releasehook(*cs)
+			if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=None) # drop it
+	
+	if xfer_bns_back and bn_locs is not None and len(bn_locs.get(bed2, [])):
+		for n in n_ranges[toggleDirection(d)]:
+			if bnValid(bed, n, gauge) and n in bn_locs[bed2] and n not in avoid_bns[bed] and n not in avoid_bns[bed2]:
+				k.xfer(f"{bed}{n}", f"{bed2}{n}")
+
+	k.comment("end tuck stitch")
+
+	# return next direction:
+	if passes % 2 == 0: return d1
+	else: return d2
+	# if pass_end_n > pass_start_n: return "-" #just knit a pos pass
+	# else: return "+"
 
 
 
+def altKnitTuck(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List[str]], bed: Optional[str]="f", gauge: int=1, sequence: str="kt", tuck_sequence: str="mt", bn_locs: Dict[str,List[int]]={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, xfer_bns_back: bool=True, inhook: bool=False, releasehook: bool=False, tuck_pattern: bool=True, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, init_direction: Optional[str]=None) -> str:
+	'''TODO
+	_summary_
 
-""" #test stuff
-# import knitout
-import knitlib_knitout
-k = knitlib_knitout.Writer("1 2 3 4 5 6 7 8 9 10")
+	Parameters:
+	----------
+	* `k` (class instance): instance of the knitout Writer class.
+	* `start_n` (int): the initial needle to knit on in a pass.
+	* `end_n` (int): the last needle to knit on in a pass (inclusive).
+	* `passes` (int): total number of passes to knit (NOTE: there are two passes per row in interlock).
+	* `c` (str or list): the carrier to use for the cast-on (or list of carriers, if plating).
+	* `bed` (str, optional): the primary bed, that the loops are on, or belong to if knitting a single-bed variation (aka if knitting an open tube with separate stitch patterns on either side).  Valid values are `f`, `b`, or `None`.  If `f` or `b`, will halve the gauge and transfer loops to the other bed to get them in place for knitting, and then finally transfer the loops back to at the end.  Defaults to `None` (which means knitting regular closed double bed rib; will by default gauge based on front bed, aka `n % gauge == 0`).
+	* `sequence` (str, optional): repeating stitch pattern sequence for alternating length-wise between passes of knits and tucks. Defaults to `"kt"`.
+	* `tuck_sequence` (str, optional): TODO. Defaults to `"mt"`.
+	* `gauge` (int, optional): gauge to knit in. Defaults to `1`.
+	* `bn_locs` (dict, optional): dict with bed as keys and values as list of needles indices for working loops that are currently on the given bed. Value of `None` indicates we should cast-on first. Defaults to `{"f": [], "b": []}` (aka assume loops are on the specified `bed`, and if `bed is None`, assume loops are on both beds to start so we will likely need to transfer them to get them in place for the stitch pattern).
+	* `avoid_bns` (dict, optional): dict with bed as keys and values as list of needles that should stay empty (aka avoid knitting on). Defaults to `{"f": [], "b": []}` (aka don't avoid any needles outside of gauging).
+	* `xfer_bns_back` (bool, optional): whether to return loops back to their specified locations in `bn_locs` after knitting (NOTE: not applicable if `bn_locs` is None or empty lists). Defaults to `True`.
+	* `inhook` (bool, optional): whether to have the function do an inhook. Defaults to `False`.
+	* `releasehook` (bool, optional): whether to have the function do a releasehook (after 2 passes). Defaults to `False`.
+	* `speed_number` (int, optional): value to set for the `x-speed-number` knitout extension. Defaults to `None`.
+	* `stitch_number` (int, optional): value to set for the `x-stitch-number` knitout extension. Defaults to `None`.
+	* `xfer_speed_number` (int, optional): value to set for the `x-speed-number` knitout extension when transferring. Defaults to `None`.
+	* `xfer_stitch_number` (int, optional): value to set for the `x-stitch-number` knitout extension when transferring. Defaults to `None`.
+	* `init_direction` (str, optional): in *rare* cases (i.e., when only one needle is being knit), the initial pass direction might not be able to be inferred by the values of `start_n` and `end_n`.  In this case, one can specify the direction using this parameter (otherwise, can leave it as the default value, `None`, which indicates that the direction should/can be inferred).
 
-# pat = Lace(k, left_n=0, right_n=10, c="3", home_bed="f", gauge=1, inhook=True) #, bed_seq="fb")
+	Raises:
+	------
+	* ValueError: if `releasehook` and `passes < 2` and `tuck_pattern = False`.
 
-pat = Rib(k, left_n=0, right_n=10, c="3", home_bed="f", gauge=1, inhook=True) #, bed_seq="fb")
+	Returns:
+	-------
+	* direction (str): next direction to knit in.
+	'''
+	if releasehook:
+		if passes < 2:
+			if not tuck_pattern: raise ValueError("not safe to releasehook with less than 2 passes. Try adding a tuck pattern.")
+			else: rh_p = 0
+		else: rh_p = 1
+	else: rh_p = -1
 
-pat.generate(passes=10)
+	cs = c2cs(c) # ensure tuple type
 
-k.write("pat_test.k")
-"""
+	k.comment(f"begin alt knit/tuck ({sequence})")
+
+	if speed_number is not None: k.speedNumber(speed_number)
+	if stitch_number is not None: k.stitchNumber(stitch_number)
+
+	if end_n > start_n or init_direction == "+":
+		d1, d2 = "+", "-"
+		step = 1
+	else:
+		d1, d2 = "-", "+"
+		step = -1
+
+	mods2 = modsHalveGauge(gauge, bed)
+
+	bed2 = "f" if bed == "b" else "b"
+
+	if bn_locs is not None and len(bn_locs.get(bed2, [])):
+		for n in range(start_n, end_n+step, step):
+			if bnValid(bed, n, gauge) and n in bn_locs[bed2] and n not in avoid_bns[bed] and n not in avoid_bns[bed2]:
+				k.xfer(f"{bed2}{n}", f"{bed}{n}")
+
+	if inhook:
+		k.inhook(*cs)
+		if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=cs) #TODO: add avoid bns to `tuckPattern` func
+
+	for p in range(passes):
+		if p % 2 == 0:
+			pass_start_n = start_n
+			pass_end_n = end_n
+		else:
+			pass_start_n = end_n
+			pass_end_n = start_n
+		if sequence[p % len(sequence)] == "k":
+			knitPass(k, start_n=pass_start_n, end_n=pass_end_n, c=c, bed=bed, gauge=gauge)
+		else:
+			if pass_end_n > pass_start_n: #pass is pos
+				for n in range(pass_start_n, pass_end_n+1):
+					if n == pass_end_n and bnValid(bed, n, gauge): k.miss("+", f"{bed}{n}", *cs) #don't tuck on last needle since we're going to turn around and knit on it
+					elif n % (gauge*2) == mods2[0] and n not in avoid_bns[bed]: k.tuck("+", f"{bed}{n}", *cs)
+					elif n == pass_end_n: k.miss("+", f"{bed}{n}", *cs)
+			else: #pass is neg
+				for n in range(pass_start_n, pass_end_n-1, -1):
+					if n == pass_end_n and bnValid(bed, n, gauge): k.miss("-", f"{bed}{n}", *cs) #don't tuck on last needle since we're going to turn around and knit on it
+					elif n % (gauge*2) == mods2[1] and n not in avoid_bns[bed]: k.tuck("-", f"{bed}{n}", *cs)
+					elif n == pass_end_n: k.miss("-", f"{bed}{n}", *cs)
+
+		if p == rh_p:
+			k.releasehook(*cs)
+			if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=None) # drop it
+
+	if xfer_bns_back and bn_locs is not None and len(bn_locs.get(bed2, [])):
+		for n in range(start_n, end_n+step, step):
+			if bnValid(bed, n, gauge) and n in bn_locs[bed2] and n not in avoid_bns[bed] and n not in avoid_bns[bed2]:
+				k.xfer(f"{bed}{n}", f"{bed2}{n}")
+
+	k.comment(f"end alt knit/tuck ({sequence})")
+
+	# return next direction:
+	if passes % 2 == 0: return d1
+	else: return d2

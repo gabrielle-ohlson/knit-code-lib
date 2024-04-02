@@ -39,7 +39,7 @@ add something for knitPass at a rack (or a "rackedSort" function)
 
 from knitlib import altTuckCaston, altTuckClosedCaston, altTuckOpenTubeCaston, zigzagCaston, sheetBindoff, closedTubeBindoff, openTubeBindoff, dropFinish
 from .helpers import gauged, toggleDirection, bnValid
-from .stitchPatterns import jersey, interlock, rib, garter, seed
+from .stitch_patterns import jersey, interlock, rib, garter, seed
 # from .helpers import multidispatchmethod
 
 from .knitout_helpers import getBedNeedle, rackedXfer, HeldLoopWarning #, findNextValidNeedle
@@ -128,10 +128,22 @@ INC_FUNCS = {
 }
 
 
+class Settings:
+	def __init__(self, stitch_number=None, caston_stitch_number=None, xfer_stitch_number=None, speed_number=None):
+		# extensions:
+		self.stitch_number = stitch_number
+		self.caston_stitch_number = caston_stitch_number
+		self.xfer_stitch_number = xfer_stitch_number
+
+		self.speed_number = speed_number
+
+		# SETTINGS/CONSTANTS:
+		self.max_rack = 4
+
+
 class KnitObject:
 	def __init__(self, k, gauge=1, machine="swgn2"):
 		rack_value_op = getattr(k, "rack_value", None)
-		print(type(k)) #remove #debug
 		assert rack_value_op is not None, "'k' must come from the 'knitlib_knitout' module" #debug
 		#
 		self.k = k
@@ -146,7 +158,7 @@ class KnitObject:
 		self.twist_bns = list()
 		# self.st_cts = {} #?
 		#
-		self._row_ct = 0 #TODO
+		self._row_ct = 0
 		#
 		self.pat_args = {
 			"k": None,
@@ -161,8 +173,22 @@ class KnitObject:
 			# "avoid_bns": {"f": [], "b": []}
 		}
 
-		# SETTINGS/CONSTANTS:
-		self.MAX_RACK = 4
+		self.settings = Settings()
+	
+	@property
+	def row_ct(self):
+		return self._row_ct
+
+	@row_ct.setter
+	def row_ct(self, value: int):
+		self.k.comment(f"row: {value}")
+		self._row_ct = value
+
+	def setSettings(self, **kwargs):
+		# self.settings.__dict__.update((k, v) for k, v in kwargs.items() if k in self.settings.__dict__)
+		for key, val in kwargs.items():
+			if key in self.settings.__dict__: self.settings.__dict__[key] = val
+			else: warnings.warn(f"'{key}' is not a valid knitout settings. skipping.")
 
 	def getMinNeedle(self, bed=None) -> Union[int,float]:
 		try:
@@ -175,20 +201,16 @@ class KnitObject:
 			return self.k.bns.max(bed).needle
 		except AssertionError:
 			return float("-inf")
-
-	@property
-	def row_ct(self):
-		return self._row_ct
-
-	@row_ct.setter
-	def row_ct(self, value: int):
-		self.k.comment(f"row: {value}")
-		self._row_ct = value
-
+	
 	def caston(self, method: Union[CastonMethod, int], bed: Optional[str], needle_range: Tuple[int, int], *cs: str) -> None:
-		method = CastonMethod.parse(method) #check
+		if self.settings.caston_stitch_number is not None:
+			reset_stitch_number = self.k.stitch_number
+			self.k.stitchNumber(self.settings.caston_stitch_number) #check
+		else: reset_stitch_number = None
+
+		method = CastonMethod.parse(method)
 		#
-		not_in_cs = [c for c in cs if c not in self.k.carrier_map.keys()] #check
+		not_in_cs = [c for c in cs if c not in self.k.carrier_map.keys()]
 		tuck_pat = False
 		if len(not_in_cs):
 			tuck_pat = True
@@ -215,10 +237,15 @@ class KnitObject:
 		else: raise ValueError("unsupported caston method")
 		#
 		if len(not_in_cs): self.k.releasehook(*not_in_cs)
+		#
+		if self.settings.main_stitch_number is not None: self.k.stitchNumber(self.settings.main_stitch_number) #check
+		elif reset_stitch_number is not None: self.k.stitchNumber(reset_stitch_number) #check #TODO: decide if should automatically do reset or main
 
 	# def knitPass(self, cs: Union[str, Carrier, List[Carrier], CarrierSet, CarrierMap], bed: Optional[str], needle_range: Optional[Tuple[int,int]]=None, pattern: Union[StitchPattern, int, Callable]=StitchPattern.JERSEY, **kwargs) -> None:
 	@multimethod
 	def knitPass(self, pattern: Union[StitchPattern, int, Callable], bed: Optional[str], needle_range: Optional[Tuple[int,int]], *cs: str, **kwargs) -> None: #TODO: make sure still works with *cs before pattern
+		if self.settings.main_stitch_number is not None and self.k.stitch_number != self.settings.main_stitch_number: self.k.stitchNumber(self.settings.main_stitch_number) #check
+
 		if needle_range is None: needle_range = self.getNeedleRange(bed, *cs)
 		#
 		if needle_range[1] > needle_range[0]: d = "+"

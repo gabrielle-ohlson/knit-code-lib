@@ -45,11 +45,11 @@ def decSchoolBus(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], int]
 			w = from_needle-min_n+1
 			#
 			r = max(obj.gauge, int(ct-math.fmod(ct, obj.gauge)))
-			if r > obj.MAX_RACK: #TODO: #check
+			if r > obj.settings.max_rack: #TODO: #check
 				ct_2 = ct*ct
 				r = ct_2/(w-ct)
 				r = max(obj.gauge, int(r-math.fmod(r, obj.gauge))) #TODO: #check
-				assert r <= obj.MAX_RACK
+				assert r <= obj.settings.max_rack
 
 			sects = ct #TODO: remove this since it is redundant
 			size = math.floor(w/ct)
@@ -85,11 +85,11 @@ def decSchoolBus(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], int]
 			w = max_n-from_needle+1
 			#
 			r = max(obj.gauge, int(ct-math.fmod(ct, obj.gauge))) #TODO: #check
-			if r > obj.MAX_RACK: #TODO: #check
+			if r > obj.settings.max_rack: #TODO: #check
 				ct_2 = ct*ct
 				r = ct_2/(w-ct)
 				r = max(obj.gauge, int(r-math.fmod(r, obj.gauge))) #TODO: #check
-				assert r <= obj.MAX_RACK
+				assert r <= obj.settings.max_rack
 
 			sects = ct #TODO: remove this since it is redundant
 			size = math.floor(w/ct)
@@ -128,7 +128,7 @@ def decSchoolBus_old(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], 
 			ct_2 = ct*ct
 			r = ct_2/(w-ct)
 			r = max(obj.gauge, int(r-math.fmod(r, obj.gauge))) #TODO: #check
-			assert r <= obj.MAX_RACK
+			assert r <= obj.settings.max_rack
 
 			sects = math.ceil(ct/r) #TODO: #check
 			start_n = from_needle
@@ -168,7 +168,7 @@ def decSchoolBus_old(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], 
 			ct_2 = ct*ct
 			r = ct_2/(w-ct)
 			r = max(obj.gauge, int(r-math.fmod(r, obj.gauge))) #TODO: #check
-			assert r <= obj.MAX_RACK
+			assert r <= obj.settings.max_rack
 
 			sects = math.ceil(ct/r) #TODO: #check
 			start_n = from_needle
@@ -258,11 +258,11 @@ def incSchoolBus(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], int]
 			w = from_needle-min_n+1
 			#
 			r = max(obj.gauge, int(ct-math.fmod(ct, obj.gauge))) #TODO: #check
-			if r > obj.MAX_RACK: #TODO: #check
+			if r > obj.settings.max_rack: #TODO: #check
 				ct_2 = ct*ct
 				r = ct_2/(w-ct)
 				r = max(obj.gauge, int(r-math.fmod(r, obj.gauge))) #TODO: #check
-				assert r <= obj.MAX_RACK
+				assert r <= obj.settings.max_rack
 
 			sects = math.ceil(ct/r)
 			size = math.floor(w/(sects+1))
@@ -306,7 +306,7 @@ def incSchoolBus(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], int]
 			ct_2 = ct*ct
 			r = ct_2/(w-ct)
 			r = max(obj.gauge, int(r-math.fmod(r, obj.gauge))) #TODO: #check
-			assert r <= obj.MAX_RACK
+			assert r <= obj.settings.max_rack
 
 			sects = math.ceil(ct/r) #TODO: #check
 			start_n = from_needle + ct*sects - 1
@@ -353,7 +353,7 @@ def incSchoolBus_new(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], 
 			ct_2 = ct*ct
 			r = ct_2/(w-ct)
 			r = max(obj.gauge, int(r-math.fmod(r, obj.gauge))) #TODO: #check
-			assert r <= obj.MAX_RACK
+			assert r <= obj.settings.max_rack
 
 			sects = math.ceil(ct/r) #TODO: #check
 			start_n = from_needle - ct*sects + 1
@@ -409,7 +409,7 @@ def incSchoolBus_new(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], 
 			ct_2 = ct*ct
 			r = ct_2/(w-ct)
 			r = max(obj.gauge, int(r-math.fmod(r, obj.gauge))) #TODO: #check
-			assert r <= obj.MAX_RACK
+			assert r <= obj.settings.max_rack
 
 			sects = math.ceil(ct/r) #TODO: #check
 			start_n = from_needle + ct*sects - 1

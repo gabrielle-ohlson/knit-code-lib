@@ -13,8 +13,8 @@ from .helpers import c2cs
 
 
 default_bed = "f"
-default_stitchNumber = 63
-default_speedNumber = 0
+default_stitch_number = 63
+default_speed_number = 0
 
 def generate(swatches, out_fp, main_c="1", waste_c="2", draw_c="3", sort_by_width=True):
 	main_cs = c2cs(main_c)
@@ -34,8 +34,8 @@ def generate(swatches, out_fp, main_c="1", waste_c="2", draw_c="3", sort_by_widt
 
 	print(pat_info) #debug
 
-	k.stitchNumber(default_stitchNumber)
-	k.speedNumber(default_speedNumber)
+	k.stitchNumber(default_stitch_number)
+	k.speedNumber(default_speed_number)
 
 	for i, (pat, dims, gauge, extensions) in enumerate(pat_info):
 		if "tube" in pat:
@@ -206,8 +206,8 @@ def generate(swatches, out_fp, main_c="1", waste_c="2", draw_c="3", sort_by_widt
 
 		assert directions[main_cs] == "-" or directions[main_cs] == "+" #debug
 
-		k.stitchNumber(default_stitchNumber)
-		k.speedNumber(default_speedNumber)
+		k.stitchNumber(default_stitch_number)
+		k.speedNumber(default_speed_number)
 
 		if not tube and (pat == "rib" or "garter" in pat or bed == "b"): #transfer back to front bed for draw thread
 			for n in range(left_n, right_n+1):
