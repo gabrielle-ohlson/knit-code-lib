@@ -220,8 +220,8 @@ class FloatWarning(UserWarning):
 	ENABLED = True
 	MAX_FLOAT_LEN = 6 #TODO: add option to adjust
 
-	def __init__(self, c: str, prev_needle: int, needle: int):
-		self.message = f"Float of length {abs(needle-prev_needle)} formed bringing carrier '{c}' from previous position, needle {prev_needle}, to needle {needle}." #TODO: phrase this better
+	def __init__(self, c: str, prev_needle: int, needle: int, ln: int):
+		self.message = f"[@ line #{ln}] Float of length {abs(needle-prev_needle)} formed bringing carrier '{c}' from previous position, needle {prev_needle}, to needle {needle}." #TODO: phrase this better
 
 	def __str__(self):
 		return repr(self.message)
@@ -232,7 +232,7 @@ class FloatWarning(UserWarning):
 		if prev_needle is None or abs(needle-prev_needle) <= self.MAX_FLOAT_LEN: return False
 		else:
 			# if self.ENABLED: k.comment(f"float warning (carrier: {c}, length: {abs(needle-prev_needle)})")
-			warnings.warn(FloatWarning(c, prev_needle, needle))
+			warnings.warn(FloatWarning(c, prev_needle, needle, k.line_number))
 			return True
 
 

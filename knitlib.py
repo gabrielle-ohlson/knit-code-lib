@@ -59,6 +59,52 @@ def drawThread(k, left_n, right_n, draw_c, final_direction="-", final_bed="f", c
 	k.comment("end draw thread")
 
 
+
+def inlay(k, start_n, end_n, c, bed, gauge=2, mod=None): # mod={"f": None, "b": None}):
+	if gauge == 1: raise NotImplementedError
+	#
+	cs = c2cs(c)
+	bed2 = "b" if bed == "f" else "f"
+	#
+	n_ranges, d = getNeedleRanges(start_n, end_n, return_direction=True)
+	d2 = toggleDirection(d)
+	#
+	do_xfer = True
+	for n in n_ranges[d2]:
+		if bnValid(bed, n, gauge, mod=mod): # if bnValid(bed, n, gauge, mod=mod[bed]) and not bnValid(bed2, n, gauge, mod=mod[bed2]):
+			if do_xfer:
+				k.xfer(f"{bed}{n}", f"{bed2}{n}")
+				do_xfer = False
+			else: do_xfer = True
+	#
+	do_tuck = True
+	for n in n_ranges[d]:
+		if not bnValid(bed, n, gauge, mod=mod): # if not bnValid(bed, n, gauge, mod=mod[bed]):
+			if do_tuck:
+				k.tuck(d, f"{bed}{n}", *cs)
+				do_tuck = False
+			else:
+				k.miss(d, f"{bed}{n}", *cs)
+				do_tuck = True
+		else: k.miss(d, f"{bed}{n}", *cs)
+	#
+	do_xfer = True
+	for n in n_ranges[d2]:
+		if bnValid(bed, n, gauge, mod=mod): # if bnValid(bed, n, gauge, mod=mod[bed]) and not bnValid(bed2, n, gauge, mod=mod[bed2]):
+			if do_xfer:
+				k.xfer(f"{bed2}{n}", f"{bed}{n}")
+				do_xfer = False
+			else: do_xfer = True
+	#
+	do_tuck = True
+	for n in n_ranges[d]:
+		if not bnValid(bed, n, gauge, mod=mod): # if not bnValid(bed, n, gauge, mod=mod[bed]):
+			if do_tuck:
+				k.drop(f"{bed}{n}")
+				do_tuck = False
+			else: do_tuck = True
+
+
 #--- FUNCTION FOR DOING THE MAIN KNITTING OF CIRCULAR, OPEN TUBES ---
 def circular(k, start_n, end_n, passes, c, gauge=1, mod={"f": None, "b": None}) -> str:
 	'''

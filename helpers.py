@@ -112,7 +112,7 @@ def getNeedleRanges(start_n, end_n, return_direction=False):
 	else:
 		d = "+"
 		n_ranges["+"] = range(start_n, end_n+1) 
-		n_ranges["-"] = range(end_n, start_n-1)
+		n_ranges["-"] = range(end_n, start_n-1, -1)
 	#
 	if return_direction: return n_ranges, d
 	else: return n_ranges

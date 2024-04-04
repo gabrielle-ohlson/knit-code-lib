@@ -367,7 +367,7 @@ class Writer(knitout.Writer):
 
     def write(self, filename):
         # ensure all carriers have been taken out:
-        for c in self.carrier_map:
+        for c in self.carrier_map.copy():
             print(f"WARNING: taking carrier {c} out in 'write' func")
             if self.use_hook: self.outhook(c)
             else: self.outcarrier(c)
