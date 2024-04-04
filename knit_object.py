@@ -290,7 +290,21 @@ class KnitObject:
 	def knitPass(self, pattern: Union[StitchPattern, int, Callable], bed: Optional[str], needle_range: Optional[Tuple[int,int]], *cs: str, **kwargs) -> None: #TODO: make sure still works with *cs before pattern
 		if self.settings.stitch_number is not None and self.k.stitch_number != self.settings.stitch_number: self.k.stitchNumber(self.settings.stitch_number) #check
 
-		if needle_range is None: needle_range = self.getNeedleRange(bed, *cs)
+		do_releasehook = False
+		init_cs = False
+		if needle_range is None:
+			try:
+				needle_range = self.getNeedleRange(bed, *cs)
+			except KeyError:
+				min_n = self.getMinNeedle(bed)
+				max_n = self.getMaxNeedle(bed)
+				needle_range = (max_n, min_n)
+				init_cs = True
+		else:
+			not_in_cs = [c for c in cs if c not in self.k.carrier_map.keys()]
+			if len(not_in_cs):
+				init_cs = True
+				assert len(not_in_cs) == len(cs), f"Plaited pattern pass with only some carriers already in not supported yet"
 		#
 		if needle_range[1] > needle_range[0]: d = "+"
 		else: d = "-"
@@ -302,6 +316,11 @@ class KnitObject:
 		func_args["bed"] = bed
 		func_args["gauge"] = self.gauge
 		func_args["init_direction"] = d
+		#
+		if init_cs:
+			func_args["inhook"] = True
+			func_args["releasehook"] = True
+			func_args["tuck_pattern"] = True
 		#
 		func = None
 		if isinstance(pattern, StitchPattern) or isinstance(pattern, int):
@@ -326,6 +345,14 @@ class KnitObject:
 		else:
 			assert callable(pattern)
 			func = pattern
+			#
+			if init_cs and "inhook" not in func.__code__.co_varnames:
+				self.k.inhook(*cs)
+				do_releasehook = True
+				del func_args["inhook"]
+				del func_args["releasehook"]
+				del func_args["tuck_pattern"]
+
 			#
 			for key in list(func_args.keys()).copy():
 				if key == "passes" and key not in func.__code__.co_varnames and "iters" in func.__code__.co_varnames: #* #temp fix
@@ -354,7 +381,7 @@ class KnitObject:
 				func_args["end_n"] = func_range.args[1]
 				#
 				func(**func_args)
-		
+		if do_releasehook: self.k.releasehook(*cs)
 		"""
 		needle_ranges, twisted_stitches = self.twistNeedleRanges(needle_range, bed)
 		for n_range, twisted_stitch in zip(needle_ranges, twisted_stitches):
