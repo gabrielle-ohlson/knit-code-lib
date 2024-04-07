@@ -235,6 +235,22 @@ class KnitObject:
 		except AssertionError:
 			return float("-inf")
 	
+	def wasteSection(self, bed: Optional[str], needle_range: Tuple[int, int], waste_c: str, draw_c: str, other_cs: Union[List[str], Tuple[str]]):
+		if waste_c is not None: self.waste_carrier = waste_c
+		if draw_c is not None: self.draw_carrier = draw_c
+
+		assert self.waste_carrier is not None and self.draw_carrier is not None
+
+		if needle_range[0] > needle_range[1]: left_n, right_n = needle_range[::-1]
+		else: left_n, right_n = needle_range
+
+		initial = not len(self.k.carrier_map.keys())
+
+		all_cs = list(set(list(other_cs) + [self.waste_carrier, self.draw_carrier]))
+		in_cs = [c for c in all_cs if c not in self.k.carrier_map.keys()]
+		wasteSection(self.k, left_n, right_n, caston_bed=bed, waste_c=self.waste_carrier, draw_c=self.draw_carrier, in_cs=in_cs, gauge=self.gauge, initial=initial, draw_middle=(not initial), machine=self.settings.machine) #end_on_right=[self.draw_carrier], initial=True, draw_middle=False, machine=self.settings.machine)
+
+
 	def caston(self, method: Union[CastonMethod, int], bed: Optional[str], needle_range: Tuple[int, int], *cs: str, **kwargs) -> None:
 		if self.settings.caston_stitch_number is not None:
 			if self.settings.stitch_number is not None: reset_stitch_number = self.settings.stitch_number
@@ -254,9 +270,10 @@ class KnitObject:
 			if self.settings.machine == "kniterate":
 				self.k.incarrier(*not_in_cs)
 				#
+				"""
 				if needle_range[0] > needle_range[1]: left_n, right_n = needle_range[::-1]
 				else: left_n, right_n = needle_range
-				tube = (bed != "f" and bed != "b")
+				# tube = (bed != "f" and bed != "b")
 				#
 				if self.waste_carrier is None:
 					for c in range(6, 0, -1):
@@ -274,7 +291,8 @@ class KnitObject:
 					assert self.draw_carrier is not None, "No available carriers to use for the draw string."
 					print(f"WARNING: setting carrier '{self.draw_carrier}' as `self.draw_carrier`, since it was not manually assigned a value.")
 				#
-				wasteSection(self.k, left_n, right_n, closed_caston=(not tube), waste_c=self.waste_carrier, draw_c=self.draw_carrier, in_cs=[self.draw_carrier], gauge=self.gauge, end_on_right=[self.draw_carrier], initial=True, draw_middle=False) #, interlock_passes=20) #TODO: get waste_c and draw_c
+				wasteSection(self.k, left_n, right_n, caston_bed=bed, waste_c=self.waste_carrier, draw_c=self.draw_carrier, in_cs=[self.draw_carrier], gauge=self.gauge, end_on_right=[self.draw_carrier], initial=True, draw_middle=False, machine=self.settings.machine) #, interlock_passes=20) #TODO: get waste_c and draw_c
+				"""
 			else: self.k.inhook(*not_in_cs)
 		#
 		knit_after = kwargs.get("knit_after", init_caston)

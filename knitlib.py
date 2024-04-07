@@ -200,7 +200,7 @@ def catchYarns(k, left_n, right_n, carriers, gauge=1, end_on_right=[], miss_need
 			else: k.miss("-", f"f{miss_needles[c]}", c)
 
 
-def wasteSection(k, left_n, right_n, closed_caston=True, waste_c="1", draw_c="2", in_cs=[], gauge=1, init_directions={}, end_on_right=[], first_needles={}, catch_max_needles=False, initial=True, draw_middle=False, interlock_passes=40, speed_number=None, stitch_number=None, rollerAdvance=None, waste_speed_number=None, waste_stitch_number=None, machine="swgn2"): #TODO: add `mod` param
+def wasteSection(k, left_n, right_n, caston_bed=None, waste_c="1", draw_c="2", in_cs=[], gauge=1, init_directions={}, end_on_right=[], first_needles={}, catch_max_needles=False, initial=True, draw_middle=False, interlock_passes=40, speed_number=None, stitch_number=None, rollerAdvance=None, waste_speed_number=None, waste_stitch_number=None, machine="swgn2"): #TODO: add `mod` param #TODO: #check to make sure this works fine with new update (`caston_bed` instead of `closed_caston`)
 	'''
 	Does everything to prepare for knitting prior to (and not including) the cast-on.
 		- bring in carriers
@@ -214,7 +214,7 @@ def wasteSection(k, left_n, right_n, closed_caston=True, waste_c="1", draw_c="2"
 	* k (class): the knitout Writer.
 	* left_n (int): the left-most needle to knit on.
 	* right_n (int): the right-most needle to knit on.
-	* closed_caston (bool, optional): determines what happens with the draw thread (if `True`, drops back-bed needles and knits draw on front-bed; if `False`, doesn't drop and knits draw on both beds). Defaults to `True`.
+	* caston_bed (str, optional): determines what happens with the draw thread (if `f` or `b`, drops other bed needles and knits draw on specified bed; if `None` (meaning double-bed caston), doesn't drop and knits draw on both beds). Defaults to `None`.
 	* waste_c (str, optional): an integer in string form indicating the carrier number to be used for the waste yarn. Defaults to `1`.
 	* draw_c (str, optional): same as above, but for the draw thread carrier. Defaults to `2`.
 	* in_cs (list, optional): an *optional* list of other carriers that should be brought in/positioned with catchYarns (NOTE: leave empty if not initial wasteSection). Defaults to `[]`.
@@ -239,7 +239,12 @@ def wasteSection(k, left_n, right_n, closed_caston=True, waste_c="1", draw_c="2"
 			if not draw_middle: if currently on left side, put it in `end_on_right` list; otherwise, don't
 			else: if currently on right side, put it in `end_on_right` list; otherwise, don't
 	'''
-
+	if caston_bed is None: bed, bed2 = "f", "b"
+	else:
+		bed = caston_bed
+		bed2 = "b" if caston_bed == "f" else "f"
+	#
+	closed_caston = (caston_bed is not None)
 	carrier_locs = {}
 
 	if stitch_number is not None: k.stitchNumber(stitch_number)
@@ -338,14 +343,14 @@ def wasteSection(k, left_n, right_n, closed_caston=True, waste_c="1", draw_c="2"
 					if draw_init_d == "-": n_range = n_range[::-1] #reverse it reversed(n_range)
 					cs = c2cs(draw_c)
 					for n in n_range:
-						if n % 2 == 0: k.tuck(draw_init_d, f"b{n}", *cs)
-						elif n == n_range[-1]: k.miss(draw_init_d, f"b{n}", *cs)
+						if n % 2 == 0: k.tuck(draw_init_d, f"{bed2}{n}", *cs)
+						elif n == n_range[-1]: k.miss(draw_init_d, f"{bed2}{n}", *cs)
 					
 					# this is essentially circular
-					drawThread(k, left_n, right_n, draw_c, final_direction=("-" if draw_final_d == "+" else "+"), final_bed="f", circular=False, miss_draw=miss_draw, gauge=gauge)
+					drawThread(k, left_n, right_n, draw_c, final_direction=("-" if draw_final_d == "+" else "+"), final_bed=bed, circular=False, miss_draw=miss_draw, gauge=gauge)
 					for n in n_range:
-						if n % 2 == 0: k.drop(f"b{n}")
-					drawThread(k, left_n, right_n, draw_c, final_direction=draw_final_d, final_bed="b", circular=False, miss_draw=miss_draw, gauge=gauge)
+						if n % 2 == 0: k.drop(f"{bed2}{n}")
+					drawThread(k, left_n, right_n, draw_c, final_direction=draw_final_d, final_bed=bed2, circular=False, miss_draw=miss_draw, gauge=gauge)
 				else: drawThread(k, left_n, right_n, draw_c, final_direction=draw_final_d, circular=True, miss_draw=miss_draw, gauge=gauge) 
 
 				if machine.lower() == "swgn2" and draw_c in in_cs:
@@ -365,7 +370,7 @@ def wasteSection(k, left_n, right_n, closed_caston=True, waste_c="1", draw_c="2"
 		else:
 			if machine.lower() == "kniterate" and initial and interlock_passes <= 24: k.pause("cut yarns")
 			circular(k, right_n, left_n, 8, waste_c, gauge)
-		if miss_waste is not None: k.miss("+", f"f{miss_waste}", waste_c)
+		if miss_waste is not None: k.miss("+", f"{bed}{miss_waste}", waste_c)
 	else:
 		if machine.lower() == "kniterate" and initial and interlock_passes > 24:
 			interlock(k, left_n, right_n, 24, waste_c, gauge=gauge)
@@ -388,14 +393,14 @@ def wasteSection(k, left_n, right_n, closed_caston=True, waste_c="1", draw_c="2"
 					if draw_init_d == "-": n_range = n_range[::-1] #reverse it #reversed(n_range)
 					cs = c2cs(draw_c)
 					for n in n_range:
-						if n % 2 == 0: k.tuck(draw_init_d, f"b{n}", *cs)
-						elif n == n_range[-1]: k.miss(draw_init_d, f"b{n}", *cs)
+						if n % 2 == 0: k.tuck(draw_init_d, f"{bed2}{n}", *cs)
+						elif n == n_range[-1]: k.miss(draw_init_d, f"{bed2}{n}", *cs)
 					
 					# this is essentially circular
-					drawThread(k, left_n, right_n, draw_c, final_direction=("-" if draw_final_d == "+" else "+"), final_bed="f", circular=False, miss_draw=miss_draw, gauge=gauge)
+					drawThread(k, left_n, right_n, draw_c, final_direction=("-" if draw_final_d == "+" else "+"), final_bed=bed, circular=False, miss_draw=miss_draw, gauge=gauge)
 					for n in n_range:
-						if n % 2 == 0: k.drop(f"b{n}")
-					drawThread(k, left_n, right_n, draw_c, final_direction=draw_final_d, final_bed="b", circular=False, miss_draw=miss_draw, gauge=gauge)
+						if n % 2 == 0: k.drop(f"{bed2}{n}")
+					drawThread(k, left_n, right_n, draw_c, final_direction=draw_final_d, final_bed=bed2, circular=False, miss_draw=miss_draw, gauge=gauge)
 				else: drawThread(k, left_n, right_n, draw_c, final_direction=draw_final_d, circular=True, miss_draw=miss_draw, gauge=gauge) #^
 
 				if machine.lower() == "swgn2" and draw_c in in_cs:
@@ -415,11 +420,11 @@ def wasteSection(k, left_n, right_n, closed_caston=True, waste_c="1", draw_c="2"
 		else:
 			if machine.lower() == "kniterate" and initial and interlock_passes <= 24: k.pause("cut yarns")
 			circular(k, left_n, right_n, 8, waste_c, gauge)
-		if miss_waste is not None: k.miss("-", f"f{miss_waste}", *c2cs(waste_c))
+		if miss_waste is not None: k.miss("-", f"{bed}{miss_waste}", *c2cs(waste_c))
 
 	if closed_caston and not draw_middle:
 		for n in range(left_n, right_n+1):
-			if bnValid("b", n, gauge): k.drop(f"b{n}")
+			if bnValid(bed2, n, gauge): k.drop(f"{bed2}{n}")
 
 	if not draw_middle and draw_c is not None:
 		if machine.lower() == "swgn2" and draw_c in in_cs:
@@ -432,22 +437,22 @@ def wasteSection(k, left_n, right_n, closed_caston=True, waste_c="1", draw_c="2"
 
 			cs = c2cs(draw_c)
 			for n in n_range:
-				if n % 2 == 0: k.tuck(draw_init_d, f"b{n}", *cs)
-				elif n == n_range[-1]: k.miss(draw_init_d, f"b{n}", *cs)
+				if n % 2 == 0: k.tuck(draw_init_d, f"{bed2}{n}", *cs)
+				elif n == n_range[-1]: k.miss(draw_init_d, f"{bed2}{n}", *cs)
 
 			if closed_caston: draw_final_d1 = draw_final_d
 			else: draw_final_d1 = ("-" if draw_final_d == "+" else "+")
 
-			drawThread(k, left_n, right_n, draw_c, final_direction=draw_final_d1, final_bed="f", circular=False, miss_draw=miss_draw, gauge=gauge)
+			drawThread(k, left_n, right_n, draw_c, final_direction=draw_final_d1, final_bed=bed, circular=False, miss_draw=miss_draw, gauge=gauge)
 
 			if not closed_caston: # aka circular
 				# this + above drawThread call is essentially circular
 				for n in n_range:
-					if n % 2 == 0: k.drop(f"b{n}")
-				drawThread(k, left_n, right_n, draw_c, final_direction=draw_final_d, final_bed="b", circular=False, miss_draw=miss_draw, gauge=gauge)
+					if n % 2 == 0: k.drop(f"{bed2}{n}")
+				drawThread(k, left_n, right_n, draw_c, final_direction=draw_final_d, final_bed=bed2, circular=False, miss_draw=miss_draw, gauge=gauge)
 			else:
 				for n in n_range:
-					if n % 2 == 0: k.drop(f"b{n}")
+					if n % 2 == 0: k.drop(f"{bed2}{n}")
 		else: drawThread(k, left_n, right_n, draw_c, final_direction=draw_final_d, circular=(not closed_caston), miss_draw=miss_draw, gauge=gauge)
 
 		if machine.lower() == "swgn2" and draw_c in in_cs:
