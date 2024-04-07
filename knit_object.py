@@ -428,7 +428,7 @@ class KnitObject:
 			elif key == "bed" and key not in func.__code__.co_varnames and "main_bed" in func.__code__.co_varnames: #* #temp fix
 				func_args["main_bed"] = func_args["bed"]
 				del func_args["bed"]
-			else:
+			elif key not in func.__code__.co_varnames:
 				warnings.warn(f"WARNING: '{func.__name__}' function does not use required parameter, '{key}'.")
 				del func_args[key]
 				# assert key in func.__code__.co_varnames, f"'{func.__name__}' function does not use required parameter, '{key}'."
