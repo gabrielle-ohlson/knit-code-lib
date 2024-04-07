@@ -37,7 +37,7 @@ add something for knitPass at a rack (or a "rackedSort" function)
 - [ ] fmt warnings
 """
 
-from knitlib import altTuckCaston, altTuckClosedCaston, altTuckOpenTubeCaston, zigzagCaston, sheetBindoff, closedTubeBindoff, openTubeBindoff, dropFinish
+from knitlib import altTuckCaston, altTuckClosedCaston, altTuckOpenTubeCaston, zigzagCaston, sheetBindoff, closedTubeBindoff, openTubeBindoff, dropFinish, wasteSection
 from .helpers import gauged, toggleDirection, bnValid
 from .stitch_patterns import jersey, interlock, rib, garter, seed
 # from .helpers import multidispatchmethod
@@ -185,6 +185,8 @@ class KnitObject:
 		# self.max_n = {"f": float("-inf"), "b": float("-inf")}
 		#
 		self.active_carrier = None #TODO #*
+		self.draw_carrier = None
+		self.waste_carrier = None
 		self.avoid_bns = {"f": [], "b": []} #, "fs": [], "bs": []}
 		self.SPLIT_ON_EMPTY = True
 		self.twist_bns = list()
@@ -248,9 +250,35 @@ class KnitObject:
 		init_caston = False
 		if len(not_in_cs):
 			init_caston = True
-			self.k.inhook(*not_in_cs)
+			#
+			if self.settings.machine == "kniterate":
+				self.k.incarrier(*not_in_cs)
+				#
+				if needle_range[0] > needle_range[1]: left_n, right_n = needle_range[::-1]
+				else: left_n, right_n = needle_range
+				tube = (bed != "f" and bed != "b")
+				#
+				if self.waste_carrier is None:
+					for c in range(6, 0, -1):
+						if f"{c}" not in self.k.carrier_map.keys():
+							self.waste_carrier = f"{c}"
+							break
+					#
+					assert self.waste_carrier is not None, "No available carriers to use for the waste section."
+					print(f"WARNING: setting carrier '{self.waste_carrier}' as `self.waste_carrier`, since it was not manually assigned a value.")
+				if self.draw_carrier is None:
+					for c in range(6, 0, -1):
+						if self.waste_carrier != f"{c}" and f"{c}" not in self.k.carrier_map.keys():
+							self.draw_carrier = f"{c}"
+							break
+					assert self.draw_carrier is not None, "No available carriers to use for the draw string."
+					print(f"WARNING: setting carrier '{self.draw_carrier}' as `self.draw_carrier`, since it was not manually assigned a value.")
+				#
+				wasteSection(self.k, left_n, right_n, closed_caston=(not tube), waste_c=self.waste_carrier, draw_c=self.draw_carrier, in_cs=[self.draw_carrier], gauge=self.gauge, end_on_right=[self.draw_carrier], initial=True, draw_middle=False) #, interlock_passes=20) #TODO: get waste_c and draw_c
+			else: self.k.inhook(*not_in_cs)
 		#
 		knit_after = kwargs.get("knit_after", init_caston)
+		#
 		#
 		if method == CastonMethod.ALT_TUCK_CLOSED:
 			if bed != "f" and bed != "b":
@@ -347,7 +375,9 @@ class KnitObject:
 			func = pattern
 			#
 			if init_cs and "inhook" not in func.__code__.co_varnames:
-				self.k.inhook(*cs)
+				if self.settings.machine == "kniterate": self.k.incarrier(*cs)
+				else: self.k.inhook(*cs)
+				#
 				do_releasehook = True
 				del func_args["inhook"]
 				del func_args["releasehook"]
@@ -381,7 +411,7 @@ class KnitObject:
 				func_args["end_n"] = func_range.args[1]
 				#
 				func(**func_args)
-		if do_releasehook: self.k.releasehook(*cs)
+		if self.settings.machine != "kniterate" and do_releasehook: self.k.releasehook(*cs)
 		"""
 		needle_ranges, twisted_stitches = self.twistNeedleRanges(needle_range, bed)
 		for n_range, twisted_stitch in zip(needle_ranges, twisted_stitches):
@@ -905,7 +935,8 @@ class KnitObject:
 		if len(self.k.carrier_map.keys()):
 			_carriers = list(self.k.carrier_map.keys())
 			for c in _carriers:
-				self.k.outhook(c)
+				if self.settings.machine == "kniterate": self.k.outcarrier(c)
+				else: self.k.outhook(c)
 		self.k.write(path.join(path.dirname(path.dirname( path.abspath(__file__))), f"knitout_files/{out_fn}.k"))
 	
 	@multimethod
