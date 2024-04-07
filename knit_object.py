@@ -235,13 +235,13 @@ class KnitObject:
 		except AssertionError:
 			return float("-inf")
 	
-	def wasteSection(self, bed: Optional[str], needle_range: Tuple[int, int], waste_c: str, draw_c: str, other_cs: Union[List[str], Tuple[str]]):
+	def wasteSection(self, bed: Optional[str], needle_range: Tuple[int, int], waste_c: Optional[str], draw_c: Optional[str], other_cs: Union[List[str], Tuple[str]]):
 		if waste_c is not None: self.waste_carrier = waste_c
 		if draw_c is not None: self.draw_carrier = draw_c
 
 		if self.waste_carrier is None:
 			for c in range(6, 0, -1):
-				if f"{c}" not in self.k.carrier_map.keys():
+				if f"{c}" not in self.k.carrier_map.keys() and f"{c}" not in other_cs:
 					self.waste_carrier = f"{c}"
 					break
 			#
@@ -249,7 +249,7 @@ class KnitObject:
 			print(f"WARNING: setting carrier '{self.waste_carrier}' as `self.waste_carrier`, since it was not manually assigned a value.")
 		if self.draw_carrier is None:
 			for c in range(6, 0, -1):
-				if self.waste_carrier != f"{c}" and f"{c}" not in self.k.carrier_map.keys():
+				if self.waste_carrier != f"{c}" and f"{c}" not in self.k.carrier_map.keys() and f"{c}" not in other_cs:
 					self.draw_carrier = f"{c}"
 					break
 			assert self.draw_carrier is not None, "No available carriers to use for the draw string."
