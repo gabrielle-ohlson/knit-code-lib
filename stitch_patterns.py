@@ -1,6 +1,6 @@
 from typing import Union, Optional, Tuple, List, Dict
 
-from .helpers import c2cs, modsHalveGauge, bnValid, toggleDirection, bnEdges, tuckPattern, knitPass
+from .helpers import c2cs, modsHalveGauge, gauged, bnValid, toggleDirection, bnEdges, tuckPattern, knitPass
 
 pattern_names = ["jersey", "interlock", "rib", "seed", "garter", "tuckGarter", "tuckStitch", "altKnitTuck"]
 
@@ -11,7 +11,7 @@ patterns_TODO = ["moss", "bubble", "lace"]
 # --- STITCH PATTERN FUNCTIONS ---
 # --------------------------------
 # if doing gauge == 2, want width to be odd so *actually* have number of stitches
-def jersey(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List[str]], bed: str="f", gauge: int=1, mod={"f": None, "b": None}, bn_locs={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, xfer_bns_back: bool=True, inhook: bool=False, releasehook: bool=False, tuck_pattern: bool=True, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, init_direction: Optional[str]=None) -> str:
+def jersey(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List[str]], bed: str="f", gauge: int=1, mod={"f": None, "b": None}, bn_locs={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, xfer_bns_back: bool=False, inhook: bool=False, releasehook: bool=False, tuck_pattern: bool=True, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, init_direction: Optional[str]=None) -> str:
 	'''
 	Jersey stitch pattern: Plain knit on specified bed
 
@@ -26,7 +26,7 @@ def jersey(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], L
 	* `gauge` (int, optional): gauge to knit in. Defaults to `1`.
 	* `bn_locs` (dict, optional): dict with bed as keys and values as list of needles indices for working loops that are currently on the given bed. Value of `None` indicates we should cast-on first. Defaults to `{"f": [], "b": []}` (aka assume loops are on the specified `bed`, and if `bed is None`, assume loops are on both beds to start so we need to transfer them to get them in place for the stitch pattern).
 	* `avoid_bns` (dict, optional): dict with bed as keys and values as list of needles that should stay empty (aka avoid knitting on). Defaults to `{"f": [], "b": []}` (aka don't avoid any needles outside of gauging).
-	* `xfer_bns_back` (bool, optional): whether to return loops back to their specified locations in `bn_locs` after knitting (NOTE: not applicable if `bn_locs` is None or empty lists). Defaults to `True`.
+	* `xfer_bns_back` (bool, optional): whether to return loops back to their specified locations in `bn_locs` after knitting (NOTE: not applicable if `bn_locs` is None or empty lists). Defaults to `False`.
 	* `inhook` (bool, optional): whether to have the function do an inhook. Defaults to `False`.
 	* `releasehook` (bool, optional): whether to have the function do a releasehook (after 2 passes). Defaults to `False`.
 	* `tuck_pattern` (bool, optional): whether to include a tuck pattern for extra security when bringing in the carrier (only applicable if `inhook` or `releasehook` == `True`). Defaults to `False`.
@@ -108,7 +108,7 @@ tube (single bed) example:
 e.g. for gauge 2:
 if mod == 0
 """
-def interlock(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List[str]], bed: Optional[str]=None, gauge: int=1, sequence: str="01", bn_locs: Dict[str,List[int]]={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, xfer_bns_setup: bool=True, xfer_bns_back: bool=True, secure_start_n: bool=False, secure_end_n: bool=False, inhook: bool=False, releasehook: bool=False, tuck_pattern: bool=True, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, xfer_speed_number: Optional[int]=None, xfer_stitch_number: Optional[int]=None, init_direction: Optional[str]=None) -> str: #TODO: add `xfer_bns_setup` to other stitchPattern functions
+def interlock(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List[str]], bed: Optional[str]=None, gauge: int=1, sequence: str="01", bn_locs: Dict[str,List[int]]={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, xfer_bns_setup: bool=False, xfer_bns_back: bool=False, secure_start_n: bool=False, secure_end_n: bool=False, inhook: bool=False, releasehook: bool=False, tuck_pattern: bool=True, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, xfer_speed_number: Optional[int]=None, xfer_stitch_number: Optional[int]=None, init_direction: Optional[str]=None) -> str: #TODO: add `xfer_bns_setup` to other stitchPattern functions
 	'''
 	Interlock stitch pattern: knits every other needle on alternating beds, mirroring this pattern with alternating passes. Starts on side indicated by which needle value is greater.
 	In this function, passes is the number of total passes knit, so if you want an interlock segment that is 20 courses long on each bed set passes to 40.  Useful if you want to have odd passes of interlock.
@@ -123,7 +123,8 @@ def interlock(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str]
 	* `sequence` (str, optional): mod sequence for consecutive interlock passes (indicates whether to reverse the needle sequence we start with for interlock passes).  Valid values are "01" and "10".  This is useful for when calling this function one pass at a time, e.g., for open tubes, toggling knitting on either bed (so you might, for example, knit on the front bed and start with `passes=1, c=carrier, bed="f", gauge=2, sequence="01"`, then do a pass on the back bed, and then call `passes=1, c=carrier, bed="f", gauge=2, sequence="10"`). Otherwise, you can just ignore this.
 	* `bn_locs` (dict, optional): dict with bed as keys and values as list of needles indices for working loops that are currently on the given bed. Value of `None` indicates we should cast-on first. Defaults to `{"f": [], "b": []}` (aka assume loops are on the specified `bed`, and if `bed is None`, assume loops are on both beds to start so we will likely need to transfer them to get them in place for the stitch pattern).
 	* `avoid_bns` (dict, optional): dict with bed as keys and values as list of needles that should stay empty (aka avoid knitting on). Defaults to `{"f": [], "b": []}` (aka don't avoid any needles outside of gauging).
-	* `xfer_bns_back` (bool, optional): whether to return loops back to their specified locations in `bn_locs` after knitting (NOTE: not applicable if `bn_locs` is None or empty lists). Defaults to `True`.
+	* `xfer_bns_setup` (bool, optional): TODO. Defaults to `False`.
+	* `xfer_bns_back` (bool, optional): whether to return loops back to their specified locations in `bn_locs` after knitting (NOTE: not applicable if `bn_locs` is None or empty lists). Defaults to `False`.
 	* `secure_start_n` and ...
 	* `secure_end_n` are booleans that indicate whether or not we should refrain from xferring the edge-most needles, for security (NOTE: this should be True if given edge needle is on the edge of the piece [rather than in the middle of it]).
 	* `inhook` (bool, optional): whether to have the function do an inhook. Defaults to `False`.
@@ -198,7 +199,8 @@ def interlock(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str]
 		if secure_end_n: secure_needles[edge_bns[0][0]].append(edge_bns[0][1])
 		if secure_start_n: secure_needles[edge_bns[1][0]].append(edge_bns[1][1])
 		
-	mods2 = modsHalveGauge(gauge, bed1)
+	if bed is None and gauge != 1: mods2 = (gauged(bed1, 0, gauge), gauged(bed2, 0, gauge))
+	else: mods2 = modsHalveGauge(gauge, bed1)
 
 	n_ranges = {"+": range(left_n, right_n+1), "-": range(right_n, left_n-1, -1)}
 
@@ -222,10 +224,12 @@ def interlock(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str]
 		if stitch_number is not None: k.stitchNumber(stitch_number)
 
 
-	if bed is not None and gauge != 1: #new #check (TODO: have option of single vs double bed #?)
-		mods4 = [modsHalveGauge(gauge*2, mods2[0]), modsHalveGauge(gauge*2, mods2[1])]
+	if gauge != 1: #new #check (TODO: have option of single vs double bed #?)
+		# mods4 = [modsHalveGauge(gauge*2, mods2[0]), modsHalveGauge(gauge*2, mods2[1])] #remove
+		if bed is None: mods4 = [modsHalveGauge(gauge, mods2[0]), modsHalveGauge(gauge, mods2[1])]
+		else: mods4 = [mods2, mods2[::-1]]
 
-		"""
+		""" #remove
 		# transfer to get loops in place:
 		if xfer_speed_number is not None: k.speedNumber(xfer_speed_number)
 		if xfer_stitch_number is not None: k.stitchNumber(xfer_stitch_number)
@@ -241,14 +245,14 @@ def interlock(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str]
 
 		def passSequence1(d):
 			for n in n_ranges[d]:
-				if n % (gauge*4) == mods4[0][seq1_idx] and n not in avoid_bns[bed1]: k.knit(d, f"{bed1}{n}", *cs)
-				elif n % (gauge*4) == mods4[1][seq1_idx] and n not in avoid_bns[bed2]: k.knit(d, f"{bed2}{n}", *cs)
+				if n % (gauge*2) == mods4[0][seq1_idx] and n not in avoid_bns[bed1]: k.knit(d, f"{bed1}{n}", *cs)
+				elif n % (gauge*2) == mods4[1][seq1_idx] and n not in avoid_bns[bed2]: k.knit(d, f"{bed2}{n}", *cs)
 				elif n == n_ranges[d][-1]: k.miss(d, f"{bed1}{n}", *cs)
 
 		def passSequence2(d):
 			for n in n_ranges[d]:
-				if n % (gauge*4) == mods4[0][seq2_idx] and n not in avoid_bns[bed1]: k.knit(d, f"{bed1}{n}", *cs)
-				elif n % (gauge*4) == mods4[1][seq2_idx] and n not in avoid_bns[bed2]: k.knit(d, f"{bed2}{n}", *cs)
+				if n % (gauge*2) == mods4[0][seq2_idx] and n not in avoid_bns[bed1]: k.knit(d, f"{bed1}{n}", *cs)
+				elif n % (gauge*2) == mods4[1][seq2_idx] and n not in avoid_bns[bed2]: k.knit(d, f"{bed2}{n}", *cs)
 				elif n == n_ranges[d][-1]: k.miss(d, f"{bed1}{n}", *cs)
 	else:
 		def passSequence1(d):
@@ -313,7 +317,7 @@ def interlock(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str]
 	else: return d2
 
 
-def rib(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List[str]], bed: Optional[str]=None, gauge: int=1, sequence: str="fb", bn_locs: Dict[str,List[int]]={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, xfer_bns_back: bool=True, secure_start_n: bool=False, secure_end_n: bool=False, inhook: bool=False, releasehook: bool=False, tuck_pattern: bool=True, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, xfer_speed_number: Optional[int]=None, xfer_stitch_number: Optional[int]=None, init_direction: Optional[str]=None) -> str: #TODO: #check to make sure this is working well for gauge > 1 #*
+def rib(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List[str]], bed: Optional[str]=None, gauge: int=1, sequence: str="fb", bn_locs: Dict[str,List[int]]={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, xfer_bns_back: bool=False, secure_start_n: bool=False, secure_end_n: bool=False, inhook: bool=False, releasehook: bool=False, tuck_pattern: bool=True, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, xfer_speed_number: Optional[int]=None, xfer_stitch_number: Optional[int]=None, init_direction: Optional[str]=None) -> str: #TODO: #check to make sure this is working well for gauge > 1 #*
 	'''
 	Rib stitch pattern: alternates between front and back bed in a row based on given sequence.
 
@@ -329,7 +333,7 @@ def rib(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List
 	* `sequence` (str, optional): repeating stitch pattern sequence for alternating needle-wise between front and back bed in a pass (e.g. "fb" of "bf" for 1x1, "ffbb" for 2x2, "fbffbb" for 1x1x2x2, etc.). Defaults to `"fb"`.
 	* `bn_locs` (dict, optional): dict with bed as keys and values as list of needles indices for working loops that are currently on the given bed. Value of `None` indicates we should cast-on first. Defaults to `{"f": [], "b": []}` (aka assume loops are on the specified `bed`, and if `bed is None`, assume loops are on both beds to start so we will likely need to transfer them to get them in place for the stitch pattern).
 	* `avoid_bns` (dict, optional): dict with bed as keys and values as list of needles that should stay empty (aka avoid knitting on). Defaults to `{"f": [], "b": []}` (aka don't avoid any needles outside of gauging).
-	* `xfer_bns_back` (bool, optional): whether to return loops back to their specified locations in `bn_locs` after knitting (NOTE: not applicable if `bn_locs` is None or empty lists). Defaults to `True`.
+	* `xfer_bns_back` (bool, optional): whether to return loops back to their specified locations in `bn_locs` after knitting (NOTE: not applicable if `bn_locs` is None or empty lists). Defaults to `False`.
 	* `secure_start_n` and ...
 	* `secure_end_n` are booleans that indicate whether or not we should refrain from xferring the edge-most needles, for security (NOTE: this should be True if given edge needle is on the edge of the piece [rather than in the middle of it]).
 	* `inhook` (bool, optional): whether to have the function do an inhook. Defaults to `False`.
@@ -459,7 +463,7 @@ def rib(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List
 	else: return d2
 
 
-def seed(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List[str]], bed: Optional[str]="f", gauge: int=1, sequence: str="fb", bn_locs: Dict[str,List[int]]={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, xfer_bns_back: bool=True, secure_start_n=True, secure_end_n=True, inhook: bool=False, releasehook: bool=False, tuck_pattern: bool=True, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, xfer_speed_number: Optional[int]=None, xfer_stitch_number: Optional[int]=None, init_direction: Optional[str]=None) -> str:
+def seed(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List[str]], bed: Optional[str]="f", gauge: int=1, sequence: str="fb", bn_locs: Dict[str,List[int]]={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, xfer_bns_back: bool=False, secure_start_n=True, secure_end_n=True, inhook: bool=False, releasehook: bool=False, tuck_pattern: bool=True, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, xfer_speed_number: Optional[int]=None, xfer_stitch_number: Optional[int]=None, init_direction: Optional[str]=None) -> str:
 	'''
 	Seed stitch pattern: alternates bes needle-wise based on specified sequence, mirroring the sequence pass-wise.
 
@@ -475,7 +479,7 @@ def seed(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], Lis
 	* `sequence` (str, optional): repeating stitch pattern sequence for alternating needle-wise between passes of knits on front and back bed. Defaults to `"fb"`.
 	* `bn_locs` (dict, optional): dict with bed as keys and values as list of needles that are currently on the given bed (aka avoid knitting on). Defaults to `{"f": [], "b": []}` (aka assume loops are on the specified `bed`, and if `bed is None`, assume loops are on both beds to start so will likely need to transfer them to get them in place for the stitch pattern).
 	* `avoid_bns` (dict, optional): dict with bed as keys and values as list of needles that should stay empty (aka avoid knitting on). Defaults to `{"f": [], "b": []}` (aka don't avoid any needles outside of gauging).
-	* `xfer_bns_back` (bool, optional): *TODO: add code for this* whether to return loops back to their specified locations in `bn_locs` after knitting (NOTE: not applicable if `bn_locs` is None or empty lists). Defaults to `True`.
+	* `xfer_bns_back` (bool, optional): *TODO: add code for this* whether to return loops back to their specified locations in `bn_locs` after knitting (NOTE: not applicable if `bn_locs` is None or empty lists). Defaults to `False`.
 	* `secure_start_n` and ...
 	* `secure_end_n` are booleans that indicate whether or not we should refrain from xferring the edge-most needles, for security (NOTE: this should be True if given edge needle is on the edge of the piece [rather than in the middle of it]).
 	* `inhook` (bool, optional): whether to have the function do an inhook. Defaults to `False`.
@@ -645,7 +649,7 @@ def seed(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], Lis
 		else: return "+"
 
 
-def garter(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List[str]], bed: Optional[str]=None, gauge: int=1, sequence: str="fb", bn_locs: Dict[str,List[int]]={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, xfer_bns_back: bool=True, secure_start_n=True, secure_end_n=True, inhook: bool=False, releasehook: bool=False, tuck_pattern: bool=True, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, xfer_speed_number: Optional[int]=None, xfer_stitch_number: Optional[int]=None, init_direction: Optional[str]=None) -> str:
+def garter(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List[str]], bed: Optional[str]=None, gauge: int=1, sequence: str="fb", bn_locs: Dict[str,List[int]]={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, xfer_bns_back: bool=False, secure_start_n=True, secure_end_n=True, inhook: bool=False, releasehook: bool=False, tuck_pattern: bool=True, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, xfer_speed_number: Optional[int]=None, xfer_stitch_number: Optional[int]=None, init_direction: Optional[str]=None) -> str:
 	'''
 	Garter stitch pattern: alternates between beds pass-wise.
 
@@ -661,7 +665,7 @@ def garter(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], L
 	* `sequence` (str, optional): repeating stitch pattern sequence for alternating length-wise between passes of knits on front and back bed. Defaults to `"fb"`.
 	* `bn_locs` (dict, optional): dict with bed as keys and values as list of needles that are currently on the given bed (aka avoid knitting on). Defaults to `{"f": [], "b": []}` (aka assume loops are on the specified `bed`, and if `bed is None`, assume loops are on both beds to start so will likely need to transfer them to get them in place for the stitch pattern).
 	* `avoid_bns` (dict, optional): dict with bed as keys and values as list of needles that should stay empty (aka avoid knitting on). Defaults to `{"f": [], "b": []}` (aka don't avoid any needles outside of gauging).
-	* `xfer_bns_back` (bool, optional): whether to return loops back to their specified locations in `bn_locs` after knitting (NOTE: not applicable if `bn_locs` is None or empty lists). Defaults to `True`.
+	* `xfer_bns_back` (bool, optional): whether to return loops back to their specified locations in `bn_locs` after knitting (NOTE: not applicable if `bn_locs` is None or empty lists). Defaults to `False`.
 	* `secure_start_n` and ...
 	* `secure_end_n` are booleans that indicate whether or not we should refrain from xferring the edge-most needles, for security (NOTE: this should be True if given edge needle is on the edge of the piece [rather than in the middle of it]).
 	* `inhook` (bool, optional): whether to have the function do an inhook. Defaults to `False`.
@@ -795,7 +799,7 @@ def garter(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], L
 	# return "-" if d == "+" else "+"
 
 
-def tuckGarter(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List[str]], bed: Optional[str]="f", gauge: int=1, sequence: str="ffb", tuck_sequence: str="tk", bn_locs: Dict[str,List[int]]={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, xfer_bns_back: bool=True, secure_start_n: bool=False, secure_end_n: bool=False, inhook: bool=False, releasehook: bool=False, tuck_pattern: bool=True, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, xfer_speed_number: Optional[int]=None, xfer_stitch_number: Optional[int]=None, init_direction: Optional[str]=None) -> str: #TODO: fix this for gauge 2 secure needles
+def tuckGarter(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List[str]], bed: Optional[str]="f", gauge: int=1, sequence: str="ffb", tuck_sequence: str="tk", bn_locs: Dict[str,List[int]]={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, xfer_bns_back: bool=False, secure_start_n: bool=False, secure_end_n: bool=False, inhook: bool=False, releasehook: bool=False, tuck_pattern: bool=True, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, xfer_speed_number: Optional[int]=None, xfer_stitch_number: Optional[int]=None, init_direction: Optional[str]=None) -> str: #TODO: fix this for gauge 2 secure needles
 	'''
 	Garter with tucks on every other needle after first pass in repeated sequence.
 
@@ -812,7 +816,7 @@ def tuckGarter(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str
 	* `tuck_sequence` (str, optional): repeating stitch pattern sequence for alternating needle-wise between knitting and tucking. (Will mirror this pattern in alternating passes).  Defaults to `"tk"`.
 	* `bn_locs` (dict, optional): dict with bed as keys and values as list of needles that are currently on the given bed (aka avoid knitting on). Defaults to `{"f": [], "b": []}` (aka assume loops are on the specified `bed`, and if `bed is None`, assume loops are on both beds to start so will likely need to transfer them to get them in place for the stitch pattern).
 	* `avoid_bns` (dict, optional): dict with bed as keys and values as list of needles that should stay empty (aka avoid knitting on). Defaults to `{"f": [], "b": []}` (aka don't avoid any needles outside of gauging).
-	* `xfer_bns_back` (bool, optional): *TODO: add code for this* whether to return loops back to their specified locations in `bn_locs` after knitting (NOTE: not applicable if `bn_locs` is None or empty lists). Defaults to `True`.
+	* `xfer_bns_back` (bool, optional): *TODO: add code for this* whether to return loops back to their specified locations in `bn_locs` after knitting (NOTE: not applicable if `bn_locs` is None or empty lists). Defaults to `False`.
 	* `secure_start_n` and ...
 	* `secure_end_n` are booleans that indicate whether or not we should refrain from xferring the edge-most needles, for security (NOTE: this should be True if given edge needle is on the edge of the piece [rather than in the middle of it]).
 	* `inhook` (bool, optional): whether to have the function do an inhook. Defaults to `False`.
@@ -950,7 +954,7 @@ def tuckGarter(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str
 	else: return d2
 
 
-def tuckStitch(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List[str]], bed: Optional[str]="f", gauge: int=1, sequence: str="kt", bn_locs: Dict[str,List[int]]={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, xfer_bns_back: bool=True, inhook: bool=False, releasehook: bool=False, tuck_pattern: bool=True, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, init_direction: Optional[str]=None) -> str:
+def tuckStitch(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List[str]], bed: Optional[str]="f", gauge: int=1, sequence: str="kt", bn_locs: Dict[str,List[int]]={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, xfer_bns_back: bool=False, inhook: bool=False, releasehook: bool=False, tuck_pattern: bool=True, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, init_direction: Optional[str]=None) -> str:
 	'''TODO
 	_summary_
 
@@ -966,7 +970,7 @@ def tuckStitch(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str
 	* `sequence` (str, optional): repeating stitch pattern sequence for alternating needle-wise between knitting and tucking. (Will mirror this pattern in alternating passes).  Defaults to `"kt"`.
 	* `bn_locs` (dict, optional): dict with bed as keys and values as list of needles indices for working loops that are currently on the given bed. Value of `None` indicates we should cast-on first. Defaults to `{"f": [], "b": []}` (aka assume loops are on the specified `bed`, and if `bed is None`, assume loops are on both beds to start so we will likely need to transfer them to get them in place for the stitch pattern).
 	* `avoid_bns` (dict, optional): dict with bed as keys and values as list of needles that should stay empty (aka avoid knitting on). Defaults to `{"f": [], "b": []}` (aka don't avoid any needles outside of gauging).
-	* `xfer_bns_back` (bool, optional): whether to return loops back to their specified locations in `bn_locs` after knitting (NOTE: not applicable if `bn_locs` is None or empty lists). Defaults to `True`.
+	* `xfer_bns_back` (bool, optional): whether to return loops back to their specified locations in `bn_locs` after knitting (NOTE: not applicable if `bn_locs` is None or empty lists). Defaults to `False`.
 	* `inhook` (bool, optional): whether to have the function do an inhook. Defaults to `False`.
 	* `releasehook` (bool, optional): whether to have the function do a releasehook (after 2 passes). Defaults to `False`.
 	* `speed_number` (int, optional): value to set for the `x-speed-number` knitout extension. Defaults to `None`.
@@ -1062,7 +1066,7 @@ def tuckStitch(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str
 
 
 
-def altKnitTuck(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List[str]], bed: Optional[str]="f", gauge: int=1, sequence: str="kt", tuck_sequence: str="mt", bn_locs: Dict[str,List[int]]={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, xfer_bns_back: bool=True, inhook: bool=False, releasehook: bool=False, tuck_pattern: bool=True, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, init_direction: Optional[str]=None) -> str:
+def altKnitTuck(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List[str]], bed: Optional[str]="f", gauge: int=1, sequence: str="kt", tuck_sequence: str="mt", bn_locs: Dict[str,List[int]]={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, xfer_bns_back: bool=False, inhook: bool=False, releasehook: bool=False, tuck_pattern: bool=True, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, init_direction: Optional[str]=None) -> str:
 	'''TODO
 	_summary_
 
@@ -1079,7 +1083,7 @@ def altKnitTuck(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[st
 	* `gauge` (int, optional): gauge to knit in. Defaults to `1`.
 	* `bn_locs` (dict, optional): dict with bed as keys and values as list of needles indices for working loops that are currently on the given bed. Value of `None` indicates we should cast-on first. Defaults to `{"f": [], "b": []}` (aka assume loops are on the specified `bed`, and if `bed is None`, assume loops are on both beds to start so we will likely need to transfer them to get them in place for the stitch pattern).
 	* `avoid_bns` (dict, optional): dict with bed as keys and values as list of needles that should stay empty (aka avoid knitting on). Defaults to `{"f": [], "b": []}` (aka don't avoid any needles outside of gauging).
-	* `xfer_bns_back` (bool, optional): whether to return loops back to their specified locations in `bn_locs` after knitting (NOTE: not applicable if `bn_locs` is None or empty lists). Defaults to `True`.
+	* `xfer_bns_back` (bool, optional): whether to return loops back to their specified locations in `bn_locs` after knitting (NOTE: not applicable if `bn_locs` is None or empty lists). Defaults to `False`.
 	* `inhook` (bool, optional): whether to have the function do an inhook. Defaults to `False`.
 	* `releasehook` (bool, optional): whether to have the function do a releasehook (after 2 passes). Defaults to `False`.
 	* `speed_number` (int, optional): value to set for the `x-speed-number` knitout extension. Defaults to `None`.

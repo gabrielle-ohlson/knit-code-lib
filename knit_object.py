@@ -203,6 +203,8 @@ class KnitObject:
 			"c": None,
 			"bed": None,
 			"gauge": self.gauge, #will *not* be a reference (should be updated each time in case it changes)
+			"xfer_bns_setup": True,
+			"xfer_bns_back": True
 			# "sequence": None,
 			# "bn_locs"
 			# "avoid_bns": {"f": [], "b": []}
@@ -385,6 +387,7 @@ class KnitObject:
 			func_args["tuck_pattern"] = True
 		#
 		func = None
+		
 		if isinstance(pattern, StitchPattern) or isinstance(pattern, int):
 			pattern = StitchPattern.parse(pattern) #check
 			#
@@ -417,16 +420,18 @@ class KnitObject:
 				del func_args["releasehook"]
 				del func_args["tuck_pattern"]
 
-			#
-			for key in list(func_args.keys()).copy():
-				if key == "passes" and key not in func.__code__.co_varnames and "iters" in func.__code__.co_varnames: #* #temp fix
-					func_args["iters"] = func_args["passes"]
-					del func_args["passes"]
-				elif key == "bed" and key not in func.__code__.co_varnames and "main_bed" in func.__code__.co_varnames: #* #temp fix
-					func_args["main_bed"] = func_args["bed"]
-					del func_args["bed"]
-				else:
-					assert key in func.__code__.co_varnames, f"'{func.__name__}' function does not use required parameter, '{key}'."
+		#
+		for key in list(func_args.keys()).copy():
+			if key == "passes" and key not in func.__code__.co_varnames and "iters" in func.__code__.co_varnames: #* #temp fix
+				func_args["iters"] = func_args["passes"]
+				del func_args["passes"]
+			elif key == "bed" and key not in func.__code__.co_varnames and "main_bed" in func.__code__.co_varnames: #* #temp fix
+				func_args["main_bed"] = func_args["bed"]
+				del func_args["bed"]
+			else:
+				warnings.warn(f"WARNING: '{func.__name__}' function does not use required parameter, '{key}'.")
+				del func_args[key]
+				# assert key in func.__code__.co_varnames, f"'{func.__name__}' function does not use required parameter, '{key}'."
 		#
 		for key, val in kwargs.items():
 			if key in func.__code__.co_varnames: func_args[key] = val
