@@ -239,7 +239,23 @@ class KnitObject:
 		if waste_c is not None: self.waste_carrier = waste_c
 		if draw_c is not None: self.draw_carrier = draw_c
 
-		assert self.waste_carrier is not None and self.draw_carrier is not None
+		if self.waste_carrier is None:
+			for c in range(6, 0, -1):
+				if f"{c}" not in self.k.carrier_map.keys():
+					self.waste_carrier = f"{c}"
+					break
+			#
+			assert self.waste_carrier is not None, "No available carriers to use for the waste section."
+			print(f"WARNING: setting carrier '{self.waste_carrier}' as `self.waste_carrier`, since it was not manually assigned a value.")
+		if self.draw_carrier is None:
+			for c in range(6, 0, -1):
+				if self.waste_carrier != f"{c}" and f"{c}" not in self.k.carrier_map.keys():
+					self.draw_carrier = f"{c}"
+					break
+			assert self.draw_carrier is not None, "No available carriers to use for the draw string."
+			print(f"WARNING: setting carrier '{self.draw_carrier}' as `self.draw_carrier`, since it was not manually assigned a value.")
+
+		# assert self.waste_carrier is not None and self.draw_carrier is not None
 
 		if needle_range[0] > needle_range[1]: left_n, right_n = needle_range[::-1]
 		else: left_n, right_n = needle_range
