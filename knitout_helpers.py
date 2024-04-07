@@ -161,34 +161,36 @@ def rackedXfer(obj, from_bed: str, from_needle: int, to_bed: str, to_needle: int
 class AlreadyActiveCarrierWarning(UserWarning): #*#* #TODO: add this in
 	ENABLED = True
 
-	def __init__(self, c: str, op: str='use'):
-		self.message = f"Attempting to {op} carrier '{c}', which has already been brought in."
+	def __init__(self, c: str, op: str, ln: int):
+		self.message = f"[@ line #{ln}] Attempting to {op} carrier '{c}', which has already been brought in."
 
 	def __str__(self):
 		return repr(self.message)
 	
 	@classmethod
-	def check(self, k, warnings, carrier_map, c, op="use") -> bool:
+	def check(self, k, warnings, carrier_map, c, op="use", line_number=None) -> bool:
 		if c in carrier_map:
-			if self.ENABLED: k.comment(f"already active carrier warning (carrier: {c})")
-			warnings.warn(AlreadyActiveCarrierWarning(c, op))
+			if line_number is None: line_number = k.line_number
+			# if self.ENABLED: k.comment(f"already active carrier warning (carrier: {c})")
+			warnings.warn(AlreadyActiveCarrierWarning(c, op, line_number))
 			return True
 		else: return False
 
 class InactiveCarrierWarning(UserWarning):
 	ENABLED = True
 
-	def __init__(self, c: str, op: str='use'):
-		self.message = f"Attempting to {op} carrier '{c}', which hasn't been brought in yet."
+	def __init__(self, c: str, op: str, ln: int):
+		self.message = f"[@ line #{ln}] Attempting to {op} carrier '{c}', which hasn't been brought in yet."
 
 	def __str__(self):
 		return repr(self.message)
 	
 	@classmethod
-	def check(self, k, warnings, carrier_map, c, op="use") -> bool:
+	def check(self, k, warnings, carrier_map, c, op="use", line_number=None) -> bool:
 		if c not in carrier_map:
+			if line_number is None: line_number = k.line_number
 			# if self.ENABLED: k.comment(f"inactive carrier warning (carrier: {c})")
-			warnings.warn(InactiveCarrierWarning(c, op))
+			warnings.warn(InactiveCarrierWarning(c, op, line_number))
 			return True
 		else: return False
 
@@ -196,22 +198,23 @@ class InactiveCarrierWarning(UserWarning):
 class UnalignedNeedlesWarning(UserWarning):
 	ENABLED = True
 
-	def __init__(self, r: int, bn: str, bn2: str):
-		self.message = f"'{bn}' and '{bn2}' are unaligned at rack {r}."
+	def __init__(self, r: int, bn: str, bn2: str, ln: str):
+		self.message = f"[@ line #{ln}] '{bn}' and '{bn2}' are unaligned at rack {r}."
 
 	def __str__(self):
 		return repr(self.message)
 	
 	@classmethod
-	def check(self, k, warnings, rack_value, bed, needle, bed2, needle2) -> bool:
+	def check(self, k, warnings, rack_value, bed, needle, bed2, needle2, line_number=None) -> bool:
+		if line_number is None: line_number = k.line_number
 		if bed[0] == bed2[0]:
 			# if self.ENABLED: k.comment(f"unaligned needles warning: can't xfer to/from same bed ({bed}{needle} -> {bed2}{needle2})")
 			print(f"can't xfer to/from to same bed ({bed} -> {bed2})")
-			warnings.warn(UnalignedNeedlesWarning(rack_value, f"{bed}{needle}", f"{bed2}{needle2}"))
+			warnings.warn(UnalignedNeedlesWarning(rack_value, f"{bed}{needle}", f"{bed2}{needle2}", line_number))
 			return True
 		elif (bed[0] == "f" and needle-needle2 != rack_value) or (bed[0] == "b" and needle2-needle != rack_value):
 			# if self.ENABLED: k.comment(f"unaligned needles warning: invalid rack value ({bed}{needle} -> {bed2}{needle2} at rack {rack_value})")
-			warnings.warn(UnalignedNeedlesWarning(rack_value, f"{bed}{needle}", f"{bed2}{needle2}"))
+			warnings.warn(UnalignedNeedlesWarning(rack_value, f"{bed}{needle}", f"{bed2}{needle2}", line_number))
 			return True
 		else: return False
 
@@ -227,12 +230,13 @@ class FloatWarning(UserWarning):
 		return repr(self.message)
 	
 	@classmethod
-	def check(self, k, warnings, carrier_map, c, needle) -> bool:
+	def check(self, k, warnings, carrier_map, c, needle, line_number=None) -> bool:
 		prev_needle = carrier_map[c].needle
 		if prev_needle is None or abs(needle-prev_needle) <= self.MAX_FLOAT_LEN: return False
 		else:
+			if line_number is None: line_number = k.line_number
 			# if self.ENABLED: k.comment(f"float warning (carrier: {c}, length: {abs(needle-prev_needle)})")
-			warnings.warn(FloatWarning(c, prev_needle, needle, k.line_number))
+			warnings.warn(FloatWarning(c, prev_needle, needle, line_number))
 			return True
 
 
@@ -240,45 +244,47 @@ class StackedLoopWarning(UserWarning):
 	ENABLED = True
 	MAX_STACK_CT = 2
 
-	def __init__(self, bn: str, count: int):
+	def __init__(self, bn: str, count: int, ln: int):
 		self.bn = bn
 		self.count = count
 		#
-		self.message = f"{count} loops stacked on '{bn}'"
+		self.message = f"[@ line #{ln}] {count} loops stacked on '{bn}'"
 
 	def __str__(self):
 		return repr(self.message)
 	
 	@classmethod
-	def check(self, k, warnings, bn, bed, needle, MAX_STACK_CT=None) -> bool:
+	def check(self, k, warnings, bn, bed, needle, MAX_STACK_CT=None, line_number=None) -> bool:
 		if MAX_STACK_CT is None: MAX_STACK_CT = self.MAX_STACK_CT
 		stack_ct = bn.loop_ct
 		#
 		if stack_ct > self.MAX_STACK_CT:
+			if line_number is None: line_number = k.line_number
 			# if self.ENABLED: k.comment(f"stacked loop warning ({stack_ct} on {bed}{needle})")
-			warnings.warn(StackedLoopWarning(f"{bed}{needle}", stack_ct))
+			warnings.warn(StackedLoopWarning(f"{bed}{needle}", stack_ct, line_number))
 			return True
 		else: return False
 
 
-class HeldLoopWarning(UserWarning): #TODO: test this and make sure it actually works
+class HeldLoopWarning(UserWarning):
 	ENABLED = True
 	MAX_HOLD_ROWS = 10 #TODO: see what this value is on shima
 
-	def __init__(self, bn: str, n_rows: int):
-		self.message = f"'{bn}' has been holding an unknit loop for {n_rows} rows." #TODO: phrase this better
+	def __init__(self, bn: str, n_rows: int, ln: int):
+		self.message = f"[@ line #{ln}] '{bn}' has been holding an unknit loop for {n_rows} rows." #TODO: phrase this better
 
 	def __str__(self):
 		return repr(self.message)
 	
 	@classmethod
-	def check(self, k, warnings, row_ct, bn, bed, needle) -> bool:
+	def check(self, k, warnings, row_ct, bn, bed, needle, line_number=None) -> bool:
 		if bn is None: return False
 		held_ct = max(0, row_ct-bn.current_row) #check #TODO: have current_row too #? 
 		#
 		if held_ct > self.MAX_HOLD_ROWS:
+			if line_number is None: line_number = k.line_number
 			# if self.ENABLED: k.comment(f"held loop warning ({held_ct} rows on {bed}{needle})")
-			warnings.warn(HeldLoopWarning(f"{bed}{needle}", held_ct))
+			warnings.warn(HeldLoopWarning(f"{bed}{needle}", held_ct, line_number))
 			return True
 		else: return False
 
@@ -286,36 +292,38 @@ class HeldLoopWarning(UserWarning): #TODO: test this and make sure it actually w
 class UnstableLoopWarning(UserWarning):
 	ENABLED = True
 
-	def __init__(self, bn: str):
-		self.message = f"Attempting to knit on '{bn}', which does not yet have a stable loop formed." #TODO: phrase this better
+	def __init__(self, bn: str, ln: int):
+		self.message = f"[@ line #{ln}] Attempting to knit on '{bn}', which does not yet have a stable loop formed." #TODO: phrase this better
 
 	def __str__(self):
 		return repr(self.message)
 	
 	@classmethod
-	def check(self, k, warnings, bns, bed, needle) -> bool:
+	def check(self, k, warnings, bns, bed, needle, line_number=None) -> bool:
 		raise NotImplementedError
 	
 
 class EmptyXferWarning(UserWarning):
 	ENABLED = True
 
-	def __init__(self, bn: str):
-		self.message = f"Attempting to xfer from '{bn}', which is empty." #TODO: phrase this better
+	def __init__(self, bn: str, ln: int):
+		self.message = f"[@ line #{ln}] Attempting to xfer from '{bn}', which is empty." #TODO: phrase this better
 
 	def __str__(self):
 		return repr(self.message)
 	
 	@classmethod
-	def check(self, k, warnings, bn, bed, needle) -> bool:
+	def check(self, k, warnings, bn, bed, needle, line_number=None) -> bool:
+		if line_number is None: line_number = k.line_number
+		#
 		if bn is None:
 			# if self.ENABLED: k.comment(f"empty xfer warning ({bed}{needle})")
-			warnings.warn(EmptyXferWarning(f"{bed}{needle}"))
+			warnings.warn(EmptyXferWarning(f"{bed}{needle}", line_number))
 			return True
 		else:
 			if bn.loop_ct > 0: return False
 			else:
 				# if self.ENABLED: k.comment(f"empty xfer warning ({bed}{needle})") #go back! #?
-				warnings.warn(EmptyXferWarning(f"{bed}{needle}"))
+				warnings.warn(EmptyXferWarning(f"{bed}{needle}", line_number))
 				return True
 

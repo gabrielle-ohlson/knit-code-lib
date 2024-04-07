@@ -96,7 +96,8 @@ def ValidationThread(q):
     while True:
         (f, ln, args) = q.get()
         if f is None: break
-        if f(*args): print(f"@ line {ln+1}") #debug
+        else: f(*args)
+        # if f(*args): print(f"@ line {ln+1}") #debug
 
 class Writer(knitout.Writer):
     def __init__(self, cs):
@@ -138,7 +139,7 @@ class Writer(knitout.Writer):
         self.line_number += n
     
     def updateCarrier(self, c, op, direction, bed, needle): #*
-        w = InactiveCarrierWarning.check(self, warnings, self.carrier_map, c, op=op)
+        w = InactiveCarrierWarning.check(self, warnings, self.carrier_map, c, op=op, line_number=self.line_number)
         if w: self.carrier_map[c] = Carrier(direction, bed, needle) #warning raised, but not error level
         else: self.carrier_map[c].update(direction, bed, needle)
         #
@@ -153,7 +154,7 @@ class Writer(knitout.Writer):
             return False
 
     def removeCarrier(self, c, op): #*
-        w = InactiveCarrierWarning.check(self, warnings, self.carrier_map, c, op=op)
+        w = InactiveCarrierWarning.check(self, warnings, self.carrier_map, c, op=op, line_number=self.line_number)
         if not w: del self.carrier_map[c]
         #
         return w
@@ -241,7 +242,7 @@ class Writer(knitout.Writer):
         #
         for c in carriers:
             # self.q.put( (InactiveCarrierWarning.check, self.line_number, (self, warnings, self.carrier_map,c, "releasehook")) ) #*
-            InactiveCarrierWarning.check(self, warnings, self.carrier_map,c, "releasehook") #new
+            InactiveCarrierWarning.check(self, warnings, self.carrier_map,c, op="releasehook", line_number=self.line_number) #new
     
     def rack(self, r: Union[int,float]): #*#*
         if self.rack_value != r: #keep #?
@@ -258,12 +259,12 @@ class Writer(knitout.Writer):
         #
         for c in carriers:
             # self.q.put( (FloatWarning.check, self.line_number, (self, warnings, self.carrier_map, c, needle)) ) #*
-            FloatWarning.check(self, warnings, self.carrier_map, c, needle) #new
+            FloatWarning.check(self, warnings, self.carrier_map, c, needle, line_number=self.line_number) #new
             #
             # self.q.put( (self.updateCarrier, self.line_number, (c, "knit", direction, bed, needle)) ) #*
             self.updateCarrier(c, "knit", direction, bed, needle) #new
         #
-        self.q.put( (HeldLoopWarning.check, self.line_number, (self, warnings, self.row_ct, self.bns.get(bn), bed, needle)) ) #* #copy #?
+        self.q.put( (HeldLoopWarning.check, self.line_number, (self, warnings, self.row_ct, self.bns.get(bn), bed, needle, self.line_number)) ) #* #copy #?
         #
         self.bns.increment((bed,needle), is_tuck=False) #*#*
 
@@ -278,15 +279,15 @@ class Writer(knitout.Writer):
         #
         for c in carriers:
             # self.q.put( (FloatWarning.check, self.line_number, (self, warnings, self.carrier_map, c, needle)) ) #*
-            FloatWarning.check(self, warnings, self.carrier_map, c, needle) #new
+            FloatWarning.check(self, warnings, self.carrier_map, c, needle, line_number=self.line_number) #new
             #
             # self.q.put( (self.updateCarrier, self.line_number, (c, "tuck", direction, bed, needle)) ) #*
             self.updateCarrier(c, "tuck", direction, bed, needle) #new
         #
-        self.q.put( (HeldLoopWarning.check, self.line_number, (self, warnings, self.row_ct, self.bns.get(bn), bed, needle)) ) #* #copy #?
+        self.q.put( (HeldLoopWarning.check, self.line_number, (self, warnings, self.row_ct, self.bns.get(bn), bed, needle, self.line_number)) ) #* #copy #?
         #
         self.bns.increment((bed,needle), is_tuck=True) #*#*
-        self.q.put( (StackedLoopWarning.check, self.line_number, (self, warnings, self.bns.get(bn), bed, needle)) ) #* #copy #?
+        self.q.put( (StackedLoopWarning.check, self.line_number, (self, warnings, self.bns.get(bn), bed, needle, self.line_number)) ) #* #copy #?
 
     def xfer(self, *args):
         argl = list(args)
@@ -295,11 +296,11 @@ class Writer(knitout.Writer):
         #
         self.operations.append('xfer ' + bn_from + ' ' + bn_to)
         #
-        self.q.put( (UnalignedNeedlesWarning.check, self.line_number, (self, warnings, self.rack_value, bed, needle, bed2, needle2)) ) #*
-        self.q.put( (EmptyXferWarning.check, self.line_number, (self, warnings, self.bns.get(bn_from), bed, needle)) ) #* #copy #?
+        self.q.put( (UnalignedNeedlesWarning.check, self.line_number, (self, warnings, self.rack_value, bed, needle, bed2, needle2, self.line_number)) ) #*
+        self.q.put( (EmptyXferWarning.check, self.line_number, (self, warnings, self.bns.get(bn_from), bed, needle, self.line_number)) ) #* #copy #?
         #
         self.bns.xfer((bed,needle), (bed2,needle2), is_split=False) #*#*
-        self.q.put( (StackedLoopWarning.check, self.line_number, (self, warnings, self.bns.get(bn_to), bed2, needle2)) ) #* #copy #?
+        self.q.put( (StackedLoopWarning.check, self.line_number, (self, warnings, self.bns.get(bn_to), bed2, needle2, self.line_number)) ) #* #copy #?
 
     def split(self, *args):
         argl = list(args)
@@ -310,20 +311,20 @@ class Writer(knitout.Writer):
         #
         self.operations.append('split '+ direction + ' ' + bn_from + ' ' + bn_to + ' ' + cs)
         #
-        self.q.put( (UnalignedNeedlesWarning.check, self.line_number, (self, warnings, self.rack_value, bed, needle, bed2, needle2)) ) #*
-        self.q.put( (EmptyXferWarning.check, self.line_number, (self, warnings, self.bns.get(bn_from), bed, needle)) ) #* #copy #?
+        self.q.put( (UnalignedNeedlesWarning.check, self.line_number, (self, warnings, self.rack_value, bed, needle, bed2, needle2, self.line_number)) ) #*
+        self.q.put( (EmptyXferWarning.check, self.line_number, (self, warnings, self.bns.get(bn_from), bed, needle, self.line_number)) ) #* #copy #?
         #
         for c in carriers:
             # self.q.put( (FloatWarning.check, self.line_number, (self, warnings, self.carrier_map, c, needle)) ) #* #TODO: deepcopy for these #*#*#*
-            FloatWarning.check(self, warnings, self.carrier_map, c, needle) #new
+            FloatWarning.check(self, warnings, self.carrier_map, c, needle, line_number=self.line_number) #new
             #
             # self.q.put( (self.updateCarrier, self.line_number, (c, "split", direction, bed, needle)) ) #* #TODO: deepcopy for these #? #*#*#*
             self.updateCarrier(c, "split", direction, bed, needle) #new
         #
-        self.q.put( (HeldLoopWarning.check, self.line_number, (self, warnings, self.row_ct, self.bns.get(bn_from), bed, needle)) ) #* #copy #?
+        self.q.put( (HeldLoopWarning.check, self.line_number, (self, warnings, self.row_ct, self.bns.get(bn_from), bed, needle, self.line_number)) ) #* #copy #?
         #
         self.bns.xfer((bed,needle), (bed2,needle2), is_split=True) #*#*
-        self.q.put( (StackedLoopWarning.check, self.line_number, (self, warnings, self.bns.get(bn_to), bed2, needle2)) ) #* #copy #?
+        self.q.put( (StackedLoopWarning.check, self.line_number, (self, warnings, self.bns.get(bn_to), bed2, needle2, self.line_number)) ) #* #copy #?
 
     def miss(self, *args):
         argl = list(args)
@@ -343,7 +344,7 @@ class Writer(knitout.Writer):
         #
         self.operations.append('drop ' + bn)
         #
-        self.q.put( (HeldLoopWarning.check, self.line_number, (self, warnings, self.row_ct, self.bns.get(bn), bed, needle)) ) #* #copy #?
+        self.q.put( (HeldLoopWarning.check, self.line_number, (self, warnings, self.row_ct, self.bns.get(bn), bed, needle, self.line_number)) ) #* #copy #?
         #
         self.bns.remove((bed,needle)) #*#*
 
@@ -373,7 +374,7 @@ class Writer(knitout.Writer):
             else: self.outcarrier(c)
         
         for bn in self.bns:
-            self.q.put( (HeldLoopWarning.check, self.line_number, (self, warnings, self.row_ct, self.bns.get(bn), bn.bed, bn.needle)) ) #* #copy #?
+            self.q.put( (HeldLoopWarning.check, self.line_number, (self, warnings, self.row_ct, self.bns.get(bn), bn.bed, bn.needle, self.line_number)) ) #* #copy #?
         #
         self.q.put((None, None, None)) #indicates we're done
         #
