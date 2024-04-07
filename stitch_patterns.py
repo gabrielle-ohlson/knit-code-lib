@@ -208,9 +208,24 @@ def interlock(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str]
 
 	if bn_locs is None: print("TODO: add caston") #debug
 
-	if xfer_bns_setup and bed is not None: #new #check (TODO: have option of single vs double bed #?)
+	if xfer_bns_setup and gauge != 1: #TODO: #check
+		# transfer to get loops in place:
+		if xfer_speed_number is not None: k.speedNumber(xfer_speed_number)
+		if xfer_stitch_number is not None: k.stitchNumber(xfer_stitch_number)
+		
+		for n in range(left_n, right_n+1):
+			if n in avoid_bns.get("f", []) or n in avoid_bns.get("b", []) or n in secure_needles[bed1]: continue
+			elif n % (gauge*2) == mods2[1] and n in _bn_locs[bed1]: k.xfer(f"{bed1}{n}", f"{bed2}{n}")
+		
+		# reset settings
+		if speed_number is not None: k.speedNumber(speed_number)
+		if stitch_number is not None: k.stitchNumber(stitch_number)
+
+
+	if bed is not None and gauge != 1: #new #check (TODO: have option of single vs double bed #?)
 		mods4 = [modsHalveGauge(gauge*2, mods2[0]), modsHalveGauge(gauge*2, mods2[1])]
 
+		"""
 		# transfer to get loops in place:
 		if xfer_speed_number is not None: k.speedNumber(xfer_speed_number)
 		if xfer_stitch_number is not None: k.stitchNumber(xfer_stitch_number)
@@ -222,6 +237,7 @@ def interlock(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str]
 		# reset settings
 		if speed_number is not None: k.speedNumber(speed_number)
 		if stitch_number is not None: k.stitchNumber(stitch_number)
+		"""
 
 		def passSequence1(d):
 			for n in n_ranges[d]:
@@ -263,9 +279,15 @@ def interlock(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str]
 			if xfer_speed_number is not None: k.speedNumber(xfer_speed_number)
 			if xfer_stitch_number is not None: k.stitchNumber(xfer_stitch_number)
 
-			for n in range(left_n, right_n+1):
-				if avoid_bns.get("f", []) or n in avoid_bns.get("b", []) or n in secure_needles[bed1] or not bnValid(bed1, n, gauge): continue
-				elif n % (gauge*2) == mods2[1]: k.xfer(f"{bed2}{n}", f"{bed1}{n}")
+			if gauge == 1: #TODO: #check
+				for n in range(left_n, right_n+1):
+					if avoid_bns.get("f", []) or n in avoid_bns.get("b", []) or n in secure_needles[bed1] or not bnValid(bed1, n, gauge): continue
+					elif n not in _bn_locs[bed2]: k.xfer(f"{bed2}{n}", f"{bed1}{n}")
+			else:
+				for n in range(left_n, right_n+1):
+					if avoid_bns.get("f", []) or n in avoid_bns.get("b", []) or n in secure_needles[bed1] or not bnValid(bed1, n, gauge): continue
+					elif n % (gauge*2) == mods2[1] and n in _bn_locs[bed1]: k.xfer(f"{bed2}{n}", f"{bed1}{n}") #TODO: #check
+					# elif n % (gauge*2) == mods2[1]: k.xfer(f"{bed2}{n}", f"{bed1}{n}")
 			
 			# reset settings
 			if speed_number is not None: k.speedNumber(speed_number)
@@ -283,7 +305,6 @@ def interlock(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str]
 			# reset settings
 			if speed_number is not None: k.speedNumber(speed_number)
 			if stitch_number is not None: k.stitchNumber(stitch_number)
-
 
 	k.comment("end interlock")
 
