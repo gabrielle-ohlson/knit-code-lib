@@ -11,7 +11,7 @@ patterns_TODO = ["moss", "bubble", "lace"]
 # --- STITCH PATTERN FUNCTIONS ---
 # --------------------------------
 # if doing gauge == 2, want width to be odd so *actually* have number of stitches
-def jersey(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List[str]], bed: str="f", gauge: int=1, mod={"f": None, "b": None}, bn_locs={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, xfer_bns_back: bool=False, inhook: bool=False, releasehook: bool=False, tuck_pattern: bool=True, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, init_direction: Optional[str]=None) -> str:
+def jersey(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List[str]], bed: str="f", gauge: int=1, mod={"f": None, "b": None}, bn_locs={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, xfer_bns_back: bool=False, inhook: bool=False, releasehook: bool=False, tuck_pattern: bool=True, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, machine: str="swgn2", init_direction: Optional[str]=None) -> str:
 	'''
 	Jersey stitch pattern: Plain knit on specified bed
 
@@ -32,6 +32,7 @@ def jersey(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], L
 	* `tuck_pattern` (bool, optional): whether to include a tuck pattern for extra security when bringing in the carrier (only applicable if `inhook` or `releasehook` == `True`). Defaults to `False`.
 	* `speed_number` (int, optional): value to set for the `x-speed-number` knitout extension. Defaults to `None`.
 	* `stitch_number` (int, optional): value to set for the `x-stitch-number` knitout extension. Defaults to `None`.
+	* `machine` (str, optional): knitting machine model. Currently supported values are `swgn2` and `kniterate`. Defaults to `swgn2`.
 	* `init_direction` (str, optional): in *rare* cases (i.e., when only one needle is being knit), the initial pass direction might not be able to be inferred by the values of `start_n` and `end_n`.  In this case, one can specify the direction using this parameter (otherwise, can leave it as the default value, `None`, which indicates that the direction should/can be inferred).
 
 	Raises:
@@ -44,7 +45,9 @@ def jersey(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], L
 	'''
 	if releasehook:
 		if passes < 2:
-			if not tuck_pattern: raise ValueError("not safe to releasehook with less than 2 passes. Try adding a tuck pattern.")
+			if not tuck_pattern:
+				if machine == "kniterate": rh_p = -1
+				else: raise ValueError("not safe to releasehook with less than 2 passes. Try adding a tuck pattern.")
 			else: rh_p = 0
 		else: rh_p = 1
 	else: rh_p = -1
@@ -71,7 +74,8 @@ def jersey(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], L
 				k.xfer(f"{bed2}{n}", f"{bed}{n}")
 
 	if inhook:
-		k.inhook(*cs)
+		if machine.lower() == "kniterate": k.incarrier(*cs)
+		else: k.inhook(*cs)
 		if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=cs)
 
 	if bn_locs is None: print("TODO: add caston") #debug
@@ -87,7 +91,7 @@ def jersey(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], L
 		knitPass(k, start_n=pass_start_n, end_n=pass_end_n, c=c, bed=bed, gauge=gauge, mod=mod[bed], avoid_bns=avoid_bns, init_direction=init_direction)
 
 		if p == rh_p:
-			k.releasehook(*cs)
+			if machine.lower() != "kniterate": k.releasehook(*cs)
 			if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=None) # drop it
 
 	if xfer_bns_back and bn_locs is not None and len(bn_locs.get(bed2, [])):
@@ -108,7 +112,7 @@ tube (single bed) example:
 e.g. for gauge 2:
 if mod == 0
 """
-def interlock(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List[str]], bed: Optional[str]=None, gauge: int=1, sequence: str="01", bn_locs: Dict[str,List[int]]={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, xfer_bns_setup: bool=False, xfer_bns_back: bool=False, secure_start_n: bool=False, secure_end_n: bool=False, inhook: bool=False, releasehook: bool=False, tuck_pattern: bool=True, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, xfer_speed_number: Optional[int]=None, xfer_stitch_number: Optional[int]=None, init_direction: Optional[str]=None) -> str: #TODO: add `xfer_bns_setup` to other stitchPattern functions
+def interlock(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List[str]], bed: Optional[str]=None, gauge: int=1, sequence: str="01", bn_locs: Dict[str,List[int]]={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, xfer_bns_setup: bool=False, xfer_bns_back: bool=False, secure_start_n: bool=False, secure_end_n: bool=False, inhook: bool=False, releasehook: bool=False, tuck_pattern: bool=True, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, xfer_speed_number: Optional[int]=None, xfer_stitch_number: Optional[int]=None, machine: str="swgn2", init_direction: Optional[str]=None) -> str: #TODO: add `xfer_bns_setup` to other stitchPattern functions
 	'''
 	Interlock stitch pattern: knits every other needle on alternating beds, mirroring this pattern with alternating passes. Starts on side indicated by which needle value is greater.
 	In this function, passes is the number of total passes knit, so if you want an interlock segment that is 20 courses long on each bed set passes to 40.  Useful if you want to have odd passes of interlock.
@@ -133,6 +137,7 @@ def interlock(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str]
 	* `stitch_number` (int, optional): value to set for the `x-stitch-number` knitout extension. Defaults to `None`.
 	* `xfer_speed_number` (int, optional): value to set for the `x-speed-number` knitout extension when transferring. Defaults to `None`.
 	* `xfer_stitch_number` (int, optional): value to set for the `x-stitch-number` knitout extension when transferring. Defaults to `None`.
+	* `machine` (str, optional): knitting machine model. Currently supported values are `swgn2` and `kniterate`. Defaults to `swgn2`.
 	* `init_direction` (str, optional): in *rare* cases (i.e., when only one needle is being knit), the initial pass direction might not be able to be inferred by the values of `start_n` and `end_n`.  In this case, one can specify the direction using this parameter (otherwise, can leave it as the default value, `None`, which indicates that the direction should/can be inferred).
 
 	Raises:
@@ -147,7 +152,9 @@ def interlock(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str]
 
 	if releasehook:
 		if passes < 2:
-			if not tuck_pattern: raise ValueError("not safe to releasehook with less than 2 passes. Try adding a tuck pattern.")
+			if not tuck_pattern:
+				if machine == "kniterate": rh_p = -1
+				else: raise ValueError("not safe to releasehook with less than 2 passes. Try adding a tuck pattern.")
 			else: rh_p = 0
 		else: rh_p = 1
 	else: rh_p = -1
@@ -205,7 +212,8 @@ def interlock(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str]
 	n_ranges = {"+": range(left_n, right_n+1), "-": range(right_n, left_n-1, -1)}
 
 	if inhook:
-		k.inhook(*cs)
+		if machine.lower() == "kniterate": k.incarrier(*cs)
+		else: k.inhook(*cs)
 		if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=cs)
 
 	if bn_locs is None: print("TODO: add caston") #debug
@@ -273,7 +281,7 @@ def interlock(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str]
 		else: passSequence2(d2)
 
 		if p == rh_p:
-			k.releasehook(*cs)
+			if machine.lower() != "kniterate": k.releasehook(*cs)
 			if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=None) # drop it
 
 
@@ -317,7 +325,7 @@ def interlock(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str]
 	else: return d2
 
 
-def rib(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List[str]], bed: Optional[str]=None, gauge: int=1, sequence: str="fb", bn_locs: Dict[str,List[int]]={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, xfer_bns_back: bool=False, secure_start_n: bool=False, secure_end_n: bool=False, inhook: bool=False, releasehook: bool=False, tuck_pattern: bool=True, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, xfer_speed_number: Optional[int]=None, xfer_stitch_number: Optional[int]=None, init_direction: Optional[str]=None) -> str: #TODO: #check to make sure this is working well for gauge > 1 #*
+def rib(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List[str]], bed: Optional[str]=None, gauge: int=1, sequence: str="fb", bn_locs: Dict[str,List[int]]={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, xfer_bns_back: bool=False, secure_start_n: bool=False, secure_end_n: bool=False, inhook: bool=False, releasehook: bool=False, tuck_pattern: bool=True, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, xfer_speed_number: Optional[int]=None, xfer_stitch_number: Optional[int]=None, machine: str="swgn2", init_direction: Optional[str]=None) -> str: #TODO: #check to make sure this is working well for gauge > 1 #*
 	'''
 	Rib stitch pattern: alternates between front and back bed in a row based on given sequence.
 
@@ -342,6 +350,7 @@ def rib(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List
 	* `stitch_number` (int, optional): value to set for the `x-stitch-number` knitout extension. Defaults to `None`.
 	* `xfer_speed_number` (int, optional): value to set for the `x-speed-number` knitout extension when transferring. Defaults to `None`.
 	* `xfer_stitch_number` (int, optional): value to set for the `x-stitch-number` knitout extension when transferring. Defaults to `None`.
+	* `machine` (str, optional): knitting machine model. Currently supported values are `swgn2` and `kniterate`. Defaults to `swgn2`.
 	* `init_direction` (str, optional): in *rare* cases (i.e., when only one needle is being knit), the initial pass direction might not be able to be inferred by the values of `start_n` and `end_n`.  In this case, one can specify the direction using this parameter (otherwise, can leave it as the default value, `None`, which indicates that the direction should/can be inferred).
 
 
@@ -355,7 +364,9 @@ def rib(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List
 	'''
 	if releasehook:
 		if passes < 2:
-			if not tuck_pattern: raise ValueError("not safe to releasehook with less than 2 passes. Try adding a tuck pattern.")
+			if not tuck_pattern:
+				if machine == "kniterate": rh_p = -1
+				else: raise ValueError("not safe to releasehook with less than 2 passes. Try adding a tuck pattern.")
 			else: rh_p = 0
 		else: rh_p = 1
 	else: rh_p = -1
@@ -419,7 +430,8 @@ def rib(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List
 		if stitch_number is not None: k.stitchNumber(stitch_number)
 
 	if inhook:
-		k.inhook(*cs)
+		if machine.lower() == "kniterate": k.incarrier(*cs)
+		else: k.inhook(*cs)
 		if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=cs)
 	
 	if bn_locs is None: print("TODO: add caston") #debug
@@ -441,7 +453,7 @@ def rib(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List
 			elif n == last_n: k.miss(d, f"f{n}", *cs)
 
 		if p == rh_p:
-			k.releasehook(*cs)
+			if machine.lower() != "kniterate": k.releasehook(*cs)
 			if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=None) # drop it
 
 	# return the loops:
@@ -463,7 +475,7 @@ def rib(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List
 	else: return d2
 
 
-def seed(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List[str]], bed: Optional[str]="f", gauge: int=1, sequence: str="fb", bn_locs: Dict[str,List[int]]={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, xfer_bns_back: bool=False, secure_start_n=True, secure_end_n=True, inhook: bool=False, releasehook: bool=False, tuck_pattern: bool=True, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, xfer_speed_number: Optional[int]=None, xfer_stitch_number: Optional[int]=None, init_direction: Optional[str]=None) -> str:
+def seed(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List[str]], bed: Optional[str]="f", gauge: int=1, sequence: str="fb", bn_locs: Dict[str,List[int]]={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, xfer_bns_back: bool=False, secure_start_n=True, secure_end_n=True, inhook: bool=False, releasehook: bool=False, tuck_pattern: bool=True, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, xfer_speed_number: Optional[int]=None, xfer_stitch_number: Optional[int]=None, machine: str="swgn2", init_direction: Optional[str]=None) -> str:
 	'''
 	Seed stitch pattern: alternates bes needle-wise based on specified sequence, mirroring the sequence pass-wise.
 
@@ -488,6 +500,7 @@ def seed(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], Lis
 	* `stitch_number` (int, optional): value to set for the `x-stitch-number` knitout extension. Defaults to `None`.
 	* `xfer_speed_number` (int, optional): value to set for the `x-speed-number` knitout extension when transferring. Defaults to `None`.
 	* `xfer_stitch_number` (int, optional): value to set for the `x-stitch-number` knitout extension when transferring. Defaults to `None`.
+	* `machine` (str, optional): knitting machine model. Currently supported values are `swgn2` and `kniterate`. Defaults to `swgn2`.
 	* `init_direction` (str, optional): in *rare* cases (i.e., when only one needle is being knit), the initial pass direction might not be able to be inferred by the values of `start_n` and `end_n`.  In this case, one can specify the direction using this parameter (otherwise, can leave it as the default value, `None`, which indicates that the direction should/can be inferred).
 
 	Raises:
@@ -500,7 +513,9 @@ def seed(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], Lis
 	'''
 	if releasehook:
 		if passes < 2:
-			if not tuck_pattern: raise ValueError("not safe to releasehook with less than 2 passes. Try adding a tuck pattern.")
+			if not tuck_pattern:
+				if machine == "kniterate": rh_p = -1
+				else: raise ValueError("not safe to releasehook with less than 2 passes. Try adding a tuck pattern.")
 			else: rh_p = 0
 		else: rh_p = 1
 	else: rh_p = -1
@@ -563,7 +578,8 @@ def seed(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], Lis
 		if stitch_number is not None: k.stitchNumber(stitch_number)
 
 	if inhook:
-		k.inhook(*cs)
+		if machine.lower() == "kniterate": k.incarrier(*cs)
+		else: k.inhook(*cs)
 		if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=cs)
 
 	for p in range(passes):
@@ -635,7 +651,7 @@ def seed(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], Lis
 			if stitch_number is not None: k.stitchNumber(stitch_number)
 		
 		if p == rh_p:
-			k.releasehook(*cs)
+			if machine.lower() != "kniterate": k.releasehook(*cs)
 			if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=None) # drop it
 
 	k.comment(f"end seed ({sequence})")
@@ -649,7 +665,7 @@ def seed(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], Lis
 		else: return "+"
 
 
-def garter(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List[str]], bed: Optional[str]=None, gauge: int=1, sequence: str="fb", bn_locs: Dict[str,List[int]]={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, xfer_bns_back: bool=False, secure_start_n=True, secure_end_n=True, inhook: bool=False, releasehook: bool=False, tuck_pattern: bool=True, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, xfer_speed_number: Optional[int]=None, xfer_stitch_number: Optional[int]=None, init_direction: Optional[str]=None) -> str:
+def garter(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List[str]], bed: Optional[str]=None, gauge: int=1, sequence: str="fb", bn_locs: Dict[str,List[int]]={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, xfer_bns_back: bool=False, secure_start_n=True, secure_end_n=True, inhook: bool=False, releasehook: bool=False, tuck_pattern: bool=True, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, xfer_speed_number: Optional[int]=None, xfer_stitch_number: Optional[int]=None, machine: str="swgn2", init_direction: Optional[str]=None) -> str:
 	'''
 	Garter stitch pattern: alternates between beds pass-wise.
 
@@ -674,6 +690,7 @@ def garter(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], L
 	* `stitch_number` (int, optional): value to set for the `x-stitch-number` knitout extension. Defaults to `None`.
 	* `xfer_speed_number` (int, optional): value to set for the `x-speed-number` knitout extension when transferring. Defaults to `None`.
 	* `xfer_stitch_number` (int, optional): value to set for the `x-stitch-number` knitout extension when transferring. Defaults to `None`.
+	* `machine` (str, optional): knitting machine model. Currently supported values are `swgn2` and `kniterate`. Defaults to `swgn2`.
 	* `init_direction` (str, optional): in *rare* cases (i.e., when only one needle is being knit), the initial pass direction might not be able to be inferred by the values of `start_n` and `end_n`.  In this case, one can specify the direction using this parameter (otherwise, can leave it as the default value, `None`, which indicates that the direction should/can be inferred).
 
 	Raises:
@@ -686,7 +703,9 @@ def garter(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], L
 	'''
 	if releasehook:
 		if passes < 2:
-			if not tuck_pattern: raise ValueError("not safe to releasehook with less than 2 passes. Try adding a tuck pattern.")
+			if not tuck_pattern:
+				if machine == "kniterate": rh_p = -1
+				else: raise ValueError("not safe to releasehook with less than 2 passes. Try adding a tuck pattern.")
 			else: rh_p = 0
 		else: rh_p = 1
 	else: rh_p = -1
@@ -752,7 +771,8 @@ def garter(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], L
 			if n in xfer_bns[b2]: k.xfer(f"{b2}{n}", f"{b1}{n}")
 	
 	if inhook:
-		k.inhook(*cs)
+		if machine.lower() == "kniterate": k.incarrier(*cs)
+		else: k.inhook(*cs)
 		if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=cs)
 
 	for p in range(passes):
@@ -781,7 +801,7 @@ def garter(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], L
 			elif n == end_n: k.miss(d, f"{b1}{n}", *cs)
 		
 		if p == rh_p:
-			k.releasehook(*cs)
+			if machine.lower() != "kniterate": k.releasehook(*cs)
 			if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=None) # drop it
 	
 	#return loops
@@ -799,7 +819,7 @@ def garter(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], L
 	# return "-" if d == "+" else "+"
 
 
-def tuckGarter(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List[str]], bed: Optional[str]="f", gauge: int=1, sequence: str="ffb", tuck_sequence: str="tk", bn_locs: Dict[str,List[int]]={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, xfer_bns_back: bool=False, secure_start_n: bool=False, secure_end_n: bool=False, inhook: bool=False, releasehook: bool=False, tuck_pattern: bool=True, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, xfer_speed_number: Optional[int]=None, xfer_stitch_number: Optional[int]=None, init_direction: Optional[str]=None) -> str: #TODO: fix this for gauge 2 secure needles
+def tuckGarter(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List[str]], bed: Optional[str]="f", gauge: int=1, sequence: str="ffb", tuck_sequence: str="tk", bn_locs: Dict[str,List[int]]={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, xfer_bns_back: bool=False, secure_start_n: bool=False, secure_end_n: bool=False, inhook: bool=False, releasehook: bool=False, tuck_pattern: bool=True, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, xfer_speed_number: Optional[int]=None, xfer_stitch_number: Optional[int]=None, machine: str="swgn2", init_direction: Optional[str]=None) -> str: #TODO: fix this for gauge 2 secure needles
 	'''
 	Garter with tucks on every other needle after first pass in repeated sequence.
 
@@ -825,6 +845,7 @@ def tuckGarter(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str
 	* `stitch_number` (int, optional): value to set for the `x-stitch-number` knitout extension. Defaults to `None`.
 	* `xfer_speed_number` (int, optional): value to set for the `x-speed-number` knitout extension when transferring. Defaults to `None`.
 	* `xfer_stitch_number` (int, optional): value to set for the `x-stitch-number` knitout extension when transferring. Defaults to `None`.
+	* `machine` (str, optional): knitting machine model. Currently supported values are `swgn2` and `kniterate`. Defaults to `swgn2`.
 	* `init_direction` (str, optional): in *rare* cases (i.e., when only one needle is being knit), the initial pass direction might not be able to be inferred by the values of `start_n` and `end_n`.  In this case, one can specify the direction using this parameter (otherwise, can leave it as the default value, `None`, which indicates that the direction should/can be inferred).
 
 	Raises:
@@ -837,7 +858,9 @@ def tuckGarter(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str
 	'''
 	if releasehook:
 		if passes < 2:
-			if not tuck_pattern: raise ValueError("not safe to releasehook with less than 2 passes. Try adding a tuck pattern.")
+			if not tuck_pattern:
+				if machine == "kniterate": rh_p = -1
+				else: raise ValueError("not safe to releasehook with less than 2 passes. Try adding a tuck pattern.")
 			else: rh_p = 0
 		else: rh_p = 1
 	else: rh_p = -1
@@ -902,7 +925,8 @@ def tuckGarter(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str
 	mods2 = modsHalveGauge(gauge, bed1)
 
 	if inhook:
-		k.inhook(*cs)
+		if machine.lower() == "kniterate": k.incarrier(*cs)
+		else: k.inhook(*cs)
 		if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=cs)
 
 	pass_ct = 0
@@ -925,7 +949,7 @@ def tuckGarter(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str
 			d = toggleDirection(d)
 
 			if pass_ct == rh_p:
-				k.releasehook(*cs)
+				if machine.lower() != "kniterate": k.releasehook(*cs)
 				if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=None) # drop it
 
 			pass_ct += 1
@@ -954,7 +978,7 @@ def tuckGarter(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str
 	else: return d2
 
 
-def tuckStitch(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List[str]], bed: Optional[str]="f", gauge: int=1, sequence: str="kt", bn_locs: Dict[str,List[int]]={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, xfer_bns_back: bool=False, inhook: bool=False, releasehook: bool=False, tuck_pattern: bool=True, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, init_direction: Optional[str]=None) -> str:
+def tuckStitch(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List[str]], bed: Optional[str]="f", gauge: int=1, sequence: str="kt", bn_locs: Dict[str,List[int]]={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, xfer_bns_back: bool=False, inhook: bool=False, releasehook: bool=False, tuck_pattern: bool=True, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, machine: str="swgn2", init_direction: Optional[str]=None) -> str:
 	'''TODO
 	_summary_
 
@@ -977,6 +1001,7 @@ def tuckStitch(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str
 	* `stitch_number` (int, optional): value to set for the `x-stitch-number` knitout extension. Defaults to `None`.
 	* `xfer_speed_number` (int, optional): value to set for the `x-speed-number` knitout extension when transferring. Defaults to `None`.
 	* `xfer_stitch_number` (int, optional): value to set for the `x-stitch-number` knitout extension when transferring. Defaults to `None`.
+	* `machine` (str, optional): knitting machine model. Currently supported values are `swgn2` and `kniterate`. Defaults to `swgn2`.
 	* `init_direction` (str, optional): in *rare* cases (i.e., when only one needle is being knit), the initial pass direction might not be able to be inferred by the values of `start_n` and `end_n`.  In this case, one can specify the direction using this parameter (otherwise, can leave it as the default value, `None`, which indicates that the direction should/can be inferred).
 
 	Raises:
@@ -991,7 +1016,9 @@ def tuckStitch(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str
 	# if releasehook and not tuck_pattern and passes < 2: raise ValueError("not safe to releasehook with less than 2 passes. Try adding a tuck pattern.")
 	if releasehook:
 		if passes < 2:
-			if not tuck_pattern: raise ValueError("not safe to releasehook with less than 2 passes. Try adding a tuck pattern.")
+			if not tuck_pattern:
+				if machine == "kniterate": rh_p = -1
+				else: raise ValueError("not safe to releasehook with less than 2 passes. Try adding a tuck pattern.")
 			else: rh_p = 0
 		else: rh_p = 1
 	else: rh_p = -1
@@ -1026,7 +1053,8 @@ def tuckStitch(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str
 				k.xfer(f"{bed2}{n}", f"{bed}{n}")
 
 	if inhook:
-		k.inhook(*cs)
+		if machine.lower() == "kniterate": k.incarrier(*cs)
+		else: k.inhook(*cs)
 		if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=cs)
 
 	for p in range(passes):
@@ -1048,7 +1076,7 @@ def tuckStitch(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str
 			elif n == pass_end_n: k.miss(d, f"{bed}{n}", *cs)
 
 		if p == rh_p:
-			k.releasehook(*cs)
+			if machine.lower() != "kniterate": k.releasehook(*cs)
 			if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=None) # drop it
 	
 	if xfer_bns_back and bn_locs is not None and len(bn_locs.get(bed2, [])):
@@ -1066,7 +1094,7 @@ def tuckStitch(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str
 
 
 
-def altKnitTuck(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List[str]], bed: Optional[str]="f", gauge: int=1, sequence: str="kt", tuck_sequence: str="mt", bn_locs: Dict[str,List[int]]={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, xfer_bns_back: bool=False, inhook: bool=False, releasehook: bool=False, tuck_pattern: bool=True, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, init_direction: Optional[str]=None) -> str:
+def altKnitTuck(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List[str]], bed: Optional[str]="f", gauge: int=1, sequence: str="kt", tuck_sequence: str="mt", bn_locs: Dict[str,List[int]]={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, xfer_bns_back: bool=False, inhook: bool=False, releasehook: bool=False, tuck_pattern: bool=True, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, machine: str="swgn2", init_direction: Optional[str]=None) -> str:
 	'''TODO
 	_summary_
 
@@ -1090,6 +1118,7 @@ def altKnitTuck(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[st
 	* `stitch_number` (int, optional): value to set for the `x-stitch-number` knitout extension. Defaults to `None`.
 	* `xfer_speed_number` (int, optional): value to set for the `x-speed-number` knitout extension when transferring. Defaults to `None`.
 	* `xfer_stitch_number` (int, optional): value to set for the `x-stitch-number` knitout extension when transferring. Defaults to `None`.
+	* `machine` (str, optional): knitting machine model. Currently supported values are `swgn2` and `kniterate`. Defaults to `swgn2`.
 	* `init_direction` (str, optional): in *rare* cases (i.e., when only one needle is being knit), the initial pass direction might not be able to be inferred by the values of `start_n` and `end_n`.  In this case, one can specify the direction using this parameter (otherwise, can leave it as the default value, `None`, which indicates that the direction should/can be inferred).
 
 	Raises:
@@ -1102,7 +1131,9 @@ def altKnitTuck(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[st
 	'''
 	if releasehook:
 		if passes < 2:
-			if not tuck_pattern: raise ValueError("not safe to releasehook with less than 2 passes. Try adding a tuck pattern.")
+			if not tuck_pattern:
+				if machine == "kniterate": rh_p = -1
+				else: raise ValueError("not safe to releasehook with less than 2 passes. Try adding a tuck pattern.")
 			else: rh_p = 0
 		else: rh_p = 1
 	else: rh_p = -1
@@ -1131,7 +1162,8 @@ def altKnitTuck(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[st
 				k.xfer(f"{bed2}{n}", f"{bed}{n}")
 
 	if inhook:
-		k.inhook(*cs)
+		if machine.lower() == "kniterate": k.incarrier(*cs)
+		else: k.inhook(*cs)
 		if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=cs) #TODO: add avoid bns to `tuckPattern` func
 
 	for p in range(passes):
@@ -1156,7 +1188,7 @@ def altKnitTuck(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[st
 					elif n == pass_end_n: k.miss("-", f"{bed}{n}", *cs)
 
 		if p == rh_p:
-			k.releasehook(*cs)
+			if machine.lower() != "kniterate": k.releasehook(*cs)
 			if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=None) # drop it
 
 	if xfer_bns_back and bn_locs is not None and len(bn_locs.get(bed2, [])):

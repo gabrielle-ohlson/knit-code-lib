@@ -469,7 +469,7 @@ def wasteSection(k, left_n, right_n, caston_bed=None, waste_c="1", draw_c="2", i
 # ---------------
 # --- CASTONS ---
 # ---------------
-def altTuckCaston(k, start_n, end_n, c, bed, gauge=1, mod=None, inhook=False, releasehook=False, tuck_pattern=False, speed_number=None, stitch_number=None, knit_after=True, knit_stitch_number=None) -> str:
+def altTuckCaston(k, start_n, end_n, c, bed, gauge=1, mod=None, inhook=False, releasehook=False, tuck_pattern=False, speed_number=None, stitch_number=None, knit_after=True, knit_stitch_number=None, machine: str="swgn2") -> str:
 	'''
 	for sheet caston
 
@@ -489,6 +489,7 @@ def altTuckCaston(k, start_n, end_n, c, bed, gauge=1, mod=None, inhook=False, re
 	* `stitch_number` (int, optional): value to set for the `x-stitch-number` knitout extension. Defaults to `None`.
 	* `knit_after` (bool, optional): TODO. Defaults to `False`.
 	* `knit_stitch_number` (int, optional): value to set for the `x-stitch-number` knitout extension if `knit_after`. Defaults to `None`.
+	* `machine` (str, optional): knitting machine model. Currently supported values are `swgn2` and `kniterate`. Defaults to `swgn2`.
 	'''
 
 	# for sheet:
@@ -516,7 +517,10 @@ def altTuckCaston(k, start_n, end_n, c, bed, gauge=1, mod=None, inhook=False, re
 
 	if abs(mods[1]-start_n%(gauge*2)) < abs(mods[0]-start_n%(gauge*2)): mods = mods[::-1] #so don't start knitting on most recently tucked needle
 
-	if inhook: k.inhook(*cs)
+	if inhook:
+		if machine.lower() == "kniterate": k.incarrier(*cs)
+		else: k.inhook(*cs)
+	#
 	if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d, c=cs)
 		
 	for n in n_ranges[d]:
@@ -532,7 +536,7 @@ def altTuckCaston(k, start_n, end_n, c, bed, gauge=1, mod=None, inhook=False, re
 
 	d = toggleDirection(d)
 
-	if releasehook: k.releasehook(*cs)
+	if releasehook and machine.lower() != "kniterate": k.releasehook(*cs)
 	if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d, c=None) # drop it
 	
 	if knit_after:
@@ -553,7 +557,7 @@ def altTuckCaston(k, start_n, end_n, c, bed, gauge=1, mod=None, inhook=False, re
 	return d
 
 
-def altTuckClosedCaston(k, start_n, end_n, c, gauge=2, mod={"f": None, "b": None}, inhook=False, releasehook=False, tuck_pattern=False, speed_number=None, stitch_number=None) -> str:
+def altTuckClosedCaston(k, start_n, end_n, c, gauge=2, mod={"f": None, "b": None}, inhook=False, releasehook=False, tuck_pattern=False, speed_number=None, stitch_number=None, machine: str="swgn2") -> str:
 	cs = c2cs(c) # ensure tuple type
 
 	k.comment("begin closed tube alternating tuck cast-on")
@@ -584,7 +588,10 @@ def altTuckClosedCaston(k, start_n, end_n, c, gauge=2, mod={"f": None, "b": None
 	"""
 	last_n = None
 
-	if inhook: k.inhook(*cs) #new #check #v
+	if inhook:
+		if machine.lower() == "kniterate": k.incarrier(*cs)
+		else: k.inhook(*cs)
+	#
 	if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d, c=cs)
 
 	if gauge == 1:
@@ -633,7 +640,7 @@ def altTuckClosedCaston(k, start_n, end_n, c, gauge=2, mod={"f": None, "b": None
 		
 		d = toggleDirection(d)
 
-	if releasehook: k.releasehook(*cs) #new #check #v
+	if releasehook and machine.lower() != "kniterate": k.releasehook(*cs)
 	if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d, c=None) # drop it
 
 	k.comment("end closed tube alternating tuck cast-on")
@@ -642,7 +649,7 @@ def altTuckClosedCaston(k, start_n, end_n, c, gauge=2, mod={"f": None, "b": None
 	
 
 #--- FUNCTION FOR CASTING ON OPEN TUBES ---
-def altTuckOpenTubeCaston(k, start_n, end_n, c, gauge=1, mod={"f": None, "b": None}, inhook=False, releasehook=False, tuck_pattern=False, speed_number=None, stitch_number=None, knit_after=True, knit_stitch_number=None) -> str:
+def altTuckOpenTubeCaston(k, start_n, end_n, c, gauge=1, mod={"f": None, "b": None}, inhook=False, releasehook=False, tuck_pattern=False, speed_number=None, stitch_number=None, knit_after=True, knit_stitch_number=None, machine: str="swgn2") -> str:
 	'''
 	Function for an open-tube cast-on, tucking on alternate needles circularly.
 
@@ -660,9 +667,11 @@ def altTuckOpenTubeCaston(k, start_n, end_n, c, gauge=1, mod={"f": None, "b": No
 	* `inhook` (bool, optional): whether to have the function do an inhook. Defaults to `False`.
 	* `releasehook` (bool, optional): whether to have the function do a releasehook (after 2 passes). Defaults to `False`.
 	* `tuck_pattern` (bool, optional): whether to include a tuck pattern for extra security when bringing in the carrier (only applicable if `inhook` or `releasehook` == `True`). Defaults to `False`.
-	* `speed_number` (int): value to set for the `x-speed-number` knitout extension. Defaults to `None`.
-	* `stitch_number` (int): value to set for the `x-stitch-number` knitout extension. Defaults to `None`.
+	* `speed_number` (int, optional): value to set for the `x-speed-number` knitout extension. Defaults to `None`.
+	* `stitch_number` (int, optional): value to set for the `x-stitch-number` knitout extension. Defaults to `None`.
 	* `knit_after` (bool, optional): TODO. Defaults to `False`.
+	* `knit_stitch_number` (int, optional): TODO. Defaults to `None`.
+	* `machine` (str, optional): knitting machine model. Currently supported values are `swgn2` and `kniterate`. Defaults to `swgn2`.
 	'''
 	cs = c2cs(c) # ensure tuple type
 
@@ -684,7 +693,10 @@ def altTuckOpenTubeCaston(k, start_n, end_n, c, gauge=1, mod={"f": None, "b": No
 		needle_range1 = range(start_n, end_n-1, -1)
 		needle_range2 = range(end_n, start_n+1)
 	"""
-	if inhook: k.inhook(*cs)
+	if inhook:
+		if machine.lower() == "kniterate": k.incarrier(*cs)
+		else: k.inhook(*cs)
+	#
 	if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d, c=cs)
 
 	mods = {}
@@ -711,7 +723,7 @@ def altTuckOpenTubeCaston(k, start_n, end_n, c, gauge=1, mod={"f": None, "b": No
 
 	d = toggleDirection(d)
 
-	if releasehook: k.releasehook(*cs)
+	if releasehook and machine.lower() != "kniterate": k.releasehook(*cs)
 	if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d, c=None) # drop it
 
 	for n in n_ranges[d]:
@@ -747,19 +759,21 @@ def altTuckOpenTubeCaston(k, start_n, end_n, c, gauge=1, mod={"f": None, "b": No
 
 
 #--- FUNCTION FOR CASTING ON CLOSED TUBES (zig-zag) ---
-def zigzagCaston(k, start_n, end_n, c, gauge=1, mod={"f": None, "b": None}, inhook=False, releasehook=False, tuck_pattern=False, speed_number=None, stitch_number=None) -> str: # TODO: indicate that most recent needle needs to be skipped, or do something to secure it (such as `knit_after` param)
+def zigzagCaston(k, start_n, end_n, c, gauge=1, mod={"f": None, "b": None}, inhook=False, releasehook=False, tuck_pattern=False, speed_number=None, stitch_number=None, machine: str="swgn2") -> str: # TODO: indicate that most recent needle needs to be skipped, or do something to secure it (such as `knit_after` param)
 	'''
 	* k is the knitout Writer
 	* start_n is the initial needle to cast-on
 	* end_n is the last needle to cast-on (inclusive)
 	* c is the carrier to use for the cast-on (or list of carriers, if plating)
 	* gauge is gauge
+	* TODO
+	* `machine` (str, optional): knitting machine model. Currently supported values are `swgn2` and `kniterate`. Defaults to `swgn2`.
 
 	- only one pass; carrier will end on the side opposite to which it started
 	'''
 	cs = c2cs(c) # ensure tuple type
 
-	if releasehook and not tuck_pattern: raise ValueError("not safe to releasehook with less than 2 passes.")
+	if releasehook and not tuck_pattern and machine.lower() != "kniterate": raise ValueError("not safe to releasehook with less than 2 passes.")
 
 	k.comment("begin zigzag cast-on")
 	if speed_number is not None: k.speedNumber(speed_number)
@@ -789,7 +803,10 @@ def zigzagCaston(k, start_n, end_n, c, gauge=1, mod={"f": None, "b": None}, inho
 			else: b1, b2 = "b", "f" #^
 		# b1, b2 = "b", "f"
 	
-	if inhook: k.inhook(*cs)
+	if inhook:
+		if machine.lower() == "kniterate": k.incarrier(*cs)
+		else: k.inhook(*cs)
+	#
 	if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d, c=cs)
 
 	# mods = {b1: modsHalveGauge(gauge, b1), b2: modsHalveGauge(gauge, b2)}
@@ -802,7 +819,7 @@ def zigzagCaston(k, start_n, end_n, c, gauge=1, mod={"f": None, "b": None}, inho
 
 	k.rack(0)
 
-	if releasehook: k.releasehook(*cs)
+	if releasehook and machine.lower() != "kniterate": k.releasehook(*cs)
 	if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d, c=None) # drop it
 
 	k.comment("end zigzag cast-on")
@@ -831,6 +848,8 @@ def dropFinish(k, front_needle_ranges=[], back_needle_ranges=[], out_carriers=[]
 	* `border_passes` (int, optional): Number of passes for waste border. Defaults to `16`.
 	* `gauge` (int, optional): Gauge of waste border, if applicable. Defaults to `2`.
 		* NOTE: if gauge is 2, will knit waste border as a tube. if gauge is 1, will knit flat single bed stitch pattern.
+	* `mod` TODO
+	* `machine` (str, optional): knitting machine model. Currently supported values are `swgn2` and `kniterate`. Defaults to `swgn2`.
 	'''
 
 	k.comment("begin drop finish")
@@ -1142,7 +1161,7 @@ def closedBindoff_old(k, count, xfer_needle, c, side="l", double_bed=True, as_de
 	else: k.comment("end dec by bindoff")
 
 
-def sheetBindoff(k, start_n, end_n, c, bed="f", gauge=1, mod=None, use_sliders=False, add_tag=True, outhook=False, speed_number=None, stitch_number=None, xfer_stitch_number=None): #TODO: #check support for gauge=2 #TODO: add `as_dec_method` option #*
+def sheetBindoff(k, start_n, end_n, c, bed="f", gauge=1, mod=None, use_sliders=False, add_tag=True, outhook=False, speed_number=None, stitch_number=None, xfer_stitch_number=None, machine: str="swgn2"): #TODO: #check support for gauge=2 #TODO: add `as_dec_method` option #*
 	cs = c2cs(c) #ensure tuple type
 
 	k.comment(f"begin {bed} bed sheet bindoff")
@@ -1189,7 +1208,9 @@ def sheetBindoff(k, start_n, end_n, c, bed="f", gauge=1, mod=None, use_sliders=F
 			if add_tag:
 				if stitch_number is not None: k.stitchNumber(stitch_number)
 				bindoffTag(k, d, bed, n, cs)
-			if outhook: k.outhook(*cs)
+			if outhook:
+				if machine.lower() == "kniterate": k.outcarrier(*cs)
+				else: k.outhook(*cs)
 			if add_tag: bindoffTag(k, d, bed, n, None) #drop it
 			break
 		else:
@@ -1207,7 +1228,7 @@ def sheetBindoff(k, start_n, end_n, c, bed="f", gauge=1, mod=None, use_sliders=F
 	k.comment(f"end {bed} bed sheet bindoff")
 
 
-def closedTubeBindoff(k, start_n: int, end_n: int, c: Union[str,Tuple[str]], gauge: int=1, bed_mods: Dict[str,int]=None, use_sliders: bool=False, add_tag: bool=True, outhook: bool=False, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, xfer_stitch_number: Optional[int]=None): #TODO: #check support for gauge=2
+def closedTubeBindoff(k, start_n: int, end_n: int, c: Union[str,Tuple[str]], gauge: int=1, bed_mods: Dict[str,int]=None, use_sliders: bool=False, add_tag: bool=True, outhook: bool=False, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, xfer_stitch_number: Optional[int]=None, machine="swgn2"): #TODO: #check support for gauge=2
 	cs = c2cs(c) # ensure tuple type
 
 	if bed_mods is None: bed_mods = {"f": 0, "b": gauge//2} #just use default
@@ -1306,7 +1327,9 @@ def closedTubeBindoff(k, start_n: int, end_n: int, c: Union[str,Tuple[str]], gau
 			if add_tag:
 				if stitch_number is not None: k.stitchNumber(stitch_number)
 				bindoffTag(k, d, last_bed, n, cs)
-			if outhook: k.outhook(*cs)
+			if outhook:
+				if machine.lower() == "kniterate": k.outcarrier(*cs)
+				else: k.outhook(*cs)
 			if add_tag: bindoffTag(k, d, last_bed, n, None) #drop it
 			break
 		else:
@@ -1339,13 +1362,17 @@ def closedTubeBindoff(k, start_n: int, end_n: int, c: Union[str,Tuple[str]], gau
 	return last_bn #in case we want to move it since it should be empty etc.
 
 
-def openTubeBindoff(k, start_n: int, end_n: int, c: Union[str,Tuple[str]], gauge: int=2, bed_mods: Dict[str,int]=None, use_sliders: bool=False, add_tag: bool=True, outhook: bool=False, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, xfer_stitch_number: Optional[int]=None):
+def openTubeBindoff(k, start_n: int, end_n: int, c: Union[str,Tuple[str]], gauge: int=2, bed_mods: Dict[str,int]=None, use_sliders: bool=False, add_tag: bool=True, outhook: bool=False, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, xfer_stitch_number: Optional[int]=None, machine="swgn2"):
 	# https://github.com/textiles-lab/knitout-examples/blob/master/J-30.js
 	cs = c2cs(c) # ensure tuple type
 
 	if gauge == 1 and use_sliders == False:
+		assert machine.lower() != "kniterate", "Can't do an open tube bindoff in gauge 1 on kniterate"
 		print("WARNING: toggling `use_sliders` to `True`, since `gauge == 1`, and otherwise, bindoff won't be open.")
 		use_sliders = True
+	elif machine.lower() == "kniterate" and use_sliders:
+		print("WARNING: toggling `use_sliders` to `False`, since the kniterate machine doesn't have them.")
+		use_sliders = False
 
 	if bed_mods is None: bed_mods = {"f": 0, "b": gauge//2} #just use default
 
@@ -1417,7 +1444,9 @@ def openTubeBindoff(k, start_n: int, end_n: int, c: Union[str,Tuple[str]], gauge
 				if stitch_number is not None: k.stitchNumber(stitch_number)
 				bindoffTag(k, d, "b", n, cs)
 				# d = bindoffTag(k, d, "b", n, cs)
-			if outhook: k.outhook(*cs)
+			if outhook:
+				if machine.lower() == "kniterate": k.outcarrier(*cs)
+				else: k.outhook(*cs)
 			if add_tag: bindoffTag(k, d, "b", n, None) #drop it
 			break
 		else:

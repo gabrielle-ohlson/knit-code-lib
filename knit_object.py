@@ -204,7 +204,9 @@ class KnitObject:
 			"bed": None,
 			"gauge": self.gauge, #will *not* be a reference (should be updated each time in case it changes)
 			"xfer_bns_setup": True,
-			"xfer_bns_back": True
+			"xfer_bns_back": True,
+			"machine": None,
+			"init_direction": None
 			# "sequence": None,
 			# "bn_locs"
 			# "avoid_bns": {"f": [], "b": []}
@@ -347,7 +349,7 @@ class KnitObject:
 				self.k.rack(0)
 		else: raise ValueError("unsupported caston method")
 		#
-		if len(not_in_cs): self.k.releasehook(*not_in_cs)
+		if len(not_in_cs) and self.settings.machine != "kniterate": self.k.releasehook(*not_in_cs)
 	
 
 	@multimethod
@@ -379,6 +381,7 @@ class KnitObject:
 		func_args["c"] = cs
 		func_args["bed"] = bed
 		func_args["gauge"] = self.gauge
+		func_args["machine"] = self.settings.machine
 		func_args["init_direction"] = d
 		#
 		if init_cs:
@@ -429,7 +432,7 @@ class KnitObject:
 				func_args["main_bed"] = func_args["bed"]
 				del func_args["bed"]
 			elif key not in func.__code__.co_varnames:
-				warnings.warn(f"WARNING: '{func.__name__}' function does not use required parameter, '{key}'.")
+				warnings.warn(f"WARNING: '{func.__name__}' function does not use suggested parameter, '{key}'.")
 				del func_args[key]
 				# assert key in func.__code__.co_varnames, f"'{func.__name__}' function does not use required parameter, '{key}'."
 		#
@@ -485,10 +488,10 @@ class KnitObject:
 		#
 		if method == BindoffMethod.CLOSED:
 			if bed == "f" or bed == "b": sheetBindoff(self.k, needle_range[0], needle_range[1], cs, bed, self.gauge, outhook=outhook)
-			else: closedTubeBindoff(self.k, needle_range[0], needle_range[1], cs, self.gauge, outhook=outhook)
+			else: closedTubeBindoff(self.k, needle_range[0], needle_range[1], cs, self.gauge, outhook=outhook, machine=self.settings.machine)
 		elif method == BindoffMethod.OPEN:
 			assert bed != "f" and bed != "b", "`BindoffMethod.OPEN` only valid for double bed knitting."
-			openTubeBindoff(self.k, needle_range[0], needle_range[1], cs, self.gauge, outhook=outhook)
+			openTubeBindoff(self.k, needle_range[0], needle_range[1], cs, self.gauge, outhook=outhook, machine=self.settings.machine)
 		elif method == BindoffMethod.DROP:
 			if bed == "b": front_needle_ranges = []
 			else: front_needle_ranges = sorted(self.getNeedleRange("f", *cs))
@@ -496,7 +499,7 @@ class KnitObject:
 			if bed == "f": back_needle_ranges = []
 			else: back_needle_ranges = sorted(self.getNeedleRange("b", *cs))
 			#
-			dropFinish(self.k, front_needle_ranges=front_needle_ranges, back_needle_ranges=back_needle_ranges, out_carriers=cs if outhook else [])
+			dropFinish(self.k, front_needle_ranges=front_needle_ranges, back_needle_ranges=back_needle_ranges, out_carriers=cs if outhook else [], machine=self.settings.machine)
 		else: raise ValueError("unsupported bindoff method")
 	
 	@bindoff.register
