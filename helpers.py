@@ -217,9 +217,11 @@ def bnHalfG(b: str, n: int) -> int:
 	else: return (n*2)+1
 
 
-def gauged(b: str, n: int, gauge: int=2) -> int:
-	if b == "f": return n*gauge
-	else: return (n*gauge)+(gauge//2)
+def gauged(mod: Union[str,int], n: int, gauge: int=2) -> int:
+	if type(mod) == str: #passed bed for it
+		if mod == "f": return n*gauge
+		else: return (n*gauge)+(gauge//2)
+	else: return (n*gauge)+mod
 
 
 def bnGauged(b: str, n: int, gauge: int=2) -> str:

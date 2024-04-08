@@ -4,7 +4,7 @@ sys.path.insert(0, os.getcwd())
 
 from typing import Union, Optional, Tuple, List, Dict
 
-from .helpers import tuckPattern, c2cs, flattenIter, modsHalveGauge, bnValid, toggleDirection, toggleBed, bnLast, getNeedleRanges
+from .helpers import tuckPattern, c2cs, flattenIter, modsHalveGauge, bnValid, toggleDirection, toggleBed, bnLast, getNeedleRanges, gauged
 from .stitch_patterns import interlock
 
 
@@ -469,7 +469,7 @@ def wasteSection(k, left_n, right_n, caston_bed=None, waste_c="1", draw_c="2", i
 # ---------------
 # --- CASTONS ---
 # ---------------
-def altTuckCaston(k, start_n, end_n, c, bed, gauge=1, mod=None, inhook=False, releasehook=False, tuck_pattern=False, speed_number=None, stitch_number=None, knit_after=True, knit_stitch_number=None, machine: str="swgn2") -> str:
+def altTuckCaston(k, start_n, end_n, c, bed, gauge=1, mod=None, inhook=False, releasehook=False, tuck_pattern=False, speed_number=None, stitch_number=None, knit_after=True, knit_stitch_number=None, border_width=0, machine: str="swgn2") -> str:
 	'''
 	for sheet caston
 
@@ -487,9 +487,14 @@ def altTuckCaston(k, start_n, end_n, c, bed, gauge=1, mod=None, inhook=False, re
 	* `tuck_pattern` (bool, optional): whether to include a tuck pattern for extra security when bringing in the carrier (only applicable if `inhook` or `releasehook` == `True`). Defaults to `False`.
 	* `speed_number` (int, optional): value to set for the `x-speed-number` knitout extension. Defaults to `None`.
 	* `stitch_number` (int, optional): value to set for the `x-stitch-number` knitout extension. Defaults to `None`.
-	* `knit_after` (bool, optional): TODO. Defaults to `False`.
+	* `knit_after` (bool, optional): whether to knit two passes of plain jersey after the caston for extra security. Defaults to `False`.
 	* `knit_stitch_number` (int, optional): value to set for the `x-stitch-number` knitout extension if `knit_after`. Defaults to `None`.
-	* `machine` (str, optional): knitting machine model. Currently supported values are `swgn2` and `kniterate`. Defaults to `swgn2`.
+	* `border_width` (int, optional): If `> 0`, adds a border of interlock on either side of the caston, each `border_width` needles wide. Defaults to `0`.
+	* `machine` (str, optional): knitting machine model. Currently supported values are `"swgn2"` and `"kniterate"`. Defaults to `"swgn2"`.
+
+	Returns:
+	-------
+	* (str): next direction (`"-"` or `"+"`).
 	'''
 
 	# for sheet:
@@ -515,49 +520,111 @@ def altTuckCaston(k, start_n, end_n, c, bed, gauge=1, mod=None, inhook=False, re
 	if mod is None: mods = modsHalveGauge(gauge, bed)
 	else: mods = modsHalveGauge(gauge, mod)
 
-	if abs(mods[1]-start_n%(gauge*2)) < abs(mods[0]-start_n%(gauge*2)): mods = mods[::-1] #so don't start knitting on most recently tucked needle
-
+	if abs(mods[1]-start_n%(gauge*2)) < abs(mods[0]-start_n%(gauge*2)): mods = mods[::-1] #so don't start knitting on most recently tucked needle #TODO: adjust this for the interlock #?
+	
+	if d == "+":
+		first_n = start_n-border_width
+		last_n = end_n+border_width
+		shift = 1
+	else:
+		first_n = start_n+border_width
+		last_n = end_n-border_width
+		shift = -1
+	"""
+	if border_width:
+		if d == "+":
+			first_n = start_n-border_width
+			last_n = end_n+border_width
+			shift = 1
+		else:
+			first_n = start_n+border_width
+			last_n = end_n-border_width
+			shift = -1
+	else: first_n, last_n = start_n, end_n
+	"""
 	if inhook:
 		if machine.lower() == "kniterate": k.incarrier(*cs)
 		else: k.inhook(*cs)
 	#
-	if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d, c=cs)
-		
+	if tuck_pattern: tuckPattern(k, first_n=first_n, direction=d, c=cs)
+	
+	if border_width: interlock(k, start_n=first_n, end_n=start_n-shift, passes=1, c=cs, gauge=gauge)
+	#
 	for n in n_ranges[d]:
 		if n % (gauge*2) == mods[0]: k.tuck(d, f"{bed}{n}", *cs)
 		elif n == n_ranges[d][-1]: k.miss(d, f"{bed}{n}", *cs)
-
+	#
+	if border_width: interlock(k, start_n=end_n+shift, end_n=last_n, passes=1, c=cs, gauge=gauge)
+	#
 	d = toggleDirection(d)
-
+	#
+	if border_width: interlock(k, start_n=last_n, end_n=end_n+shift, passes=1, c=cs, gauge=gauge)
+	#
 	for n in n_ranges[d]:
 		if n % (gauge*2) == mods[1]:
 			k.tuck(d, f"{bed}{n}", *cs)
 		elif n == n_ranges[d][-1]: k.miss(d, f"{bed}{n}", *cs)
-
+	#
+	if border_width: interlock(k, start_n=start_n-shift, end_n=first_n, passes=1, c=cs, gauge=gauge)
+	#
 	d = toggleDirection(d)
 
 	if releasehook and machine.lower() != "kniterate": k.releasehook(*cs)
-	if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d, c=None) # drop it
+	if tuck_pattern: tuckPattern(k, first_n=first_n, direction=d, c=None) # drop it
 	
+	# 2 passes to get the knitting going (and to ensure the last needle we tucked on is skipped)
 	if knit_after:
 		if knit_stitch_number is not None: k.stitchNumber(knit_stitch_number)
-		# 2 passes to get the knitting going (and to ensure the last needle we tucked on is skipped)
+		#
+		if border_width: interlock(k, start_n=first_n, end_n=start_n-shift, passes=1, c=cs, gauge=gauge)
+		#
 		for n in n_ranges[d]:
 			if n % gauge == mods[0]: k.knit(d, f"{bed}{n}", *cs)
-
+		#
+		if border_width: interlock(k, start_n=end_n+shift, end_n=last_n, passes=1, c=cs, gauge=gauge)
+		#
 		d = toggleDirection(d)
-
+		#
+		if border_width: interlock(k, start_n=last_n, end_n=end_n+shift, passes=1, c=cs, gauge=gauge)
+		#
 		for n in n_ranges[d]:
 			if n % gauge == mods[0]: k.knit(d, f"{bed}{n}", *cs)
 			elif n == n_ranges[d][-1]: k.miss(d, f"{bed}{n}", *cs)
-
+		#
+		if border_width: interlock(k, start_n=start_n-shift, end_n=first_n, passes=1, c=cs, gauge=gauge)
+		#
 		d = toggleDirection(d)
 
 	k.comment("end alternating tuck cast-on")
 	return d
 
 
-def altTuckClosedCaston(k, start_n, end_n, c, gauge=2, mod={"f": None, "b": None}, inhook=False, releasehook=False, tuck_pattern=False, speed_number=None, stitch_number=None, machine: str="swgn2") -> str:
+def altTuckClosedCaston(k, start_n, end_n, c, gauge=2, mod={"f": None, "b": None}, inhook=False, releasehook=False, tuck_pattern=False, speed_number=None, stitch_number=None, knit_after=True, knit_stitch_number=None, border_width=0, machine: str="swgn2") -> str: #, OLD_METHOD=False) -> str:
+	'''
+	_summary_
+
+	Parameters:
+	----------
+	* `k` (class instance): instance of the knitout Writer class
+	* `start_n` (int): the initial needle to cast-on
+	* `end_n` (int): the last needle to cast-on (inclusive)
+	* `c` (str or list): the carrier to use for the cast-on (or list of carriers, if plating)
+	* `gauge` (int, optional): the knitting gauge. Defaults to `1`.
+	* `mod` (Dict[str, Optional[int]], optional): TODO. Defaults to `{"f": None, "b": None}`.
+	* `inhook` (bool, optional): whether to have the function do an inhook. Defaults to `False`.
+	* `releasehook` (bool, optional): whether to have the function do a releasehook (after 2 passes). Defaults to `False`.
+	* `tuck_pattern` (bool, optional): whether to include a tuck pattern for extra security when bringing in the carrier (only applicable if `inhook` or `releasehook` == `True`). Defaults to `False`.
+	* `speed_number` (int, optional): value to set for the `x-speed-number` knitout extension. Defaults to `None`.
+	* `stitch_number` (int, optional): value to set for the `x-stitch-number` knitout extension. Defaults to `None`.
+	* `knit_after` (bool, optional): whether to knit two passes of plain jersey after the caston for extra security. Defaults to `False`.
+	* `knit_stitch_number` (int, optional): value to set for the `x-stitch-number` knitout extension if `knit_after`. Defaults to `None`.
+	* `border_width` (int, optional): If `> 0`, adds a border of interlock on either side of the caston, each `border_width` needles wide. Defaults to `0`.
+	* `machine` (str, optional): knitting machine model. Currently supported values are `"swgn2"` and `"kniterate"`. Defaults to `"swgn2"`.
+
+	Returns:
+	-------
+	* (str): next direction (`"-"` or `"+"`).
+	'''
 	cs = c2cs(c) # ensure tuple type
 
 	k.comment("begin closed tube alternating tuck cast-on")
@@ -565,83 +632,168 @@ def altTuckClosedCaston(k, start_n, end_n, c, gauge=2, mod={"f": None, "b": None
 	if stitch_number is not None: k.stitchNumber(stitch_number)
 
 	n_ranges, d = getNeedleRanges(start_n, end_n, return_direction=True)
-	
-	"""
-	n_ranges = {}
-	if start_n > end_n: # pass is neg
-		d = "-"
-		n_ranges["-"] = range(start_n, end_n-1, -1)
-		n_ranges["+"] = range(end_n, start_n+1)
 
-		# d1 = "-"
-		# n_range1 = range(start_n, end_n-1, -1)
-		# n_range2 = range(end_n, start_n+1)
-		# d2 = "+"
+	if d == "+":
+		first_n = start_n-border_width
+		last_n = end_n+border_width
+		shift = 1
 	else:
-		d = "+"
-		n_ranges["+"] = range(start_n, end_n+1) 
-		n_ranges["-"] = range(end_n, start_n-1) 
-		# d1 = "+"
-		# n_range1 = range(start_n, end_n+1) 
-		# n_range2 = range(end_n, start_n-1) 
-		# d2 = "-"
-	"""
-	last_n = None
+		first_n = start_n+border_width
+		last_n = end_n-border_width
+		shift = -1
 
 	if inhook:
 		if machine.lower() == "kniterate": k.incarrier(*cs)
 		else: k.inhook(*cs)
 	#
-	if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d, c=cs)
+	if tuck_pattern: tuckPattern(k, first_n=first_n, direction=d, c=cs)
 
+	if border_width: interlock(k, start_n=first_n, end_n=start_n-shift, passes=1, c=cs, gauge=gauge)
+	#
 	if gauge == 1:
 		for n in n_ranges[d]:
 			if n % 2 == 0: k.tuck(d, f"f{n}", *cs)
 			else: k.tuck(d, f"b{n}", *cs)
-		
+		#
+		if border_width: interlock(k, start_n=end_n+shift, end_n=last_n, passes=1, c=cs, gauge=gauge)
+		#
 		d = toggleDirection(d)
-
+		#
+		if border_width: interlock(k, start_n=last_n, end_n=end_n+shift, passes=1, c=cs, gauge=gauge)
+		#
 		for n in n_ranges[d]:
 			if n % 2 == 0: k.tuck(d, f"b{n}", *cs)
 			else: k.tuck(d, f"f{n}", *cs)
-		
+		#
+		if border_width: interlock(k, start_n=start_n-shift, end_n=first_n, passes=1, c=cs, gauge=gauge)
+		#
 		d = toggleDirection(d)
+
+		# 2 passes to get the knitting going (and to ensure the last needle we tucked on is skipped)
+		if knit_after:
+			# ensure the last needle we tucked on is skipped:
+			if start_n % 2 == 0: b1, b2 = "f", "b"
+			else: b1, b2 = "b", "f"
+			#
+			if knit_stitch_number is not None: k.stitchNumber(knit_stitch_number)
+			#
+			if border_width: interlock(k, start_n=first_n, end_n=start_n-shift, passes=1, c=cs, gauge=gauge)
+			#
+			for n in n_ranges[d]:
+				k.knit(d, f"{b1}{n}", *cs)
+			#
+			if border_width: interlock(k, start_n=end_n+shift, end_n=last_n, passes=1, c=cs, gauge=gauge)
+			#
+			d = toggleDirection(d)
+			#
+			if border_width: interlock(k, start_n=last_n, end_n=end_n+shift, passes=1, c=cs, gauge=gauge)
+			#
+			for n in n_ranges[d]:
+				k.knit(d, f"{b2}{n}", *cs)
+			#
+			if border_width: interlock(k, start_n=start_n-shift, end_n=first_n, passes=1, c=cs, gauge=gauge)
+			#
+			d = toggleDirection(d)
 	else:
-		for n in n_ranges[d]:
-			if bnValid("f", n, gauge, mod=mod["f"]):
-				k.tuck(d, f"f{n}", *cs)
-				last_n = n #keep updating this
-			elif bnValid("b", n, gauge, mod=mod["b"]):
-				k.tuck(d, f"b{n}", *cs)
-				last_n = n #keep updating this
-
-		prev_n = None #TODO: #check this stuff
-
-		if bnValid("f", last_n, gauge, mod=mod["f"]):
-			if d == "-": prev_n = last_n+(gauge//2)
-			else: prev_n = last_n-gauge+(gauge//2)
+		"""
+		if OLD_METHOD: #remove #debug
+			final_n = None
 			#
-			k.knit(toggleDirection(d), f"b{prev_n}", *cs)
-			k.miss(d, f"f{last_n}", *cs)
+			for n in n_ranges[d]:
+				if bnValid("f", n, gauge, mod=mod["f"]):
+					k.tuck(d, f"f{n}", *cs)
+					final_n = n #keep updating this
+				elif bnValid("b", n, gauge, mod=mod["b"]):
+					k.tuck(d, f"b{n}", *cs)
+					final_n = n #keep updating this
+			#
+			prev_n = None #TODO: #check this stuff
+
+			if bnValid("f", final_n, gauge, mod=mod["f"]):
+				if d == "-": prev_n = final_n+(gauge//2)
+				else: prev_n = final_n-gauge+(gauge//2)
+				#
+				k.knit(toggleDirection(d), f"b{prev_n}", *cs)
+				k.miss(d, f"f{final_n}", *cs)
+			else:
+				if d == "-": prev_n = final_n+gauge-(gauge//2)
+				else: prev_n = final_n-(gauge//2)
+				#
+				k.knit(toggleDirection(d), f"f{prev_n}", *cs)
+				k.miss(d, f"b{final_n}", *cs)
+			#
+			if border_width: interlock(k, start_n=end_n+shift, end_n=last_n, passes=1, c=cs, gauge=gauge)
+			#
+			d = toggleDirection(d)
+			#
+			if border_width: interlock(k, start_n=last_n, end_n=end_n+shift, passes=1, c=cs, gauge=gauge)
+			#
+			for n in n_ranges[d]:
+				if n == prev_n: continue # skip first needle that we just knitted
+				elif bnValid("f", n, gauge, mod=mod["f"]): k.knit(d, f"f{n}", *cs)
+				elif bnValid("b", n, gauge, mod=mod["b"]): k.knit(d, f"b{n}", *cs)
+				elif n == n_ranges[d][-1]: k.miss(d, f"f{n}", *cs)
+			#
+			if border_width: interlock(k, start_n=start_n-shift, end_n=first_n, passes=1, c=cs, gauge=gauge)
+			#
+			d = toggleDirection(d)
+			# 2 passes to get the knitting going (and to ensure the last needle we tucked on is skipped)
 		else:
-			if d == "-": prev_n = last_n+gauge-(gauge//2)
-			else: prev_n = last_n-(gauge//2)
-			#
-			k.knit(toggleDirection(d), f"f{prev_n}", *cs)
-			k.miss(d, f"b{last_n}", *cs)
-
-		d = toggleDirection(d)
-	
+		"""
+			
 		for n in n_ranges[d]:
-			if n == prev_n: continue # skip first needle that we just knitted
-			if bnValid("f", n, gauge, mod=mod["f"]): k.knit(d, f"f{n}", *cs)
+			if bnValid("f", n, gauge, mod=mod["f"]): k.tuck(d, f"f{n}", *cs)
+			elif bnValid("b", n, gauge, mod=mod["b"]): k.tuck(d, f"b{n}", *cs)
+		#
+		if d == "+": prev_n = max(gauged((mod["f"] if mod["f"] is not None else "f"), end_n//gauge, gauge), gauged((mod["b"] if mod["b"] is not None else "b"), end_n//gauge, gauge))
+		else: prev_n = min(gauged((mod["f"] if mod["f"] is not None else "f"), end_n//gauge, gauge), gauged((mod["b"] if mod["b"] is not None else "b"), end_n//gauge, gauge))
+
+
+		# if abs(mods[1]-start_n%(gauge*2)) < abs(mods[0]-start_n%(gauge*2)): mods = mods[::-1] #so don't start knitting on most recently tucked needle #TODO: adjust this for the interlock #?
+		#
+		if border_width: interlock(k, start_n=end_n+shift, end_n=last_n, passes=1, c=cs, gauge=gauge)
+		#
+		d = toggleDirection(d)
+		#
+		if border_width: interlock(k, start_n=last_n, end_n=end_n+shift, passes=1, c=cs, gauge=gauge)
+		#
+		for n in n_ranges[d]:
+			if n == prev_n and not border_width: continue # skip first needle that we just knitted
+			elif bnValid("f", n, gauge, mod=mod["f"]): k.knit(d, f"f{n}", *cs)
 			elif bnValid("b", n, gauge, mod=mod["b"]): k.knit(d, f"b{n}", *cs)
 			elif n == n_ranges[d][-1]: k.miss(d, f"f{n}", *cs)
-		
+		#
+		if border_width: interlock(k, start_n=start_n-shift, end_n=first_n, passes=1, c=cs, gauge=gauge)
+		#
 		d = toggleDirection(d)
+		# 2 passes to get the knitting going (and to ensure the last needle we tucked on is skipped)
+		#
+		if knit_after:
+			b1, b2 = "f", "b" #?
+			#
+			if knit_stitch_number is not None: k.stitchNumber(knit_stitch_number)
+			#
+			if border_width: interlock(k, start_n=first_n, end_n=start_n-shift, passes=1, c=cs, gauge=gauge)
+			#
+			for n in n_ranges[d]:
+				if bnValid(b1, n, gauge, mod=mod[b1]): k.knit(d, f"{b1}{n}", *cs)
+			#
+			if border_width: interlock(k, start_n=end_n+shift, end_n=last_n, passes=1, c=cs, gauge=gauge)
+			#
+			d = toggleDirection(d)
+			#
+			if border_width: interlock(k, start_n=last_n, end_n=end_n+shift, passes=1, c=cs, gauge=gauge)
+			#
+			for n in n_ranges[d]:
+				if bnValid(b2, n, gauge, mod=mod[b2]): k.knit(d, f"{b2}{n}", *cs)
+				elif n == n_ranges[d][-1]: k.miss(d, f"{b2}{n}", *cs)
+			#
+			if border_width: interlock(k, start_n=start_n-shift, end_n=first_n, passes=1, c=cs, gauge=gauge)
+			#
+			d = toggleDirection(d)
 
 	if releasehook and machine.lower() != "kniterate": k.releasehook(*cs)
-	if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d, c=None) # drop it
+	if tuck_pattern: tuckPattern(k, first_n=first_n, direction=d, c=None) # drop it
 
 	k.comment("end closed tube alternating tuck cast-on")
 	print(f"carrier {c} parked on {'left' if d == '+' else 'right'} side") #debug
@@ -649,7 +801,7 @@ def altTuckClosedCaston(k, start_n, end_n, c, gauge=2, mod={"f": None, "b": None
 	
 
 #--- FUNCTION FOR CASTING ON OPEN TUBES ---
-def altTuckOpenTubeCaston(k, start_n, end_n, c, gauge=1, mod={"f": None, "b": None}, inhook=False, releasehook=False, tuck_pattern=False, speed_number=None, stitch_number=None, knit_after=True, knit_stitch_number=None, machine: str="swgn2") -> str:
+def altTuckOpenTubeCaston(k, start_n, end_n, c, gauge=1, mod={"f": None, "b": None}, inhook=False, releasehook=False, tuck_pattern=False, speed_number=None, stitch_number=None, knit_after=True, knit_stitch_number=None, border_width=0, machine: str="swgn2") -> str:
 	'''
 	Function for an open-tube cast-on, tucking on alternate needles circularly.
 
@@ -681,6 +833,15 @@ def altTuckOpenTubeCaston(k, start_n, end_n, c, gauge=1, mod={"f": None, "b": No
 
 	n_ranges, d = getNeedleRanges(start_n, end_n, return_direction=True)
 
+	if d == "+":
+		first_n = start_n-border_width
+		last_n = end_n+border_width
+		shift = 1
+	else:
+		first_n = start_n+border_width
+		last_n = end_n-border_width
+		shift = -1
+
 	"""
 	if end_n > start_n: #first pass is pos
 		d1 = "+"
@@ -697,7 +858,7 @@ def altTuckOpenTubeCaston(k, start_n, end_n, c, gauge=1, mod={"f": None, "b": No
 		if machine.lower() == "kniterate": k.incarrier(*cs)
 		else: k.inhook(*cs)
 	#
-	if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d, c=cs)
+	if tuck_pattern: tuckPattern(k, first_n=first_n, direction=d, c=cs)
 
 	mods = {}
 	if mod["f"] is None: mods["f"] = modsHalveGauge(gauge, "f")
@@ -711,47 +872,71 @@ def altTuckOpenTubeCaston(k, start_n, end_n, c, gauge=1, mod={"f": None, "b": No
 	# mods_f = modsHalveGauge(gauge, "f")
 	# mods_b = modsHalveGauge(gauge, "b")
 
+	if border_width: interlock(k, start_n=first_n, end_n=start_n-shift, passes=1, c=cs, gauge=gauge)
+	#
 	for n in n_ranges[d]:
 		if n % (gauge*2) == mods["f"][0]: k.knit(d, f"f{n}", *cs)
 		elif n == end_n: k.miss(d, f"f{n}", *cs)
-
+	#
+	if border_width: interlock(k, start_n=end_n+shift, end_n=last_n, passes=1, c=cs, gauge=gauge)
+	#
 	d = toggleDirection(d)
-
+	#
+	if border_width: interlock(k, start_n=last_n, end_n=end_n+shift, passes=1, c=cs, gauge=gauge)
+	#
 	for n in n_ranges[d]:
 		if n % (gauge*2) == mods["b"][0]: k.knit(d, f"b{n}", *cs)
 		elif n == start_n: k.miss(d, f"b{n}", *cs)
-
+	#
+	if border_width: interlock(k, start_n=start_n-shift, end_n=first_n, passes=1, c=cs, gauge=gauge)
+	#
 	d = toggleDirection(d)
-
+	#
 	if releasehook and machine.lower() != "kniterate": k.releasehook(*cs)
-	if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d, c=None) # drop it
-
+	if tuck_pattern: tuckPattern(k, first_n=first_n, direction=d, c=None) # drop it
+	#
+	if border_width: interlock(k, start_n=first_n, end_n=start_n-shift, passes=1, c=cs, gauge=gauge)
+	#
 	for n in n_ranges[d]:
 		if n % (gauge*2) == mods["f"][1]: k.knit(d, f"f{n}", *cs)
 		elif n == end_n: k.miss(d, f"f{n}", *cs)
-
+	#
+	if border_width: interlock(k, start_n=end_n+shift, end_n=last_n, passes=1, c=cs, gauge=gauge)
+	#
 	d = toggleDirection(d)
-
+	#
+	if border_width: interlock(k, start_n=last_n, end_n=end_n+shift, passes=1, c=cs, gauge=gauge)
+	#
 	for n in n_ranges[d]:
 		if n % (gauge*2) == mods["b"][1]: k.knit(d, f"b{n}", *cs)
 		elif n == start_n: k.miss(d, f"b{n}", *cs)
-
+	#
+	if border_width: interlock(k, start_n=start_n-shift, end_n=first_n, passes=1, c=cs, gauge=gauge)
+	#
 	d = toggleDirection(d)
 
 	if knit_after:
 		#two final passes now that loops are secure
 		if knit_stitch_number is not None: k.stitchNumber(knit_stitch_number)
-
+		#
+		if border_width: interlock(k, start_n=first_n, end_n=start_n-shift, passes=1, c=cs, gauge=gauge)
+		#
 		for n in n_ranges[d]:
 			if bnValid("f", n, gauge, mod=mod["f"]): k.knit(d, f"f{n}", *cs)
 			elif n == end_n: k.miss(d, f"f{n}", *cs)
-
+		#
+		if border_width: interlock(k, start_n=end_n+shift, end_n=last_n, passes=1, c=cs, gauge=gauge)
+		#
 		d = toggleDirection(d)
-
+		#
+		if border_width: interlock(k, start_n=last_n, end_n=end_n+shift, passes=1, c=cs, gauge=gauge)
+		#
 		for n in n_ranges[d]:
 			if bnValid("b", n, gauge, mod=mod["b"]): k.knit(d, f"b{n}", *cs)
 			elif n == start_n: k.miss(d, f"b{n}", *cs)
-
+		#
+		if border_width: interlock(k, start_n=start_n-shift, end_n=first_n, passes=1, c=cs, gauge=gauge)
+		#
 		d = toggleDirection(d)
 
 	k.comment("end open tube cast-on")
@@ -759,7 +944,7 @@ def altTuckOpenTubeCaston(k, start_n, end_n, c, gauge=1, mod={"f": None, "b": No
 
 
 #--- FUNCTION FOR CASTING ON CLOSED TUBES (zig-zag) ---
-def zigzagCaston(k, start_n, end_n, c, gauge=1, mod={"f": None, "b": None}, inhook=False, releasehook=False, tuck_pattern=False, speed_number=None, stitch_number=None, machine: str="swgn2") -> str: # TODO: indicate that most recent needle needs to be skipped, or do something to secure it (such as `knit_after` param)
+def zigzagCaston(k, start_n, end_n, c, gauge=1, mod={"f": None, "b": None}, inhook=False, releasehook=False, tuck_pattern=False, speed_number=None, stitch_number=None, border_width=0, machine: str="swgn2") -> str: # TODO: indicate that most recent needle needs to be skipped, or do something to secure it (such as `knit_after` param)
 	'''
 	* k is the knitout Writer
 	* start_n is the initial needle to cast-on
@@ -782,6 +967,11 @@ def zigzagCaston(k, start_n, end_n, c, gauge=1, mod={"f": None, "b": None}, inho
 	if end_n > start_n:
 		d = "+"
 		n_range = range(start_n, end_n+1)
+		#
+		first_n = start_n-border_width
+		last_n = end_n+border_width
+		shift = 1
+		#
 		#new #check #v
 		if mod["f"] is None and mod["b"] is None: b1, b2 = "f", "b"
 		else:
@@ -793,6 +983,11 @@ def zigzagCaston(k, start_n, end_n, c, gauge=1, mod={"f": None, "b": None}, inho
 	else:
 		d = "-"
 		n_range = range(start_n, end_n-1, -1)
+		#
+		first_n = start_n+border_width
+		last_n = end_n-border_width
+		shift = -1
+		#
 		#new #check #v
 		if mod["f"] is None and mod["b"] is None: b1, b2 = "b", "f"
 		else:
@@ -807,20 +1002,22 @@ def zigzagCaston(k, start_n, end_n, c, gauge=1, mod={"f": None, "b": None}, inho
 		if machine.lower() == "kniterate": k.incarrier(*cs)
 		else: k.inhook(*cs)
 	#
-	if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d, c=cs)
-
-	# mods = {b1: modsHalveGauge(gauge, b1), b2: modsHalveGauge(gauge, b2)}
+	if tuck_pattern: tuckPattern(k, first_n=first_n, direction=d, c=cs)
+	
+	if border_width: interlock(k, start_n=first_n, end_n=start_n-shift, passes=1, c=cs, gauge=gauge)
+	#
 	k.rack(0.25)
 	for n in n_range:
 		if bnValid(b1, n, gauge, mod=mod[b1]): k.knit(d, f"{b1}{n}", *cs)
 
 		if bnValid(b2, n, gauge, mod=mod[b2]): k.knit(d, f"{b2}{n}", *cs)
 		elif n == n_range[-1]: k.miss(d, f"{b2}{n}", *cs)
-
 	k.rack(0)
+	#
+	if border_width: interlock(k, start_n=end_n+shift, end_n=last_n, passes=1, c=cs, gauge=gauge)
 
 	if releasehook and machine.lower() != "kniterate": k.releasehook(*cs)
-	if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d, c=None) # drop it
+	if tuck_pattern: tuckPattern(k, first_n=first_n, direction=d, c=None) # drop it
 
 	k.comment("end zigzag cast-on")
 	return toggleDirection(d)
