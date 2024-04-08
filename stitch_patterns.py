@@ -389,7 +389,7 @@ def rib(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List
 		d2 = "-"
 		n_ranges = {d1: range(start_n, end_n+1), d2: range(end_n, start_n-1, -1)}
 		#
-		border_edge_ns = {"+": [(start_n-border_width, start_n-1), (end_n+1, end_n+border_width)], "-": [(end_n+border_width, end_n-1), (start_n-1, start_n-border_width)]}
+		border_edge_ns = {"+": [(start_n-border_width, start_n-1), (end_n+1, end_n+border_width)], "-": [(end_n+border_width, end_n+1), (start_n-1, start_n-border_width)]}
 		#
 		first_n = start_n-border_width
 	else: #first pass is neg
@@ -397,7 +397,7 @@ def rib(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List
 		d2 = "+"
 		n_ranges = {d1: range(start_n, end_n-1, -1), d2: range(end_n, start_n+1)}
 		#
-		border_edge_ns = {"+": [(end_n-border_width, end_n-1), (start_n+1, start_n+border_width)], "-": [(start_n+border_width, start_n-1), (end_n-1, end_n-border_width)]}
+		border_edge_ns = {"+": [(end_n-border_width, end_n-1), (start_n+1, start_n+border_width)], "-": [(start_n+border_width, start_n+1), (end_n-1, end_n-border_width)]}
 		#
 		first_n = start_n+border_width
 
