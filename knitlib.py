@@ -579,7 +579,7 @@ def altTuckCaston(k, start_n, end_n, c, bed, gauge=1, mod=None, inhook=False, re
 		if border_width: interlock(k, start_n=first_n, end_n=start_n-shift, passes=1, c=cs, gauge=gauge)
 		#
 		for n in n_ranges[d]:
-			if n % gauge == mods[0]: k.knit(d, f"{bed}{n}", *cs)
+			if bnValid(bed, n, gauge, mod=mod): k.knit(d, f"{bed}{n}", *cs)
 		#
 		if border_width: interlock(k, start_n=end_n+shift, end_n=last_n, passes=1, c=cs, gauge=gauge)
 		#
@@ -588,7 +588,7 @@ def altTuckCaston(k, start_n, end_n, c, bed, gauge=1, mod=None, inhook=False, re
 		if border_width: interlock(k, start_n=last_n, end_n=end_n+shift, passes=1, c=cs, gauge=gauge)
 		#
 		for n in n_ranges[d]:
-			if n % gauge == mods[0]: k.knit(d, f"{bed}{n}", *cs)
+			if bnValid(bed, n, gauge, mod=mod): k.knit(d, f"{bed}{n}", *cs)
 			elif n == n_ranges[d][-1]: k.miss(d, f"{bed}{n}", *cs)
 		#
 		if border_width: interlock(k, start_n=start_n-shift, end_n=first_n, passes=1, c=cs, gauge=gauge)
