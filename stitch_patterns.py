@@ -325,7 +325,7 @@ def interlock(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str]
 	else: return d2
 
 
-def rib(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List[str]], bed: Optional[str]=None, gauge: int=1, sequence: str="fb", bn_locs: Dict[str,List[int]]={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, xfer_bns_back: bool=False, secure_start_n: bool=False, secure_end_n: bool=False, inhook: bool=False, releasehook: bool=False, tuck_pattern: bool=True, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, xfer_speed_number: Optional[int]=None, xfer_stitch_number: Optional[int]=None, machine: str="swgn2", init_direction: Optional[str]=None) -> str: #TODO: #check to make sure this is working well for gauge > 1 #*
+def rib(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List[str]], bed: Optional[str]=None, gauge: int=1, sequence: str="fb", bn_locs: Dict[str,List[int]]={"f": [], "b": []}, avoid_bns: Dict[str,List[int]]={"f": [], "b": []}, xfer_bns_back: bool=False, secure_start_n: bool=False, secure_end_n: bool=False, inhook: bool=False, releasehook: bool=False, tuck_pattern: bool=True, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, xfer_speed_number: Optional[int]=None, xfer_stitch_number: Optional[int]=None, border_width=0, machine: str="swgn2", init_direction: Optional[str]=None) -> str: #TODO: #check to make sure this is working well for gauge > 1 #*
 	'''
 	Rib stitch pattern: alternates between front and back bed in a row based on given sequence.
 
@@ -388,19 +388,28 @@ def rib(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List
 		d1 = "+"
 		d2 = "-"
 		n_ranges = {d1: range(start_n, end_n+1), d2: range(end_n, start_n-1, -1)}
+		#
+		border_edge_ns = {"+": [(start_n-border_width, start_n-1), (end_n+1, end_n+border_width)], "-": [(end_n+border_width, end_n-1), (start_n-1, start_n-border_width)]}
+		#
+		first_n = start_n-border_width
 	else: #first pass is neg
 		d1 = "-"
 		d2 = "+"
 		n_ranges = {d1: range(start_n, end_n-1, -1), d2: range(end_n, start_n+1)}
-	
+		#
+		border_edge_ns = {"+": [(end_n-border_width, end_n-1), (start_n+1, start_n+border_width)], "-": [(start_n+border_width, start_n-1), (end_n-1, end_n-border_width)]}
+		#
+		first_n = start_n+border_width
+
 	if bed is None:
-		bed1, bed2 = "f", "b"
+		bed = "f"
+		# bed1, bed2 = "f", "b"
 		if bn_locs is None or (not len(bn_locs.get("f", [])) and not len(bn_locs.get("b", []))): _bn_locs = {"f": [n for n in n_ranges[d1] if bnValid("f", n, gauge)], "b": [n for n in n_ranges[d1] if bnValid("b", n, gauge)]} #make sure we transfer to get them where we want #TODO: #check
 		else: _bn_locs = bn_locs.copy()
 	else:
-		if bed == "f": bed1, bed2 = "f", "b"
-		else: bed1, bed2 = "b", "f"
-		if bn_locs is None or (not len(bn_locs.get("f", [])) and not len(bn_locs.get("b", []))): _bn_locs = {bed1: [n for n in n_ranges[d1] if bnValid(bed1, n, gauge)]} #make sure we transfer to get them where we want #TODO: #check
+		# if bed == "f": bed1, bed2 = "f", "b"
+		# else: bed1, bed2 = "b", "f"
+		if bn_locs is None or (not len(bn_locs.get("f", [])) and not len(bn_locs.get("b", []))): _bn_locs = {bed: [n for n in n_ranges[d1] if bnValid(bed, n, gauge)]} #make sure we transfer to get them where we want #TODO: #check
 		else: _bn_locs = bn_locs.copy()
 
 	secure_needles = {"f": [], "b": []}
@@ -415,7 +424,7 @@ def rib(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List
 		if secure_start_n: secure_needles[edge_bns[1][0]].append(edge_bns[1][1])
 
 	# now let's make sure we have *all* the info in one dict
-	xfer_bns = {"f": [n for n in _bn_locs.get("f", []) if sequence[n % len(sequence)] == "b" and bnValid(bed1, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles["f"]], "b": [n for n in _bn_locs.get("b", []) if sequence[n % len(sequence)] == "f" and bnValid(bed1, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles["b"]]}
+	xfer_bns = {"f": [n for n in _bn_locs.get("f", []) if sequence[n % len(sequence)] == "b" and bnValid(bed, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles["f"]], "b": [n for n in _bn_locs.get("b", []) if sequence[n % len(sequence)] == "f" and bnValid(bed, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles["b"]]}
 	# xfer_bns = {"f": [n for n in list(set(_bn_locs.get("f", [])+bn_locs.get("f", []))) if sequence[n % len(sequence)] == "b" and bnValid(bed1, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles["f"]], "b": [n for n in list(set(_bn_locs.get("b", [])+bn_locs.get("b", []))) if sequence[n % len(sequence)] == "f" and bnValid(bed1, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles["b"]]}
 
 	if len(xfer_bns["f"]) or len(xfer_bns["b"]): # indicates that we might need to start by xferring to proper spots
@@ -432,7 +441,7 @@ def rib(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List
 	if inhook:
 		if machine.lower() == "kniterate": k.incarrier(*cs)
 		else: k.inhook(*cs)
-		if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=cs)
+		if tuck_pattern: tuckPattern(k, first_n=first_n, direction=d1, c=cs)
 	
 	if bn_locs is None: print("TODO: add caston") #debug
 
@@ -445,16 +454,20 @@ def rib(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List
 			d = d2
 			last_n = start_n
 
+		if border_width: interlock(k, start_n=border_edge_ns[d][0][0], end_n=border_edge_ns[d][0][-1], passes=1, c=cs, gauge=gauge)
+
 		for n in n_ranges[d]:
 			if n in secure_needles["f"] and n not in _bn_locs.get("b", []): k.knit(d, f"f{n}", *cs) #TODO: #check
 			elif n in secure_needles["b"] and n not in _bn_locs.get("f", []): k.knit(d, f"b{n}", *cs) #TODO: #check
-			elif sequence[n % len(sequence)] == "f" and n not in avoid_bns.get("f", []) and bnValid(bed1, n, gauge): k.knit(d, f"f{n}", *cs) #xferred it or bed1 == "f", ok to knit
-			elif sequence[n % len(sequence)] == "b" and n not in avoid_bns.get("b", []) and bnValid(bed1, n, gauge): k.knit(d, f"b{n}", *cs) #xferred it or bed1 == "b", ok to knit
+			elif sequence[n % len(sequence)] == "f" and n not in avoid_bns.get("f", []) and bnValid(bed, n, gauge): k.knit(d, f"f{n}", *cs) #xferred it or bed1 == "f", ok to knit
+			elif sequence[n % len(sequence)] == "b" and n not in avoid_bns.get("b", []) and bnValid(bed, n, gauge): k.knit(d, f"b{n}", *cs) #xferred it or bed1 == "b", ok to knit
 			elif n == last_n: k.miss(d, f"f{n}", *cs)
+		#
+		if border_width: interlock(k, start_n=border_edge_ns[d][1][0], end_n=border_edge_ns[d][1][-1], passes=1, c=cs, gauge=gauge)
 
 		if p == rh_p:
 			if machine.lower() != "kniterate": k.releasehook(*cs)
-			if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=None) # drop it
+			if tuck_pattern: tuckPattern(k, first_n=first_n, direction=d1, c=None) # drop it
 
 	# return the loops:
 	if xfer_bns_back and (len(xfer_bns["f"]) or len(xfer_bns["b"])):
@@ -535,13 +548,14 @@ def seed(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], Lis
 		n_ranges = {d1: range(start_n, end_n-1, -1), d2: range(end_n, start_n+1)}
 	
 	if bed is None:
-		bed1, bed2 = "f", "b"
+		bed = "f"
+		# bed1, bed2 = "f", "b"
 		if bn_locs is None or (not len(bn_locs.get("f", [])) and not len(bn_locs.get("b", []))): _bn_locs = {"f": [n for n in n_ranges[d1] if bnValid("f", n, gauge)], "b": [n for n in n_ranges[d1] if bnValid("b", n, gauge)]} #make sure we transfer to get them where we want #TODO: #check
 		else: _bn_locs = bn_locs.copy()
 	else:
-		if bed == "f": bed1, bed2 = "f", "b"
-		else: bed1, bed2 = "b", "f"
-		if bn_locs is None or (not len(bn_locs.get("f", [])) and not len(bn_locs.get("b", []))): _bn_locs = {bed1: [n for n in n_ranges[d1] if bnValid(bed1, n, gauge)]} #make sure we transfer to get them where we want #TODO: #check
+		# if bed == "f": bed1, bed2 = "f", "b"
+		# else: bed1, bed2 = "b", "f"
+		if bn_locs is None or (not len(bn_locs.get("f", [])) and not len(bn_locs.get("b", []))): _bn_locs = {bed: [n for n in n_ranges[d1] if bnValid(bed, n, gauge)]} #make sure we transfer to get them where we want #TODO: #check
 		else: _bn_locs = bn_locs.copy()
 
 	# if bed is not None: _bn_locs = {bed: [n for n in n_ranges[d1] if bnValid(bed, n, gauge)]} #make sure we transfer to get them where we want #TODO; #check
@@ -564,7 +578,7 @@ def seed(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], Lis
 		if secure_end_n: secure_needles[edge_bns[0][0]].append(edge_bns[0][1])
 		if secure_start_n: secure_needles[edge_bns[1][0]].append(edge_bns[1][1])
 
-	xfer_bns = {"f": [n for n in _bn_locs.get("f", []) if sequence[n % len(sequence)] == "b" and bnValid(bed1, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles["f"]], "b": [n for n in _bn_locs.get("b", []) if sequence[n % len(sequence)] == "f" and bnValid(bed1, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles["b"]]}
+	xfer_bns = {"f": [n for n in _bn_locs.get("f", []) if sequence[n % len(sequence)] == "b" and bnValid(bed, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles["f"]], "b": [n for n in _bn_locs.get("b", []) if sequence[n % len(sequence)] == "f" and bnValid(bed, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles["b"]]}
 
 	if len(xfer_bns["f"]) or len(xfer_bns["b"]): # indicates that we might need to start by xferring to proper spots
 		if xfer_speed_number is not None: k.speedNumber(xfer_speed_number)
@@ -588,7 +602,7 @@ def seed(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], Lis
 			last_n = end_n
 
 			for n in n_ranges[d]:
-				if bnValid(bed1, n, gauge):
+				if bnValid(bed, n, gauge):
 					if n in secure_needles["f"] and n not in _bn_locs.get("b", []): k.knit(d, f"f{n}", *cs) #TODO: #check
 					elif n in secure_needles["b"] and n not in _bn_locs.get("f", []): k.knit(d, f"b{n}", *cs) #TODO: #check
 					else:
@@ -603,14 +617,14 @@ def seed(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], Lis
 			if p < passes-1:
 				for n in n_ranges[d]:
 					if n in avoid_bns.get("f", []) or n in avoid_bns.get("b", []): continue
-					elif bnValid(bed1, n, gauge):
+					elif bnValid(bed, n, gauge):
 						if sequence[n % len(sequence)] == "f" and n not in secure_needles["f"]: k.xfer(f"f{n}", f"b{n}")
 						elif sequence[n % len(sequence)] == "b" and n not in secure_needles["b"]: k.xfer(f"b{n}", f"f{n}")
 			elif xfer_bns_back:
 				# return the loops:
 				for n in n_ranges[d]:
 					if n in avoid_bns.get("f", []) or n in avoid_bns.get("b", []) or n in secure_needles["f"] or n in secure_needles["b"]: continue
-					elif bnValid(bed1, n, gauge):
+					elif bnValid(bed, n, gauge):
 						if sequence[n % len(sequence)] == "f" and n in xfer_bns.get("b", []): k.xfer(f"f{n}", f"b{n}")
 						elif sequence[n % len(sequence)] == "b" and n in xfer_bns.get("f", []): k.xfer(f"b{n}", f"f{n}")
 
@@ -621,7 +635,7 @@ def seed(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], Lis
 			last_n = start_n
 
 			for n in n_ranges[d]:
-				if bnValid(bed1, n, gauge):
+				if bnValid(bed, n, gauge):
 					if n in secure_needles["f"] and n not in _bn_locs.get("b", []): k.knit(d, f"f{n}", *cs) #TODO: #check
 					elif n in secure_needles["b"] and n not in _bn_locs.get("f", []): k.knit(d, f"b{n}", *cs) #TODO: #check
 					else:
@@ -636,14 +650,14 @@ def seed(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], Lis
 			if p < passes-1:
 				for n in n_ranges[d]:
 					if n in avoid_bns.get("f", []) or n in avoid_bns.get("b", []): continue
-					elif n not in secure_needles and bnValid(bed1, n, gauge):
+					elif n not in secure_needles and bnValid(bed, n, gauge):
 						if sequence[n % len(sequence)] == "f": k.xfer(f"b{n}", f"f{n}")
 						else: k.xfer(f"f{n}", f"b{n}")
 			elif xfer_bns_back:
 				# return the loops:
 				for n in n_ranges[d]: #TODO: adjust for gauge
 					if n in avoid_bns.get("f", []) or n in avoid_bns.get("b", []) or n in secure_needles["f"] or n in secure_needles["b"]: continue
-					elif bnValid(bed1, n, gauge):
+					elif bnValid(bed, n, gauge):
 						if sequence[n % len(sequence)] == "f" and n in xfer_bns.get("f", []): k.xfer(f"b{n}", f"f{n}")
 						elif sequence[n % len(sequence)] == "b" and n in xfer_bns.get("b", []): k.xfer(f"f{n}", f"b{n}")
 			
@@ -657,7 +671,7 @@ def seed(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], Lis
 	k.comment(f"end seed ({sequence})")
 
 	# return next direction
-	if bnValid(bed1, n, gauge) % 2 == 0: #TODO: #check
+	if bnValid(bed, n, gauge) % 2 == 0: #TODO: #check
 		if end_n > start_n: return "+"
 		else: return "-"
 	else:
@@ -727,14 +741,15 @@ def garter(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], L
 		n_ranges = {"-": range(start_n, end_n-1, -1), "+": range(end_n, start_n+1)}
 
 	if bed is None:
-		bed1, bed2 = "f", "b"
+		bed = "f"
+		# bed1, bed2 = "f", "b"
 		if not len(bn_locs.get("f", [])) and not len(bn_locs.get("b", [])):
 			_bn_locs = {"f": [n for n in n_ranges[d1] if bnValid("f", n, gauge)], "b": [n for n in n_ranges[d1] if bnValid("b", n, gauge)]} #assume loops on both beds
 		else: _bn_locs = bn_locs.copy()
 	else:
-		if bed == "f": bed1, bed2 = "f", "b"
-		else: bed1, bed2 = "b", "f"
-		if not len(bn_locs.get("f", [])) and not len(bn_locs.get("b", [])): _bn_locs = {bed1: [n for n in n_ranges[d1] if bnValid(bed1, n, gauge)]} #make sure we transfer to get them where we want #TODO: #check
+		# if bed == "f": bed1, bed2 = "f", "b"
+		# else: bed1, bed2 = "b", "f"
+		if not len(bn_locs.get("f", [])) and not len(bn_locs.get("b", [])): _bn_locs = {bed: [n for n in n_ranges[d1] if bnValid(bed, n, gauge)]} #make sure we transfer to get them where we want #TODO: #check
 		else: _bn_locs = bn_locs.copy()
 
 	# if bed is not None: _bn_locs = {bed: [n for n in n_ranges[d1] if bnValid(bed, n, gauge)]} #make sure we transfer to get them where we want #TODO; #check
@@ -763,7 +778,7 @@ def garter(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], L
 	b1 = sequence[0]
 	b2 = "f" if b1 == "b" else "b"
 
-	xfer_bns = {b2: [n for n in _bn_locs.get(b2, []) if bnValid(bed1, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles[b2]]}
+	xfer_bns = {b2: [n for n in _bn_locs.get(b2, []) if bnValid(bed, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles[b2]]}
 	# xfer_bns = {b2: [n for n in list(set(_bn_locs.get(b2, [])+bn_locs.get(b2, []))) if bnValid(bed, n, gauge) and n not in avoid_bns.get("f", []) and n not in avoid_bns.get("b", []) and n not in secure_needles[b2]]}
 
 	if len(xfer_bns[b2]):
@@ -785,7 +800,7 @@ def garter(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], L
 			
 			for n in n_ranges[d]:
 				if n in avoid_bns.get("f", []) or n in avoid_bns.get("b", []): continue
-				elif bnValid(bed1, n, gauge) and n not in secure_needles[b1]: k.xfer(f"{b1}{n}", f"{sequence[p % len(sequence)]}{n}")
+				elif bnValid(bed, n, gauge) and n not in secure_needles[b1]: k.xfer(f"{b1}{n}", f"{sequence[p % len(sequence)]}{n}")
 
 			if speed_number is not None: k.speedNumber(speed_number)
 			if stitch_number is not None: k.stitchNumber(stitch_number)
@@ -794,7 +809,7 @@ def garter(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], L
 		b2 = "f" if b1 == "b" else "b"
 
 		for n in n_ranges[d]:
-			if bnValid(bed1, n, gauge):
+			if bnValid(bed, n, gauge):
 				if n in secure_needles[b2] or (n in avoid_bns[b1] and n not in avoid_bns[b2]): k.knit(d, f"{b2}{n}", *cs)
 				elif n not in avoid_bns[b1]: k.knit(d, f"{b1}{n}", *cs)
 				elif n == end_n: k.miss(d, f"{b1}{n}", *cs)
