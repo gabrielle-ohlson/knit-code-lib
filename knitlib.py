@@ -304,7 +304,9 @@ def wasteSection(k, left_n, right_n, caston_bed=None, waste_c="1", draw_c="2", i
 				catch_end_on_right.append(draw_c)
 				if draw_c in miss_other_cs: miss_other_cs[draw_c] = first_needles[draw_c][1] 
 
-		if machine.lower() == "kniterate": catchYarns(k, left_n, right_n, carriers, gauge, catch_end_on_right, miss_other_cs, catch_max_needles)
+		if machine.lower() == "kniterate":
+			catchYarns(k, left_n, right_n, carriers, gauge, catch_end_on_right, miss_other_cs, catch_max_needles)
+			if waste_speed_number is None: waste_speed_number = 300
 		elif waste_c in in_cs: k.inhook(*c2cs(waste_c))
 
 	k.comment("begin waste section")
