@@ -5,6 +5,19 @@ import re
 
 from collections import UserList
 
+#===============================================================================
+import sys
+from pathlib import Path
+
+## Standalone boilerplate before relative imports
+if not __package__: #remove #?
+    DIR = Path(__file__).resolve().parent
+    sys.path.insert(0, str(DIR.parent))
+    __package__ = DIR.name
+#===============================================================================
+    
+from .ansi import Ansi, fmt
+
 
 class IncList(UserList):
 	def __init__(self, iterable=None):
@@ -160,9 +173,14 @@ def rackedXfer(obj, from_bed: str, from_needle: int, to_bed: str, to_needle: int
 
 class AlreadyActiveCarrierWarning(UserWarning): #*#* #TODO: add this in
 	ENABLED = True
+	ERROR = False
 
 	def __init__(self, c: str, op: str, ln: int):
 		self.message = f"[@ line #{ln}] Attempting to {op} carrier '{c}', which has already been brought in."
+		#
+		if self.ENABLED:
+			if self.ERROR: self.message = fmt(self.message, Ansi.red)
+			else: self.message = fmt(self.message, Ansi.yellow)
 
 	def __str__(self):
 		return repr(self.message)
@@ -178,9 +196,14 @@ class AlreadyActiveCarrierWarning(UserWarning): #*#* #TODO: add this in
 
 class InactiveCarrierWarning(UserWarning):
 	ENABLED = True
+	ERROR = False
 
 	def __init__(self, c: str, op: str, ln: int):
 		self.message = f"[@ line #{ln}] Attempting to {op} carrier '{c}', which hasn't been brought in yet."
+		#
+		if self.ENABLED:
+			if self.ERROR: self.message = fmt(self.message, Ansi.red)
+			else: self.message = fmt(self.message, Ansi.yellow)
 
 	def __str__(self):
 		return repr(self.message)
@@ -197,9 +220,14 @@ class InactiveCarrierWarning(UserWarning):
 
 class UnalignedNeedlesWarning(UserWarning):
 	ENABLED = True
+	ERROR = False
 
 	def __init__(self, r: int, bn: str, bn2: str, ln: str):
 		self.message = f"[@ line #{ln}] '{bn}' and '{bn2}' are unaligned at rack {r}."
+		#
+		if self.ENABLED:
+			if self.ERROR: self.message = fmt(self.message, Ansi.red)
+			else: self.message = fmt(self.message, Ansi.yellow)
 
 	def __str__(self):
 		return repr(self.message)
@@ -221,10 +249,15 @@ class UnalignedNeedlesWarning(UserWarning):
 
 class FloatWarning(UserWarning):
 	ENABLED = True
+	ERROR = False
 	MAX_FLOAT_LEN = 6 #TODO: add option to adjust
 
 	def __init__(self, c: str, prev_needle: int, needle: int, ln: int):
 		self.message = f"[@ line #{ln}] Float of length {abs(needle-prev_needle)} formed bringing carrier '{c}' from previous position, needle {prev_needle}, to needle {needle}." #TODO: phrase this better
+		#
+		if self.ENABLED:
+			if self.ERROR: self.message = fmt(self.message, Ansi.red)
+			else: self.message = fmt(self.message, Ansi.yellow)
 
 	def __str__(self):
 		return repr(self.message)
@@ -242,6 +275,7 @@ class FloatWarning(UserWarning):
 
 class StackedLoopWarning(UserWarning):
 	ENABLED = True
+	ERROR = False
 	MAX_STACK_CT = 2
 
 	def __init__(self, bn: str, count: int, ln: int):
@@ -249,6 +283,10 @@ class StackedLoopWarning(UserWarning):
 		self.count = count
 		#
 		self.message = f"[@ line #{ln}] {count} loops stacked on '{bn}'"
+		#
+		if self.ENABLED:
+			if self.ERROR: self.message = fmt(self.message, Ansi.red)
+			else: self.message = fmt(self.message, Ansi.yellow)
 
 	def __str__(self):
 		return repr(self.message)
@@ -268,10 +306,15 @@ class StackedLoopWarning(UserWarning):
 
 class HeldLoopWarning(UserWarning):
 	ENABLED = True
+	ERROR = False
 	MAX_HOLD_ROWS = 10 #TODO: see what this value is on shima
 
 	def __init__(self, bn: str, n_rows: int, ln: int):
 		self.message = f"[@ line #{ln}] '{bn}' has been holding an unknit loop for {n_rows} rows." #TODO: phrase this better
+		#
+		if self.ENABLED:
+			if self.ERROR: self.message = fmt(self.message, Ansi.red)
+			else: self.message = fmt(self.message, Ansi.yellow)
 
 	def __str__(self):
 		return repr(self.message)
@@ -291,9 +334,14 @@ class HeldLoopWarning(UserWarning):
 
 class UnstableLoopWarning(UserWarning):
 	ENABLED = True
+	ERROR = False
 
 	def __init__(self, bn: str, ln: int):
 		self.message = f"[@ line #{ln}] Attempting to knit on '{bn}', which does not yet have a stable loop formed." #TODO: phrase this better
+		#
+		if self.ENABLED:
+			if self.ERROR: self.message = fmt(self.message, Ansi.red)
+			else: self.message = fmt(self.message, Ansi.yellow)
 
 	def __str__(self):
 		return repr(self.message)
@@ -305,9 +353,14 @@ class UnstableLoopWarning(UserWarning):
 
 class EmptyXferWarning(UserWarning):
 	ENABLED = True
+	ERROR = False
 
 	def __init__(self, bn: str, ln: int):
 		self.message = f"[@ line #{ln}] Attempting to xfer from '{bn}', which is empty." #TODO: phrase this better
+		#
+		if self.ENABLED:
+			if self.ERROR: self.message = fmt(self.message, Ansi.red)
+			else: self.message = fmt(self.message, Ansi.yellow)
 
 	def __str__(self):
 		return repr(self.message)

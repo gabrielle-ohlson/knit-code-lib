@@ -9,6 +9,7 @@ from enum import Enum
 from queue import Queue
 from threading import Thread
 
+#===============================================================================
 import sys
 from pathlib import Path
 
@@ -17,7 +18,7 @@ if not __package__: #remove #?
     DIR = Path(__file__).resolve().parent
     sys.path.insert(0, str(DIR.parent))
     __package__ = DIR.name
-
+#===============================================================================
 
 from .knitout_helpers import IncList, Carrier, InactiveCarrierWarning, UnalignedNeedlesWarning, FloatWarning, StackedLoopWarning, HeldLoopWarning, UnstableLoopWarning, EmptyXferWarning
 
@@ -159,24 +160,61 @@ class Writer(knitout.Writer):
         #
         return w
 
-    def setExceptionHandling(self, enabled_warnings: Union[Tuple[KnitoutException], List[KnitoutException], KnitoutException], enabled_errors: Union[Tuple[KnitoutException], List[KnitoutException], KnitoutException]):
+    def setExceptionHandling(self, enabled_warnings: Union[List[KnitoutException], Tuple[KnitoutException], KnitoutException]=[], enabled_errors: Union[List[KnitoutException], Tuple[KnitoutException], KnitoutException]=[]):
         if isinstance(enabled_warnings, KnitoutException): enabled_warnings = [enabled_warnings]
-        else: assert isinstance(enabled_warnings, (tuple, list)) and isinstance(enabled_warnings[0], KnitoutException), "'enabled_warnings' parameter must be of type Tuple[KnitoutException], List[KnitoutException], or KnitoutException." #check
+        else: assert isinstance(enabled_warnings, (tuple, list)) and isinstance(enabled_warnings[0], KnitoutException), "'enabled_warnings' parameter must be of type Tuple[KnitoutException], List[KnitoutException], or KnitoutException."
         #
         if isinstance(enabled_errors, KnitoutException): enabled_errors = [enabled_errors]
-        else: assert isinstance(enabled_errors, (tuple, list)) and isinstance(enabled_errors[0], KnitoutException), "'enabled_errors' parameter must be of type Tuple[KnitoutException], List[KnitoutException], or KnitoutException." #check
+        else: assert isinstance(enabled_errors, (tuple, list)) and isinstance(enabled_errors[0], KnitoutException), "'enabled_errors' parameter must be of type Tuple[KnitoutException], List[KnitoutException], or KnitoutException."
         #
         for w in KnitoutException:
             if w in enabled_errors: 
                 warnings.simplefilter("error", w.value)
                 w.value.ENABLED = True
+                w.value.ERROR = True
             elif w in enabled_warnings: 
                 warnings.simplefilter("default", w.value)
                 w.value.ENABLED = True
+                w.value.ERROR = False
             else:
                 warnings.simplefilter("ignore", w.value)
                 w.value.ENABLED = False
-            # print('{:15} = {}'.format(w.name, w.value)) #remove
+                w.value.ERROR = False
+    
+    def modifyExceptionHandling(self, enabled_warnings: Union[List[KnitoutException], Tuple[KnitoutException], KnitoutException]=[], enabled_errors: Union[List[KnitoutException], Tuple[KnitoutException], KnitoutException]=[], ignored: Union[List[KnitoutException], Tuple[KnitoutException], KnitoutException]=[]):
+        if isinstance(enabled_warnings, KnitoutException): enabled_warnings = [enabled_warnings]
+        else: assert isinstance(enabled_warnings, (tuple, list)) and isinstance(enabled_warnings[0], KnitoutException), "'enabled_warnings' parameter must be of type List[KnitoutException], Tuple[KnitoutException], or KnitoutException."
+        #
+        if isinstance(enabled_errors, KnitoutException): enabled_errors = [enabled_errors]
+        else: assert isinstance(enabled_errors, (tuple, list)) and isinstance(enabled_errors[0], KnitoutException), "'enabled_errors' parameter must be of type List[KnitoutException], Tuple[KnitoutException], or KnitoutException."
+        #
+        if isinstance(ignored, KnitoutException): ignored = [ignored]
+        else: assert isinstance(ignored, (tuple, list)) and isinstance(ignored[0], KnitoutException), "`ignored` parameter must be of type List[KnitoutException], Tuple[KnitoutException], or KnitoutException."
+        #
+        for w in KnitoutException: #TODO: #check to make sure if actually changes stuff
+            if w in enabled_errors: 
+                warnings.simplefilter("error", w.value)
+                w.value.ENABLED = True
+                w.value.ERROR = True
+            elif w in enabled_warnings: 
+                warnings.simplefilter("default", w.value)
+                w.value.ENABLED = True
+                w.value.ERROR = False
+            elif w in ignored:
+                warnings.simplefilter("ignore", w.value)
+                w.value.ENABLED = False
+                w.value.ERROR = False
+
+    def suppressErrors(self, silence=False):
+        for wf in warnings.filters.copy():
+            if wf[0] == "error":
+                warnings.filters.remove(wf)
+                if silence:
+                    warnings.simplefilter("ignore", wf[2])
+                    wf[2].ENABLED = False
+                else: warnings.simplefilter("default", wf[2])
+                #
+                wf[2].ERROR = False
     
     # patch on x-vis-color method:
     def visColor(self, hexcode, *args):
