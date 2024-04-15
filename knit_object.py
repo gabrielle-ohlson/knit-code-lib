@@ -38,7 +38,7 @@ add something for knitPass at a rack (or a "rackedSort" function)
 """
 
 from knitlib import altTuckCaston, altTuckClosedCaston, altTuckOpenTubeCaston, zigzagCaston, sheetBindoff, closedTubeBindoff, openTubeBindoff, dropFinish, wasteSection
-from .helpers import gauged, toggleDirection, bnValid
+from .helpers import gauged, toggleDirection, bnValid, getNeedleRanges
 from .stitch_patterns import jersey, interlock, rib, garter, seed
 # from .helpers import multidispatchmethod
 
@@ -501,7 +501,26 @@ class KnitObject:
 			#
 			dropFinish(self.k, front_needle_ranges=front_needle_ranges, back_needle_ranges=back_needle_ranges, out_carriers=cs if outhook else [], machine=self.settings.machine)
 		else: raise ValueError("unsupported bindoff method")
-	
+		#
+		if "out_cs" in kwargs:
+			for c in kwargs["out_cs"]:
+				if self.settings.machine == "kniterate": self.k.outcarrier(c)
+				else: self.k.outhook(c)
+			#
+			self.k.pause("cut yarns")
+
+		if "roll_out" in kwargs:
+			self.rollerAdvance(1000) #TODO: #check if good value
+			n_range1 = getNeedleRanges(needle_range[1], needle_range[0], return_direction=False)
+			n_range2 = getNeedleRanges(needle_range[0], needle_range[1], return_direction=True)
+			
+			for i in range(4): #TODO: #check if good value
+				for n in n_range1:
+					self.k.drop(f"f{n}")
+				
+				for n in n_range1:
+					self.k.drop(f"b{n}")
+					
 	@bindoff.register
 	def bindoff(self, method: Union[BindoffMethod, int], bed: Optional[str], *cs: str, **kwargs) -> None:
 		self.bindoff(method, bed, None, *cs, **kwargs)
