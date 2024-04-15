@@ -197,7 +197,7 @@ def decBindoff(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], int]):
 	from_bed, from_needle = from_bn
 	to_bed, to_needle = to_bn
 	#
-	sheetBindoff(obj, from_needle, to_needle, from_bed, obj.gauge, add_tag=False)
+	sheetBindoff(obj.k, from_needle, to_needle, from_bed, obj.gauge, add_tag=False)
 	if to_bed is not None and from_bed != to_bed: obj.rackedXfer((from_bed, to_needle), to_bn)
 
 
@@ -475,7 +475,7 @@ def incCaston(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], int]):
 	assert obj.active_carrier is not None
 	if from_needle < to_needle: #right side
 		# zigzagCaston(obj, BedNeedle(from_bed, from_needle+1), to_bn, obj.active_carrier)
-		zigzagCaston(obj, from_needle+1, to_needle, obj.active_carrier, obj.gauge)
+		zigzagCaston(obj.k, from_needle+1, to_needle, obj.active_carrier, obj.gauge)
 		for n in range(from_needle+1, to_needle+1):
 			test_bn = ("b", n) #?
 			if n in obj.avoid_bns["b"]:
@@ -483,7 +483,7 @@ def incCaston(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], int]):
 				obj.rackedXfer(test_bn, next_bn)
 				# obj.active_bns.append(next_bn) #TODO
 	else: #left side
-		zigzagCaston(obj, from_needle-1, to_needle, obj.active_carrier, obj.gauge)
+		zigzagCaston(obj.k, from_needle-1, to_needle, obj.active_carrier, obj.gauge)
 		# zigzagCaston(obj, BedNeedle(from_bed, from_needle-1), to_bn, obj.active_carrier)
 
 
