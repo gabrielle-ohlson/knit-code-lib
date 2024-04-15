@@ -8,7 +8,55 @@ from .knitout_helpers import findNextValidNeedle #?
 # from .bed_needle import BedNeedle
 
 
-def decEdge(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], int]): #TODO: add check for if it is a valid place to transfer to
+def decEdge(obj, from_needle: int, to_needle: int, bed: Optional[str]=None): #TODO: add check for if it is a valid place to transfer to
+	if from_needle < to_needle:
+		obj.k.comment(f"decrease {to_needle-from_needle} on left") #debug
+		#
+		for i in range(to_needle-from_needle):
+			if bed is None:
+				if bnValid("f", from_needle+i, gauge=obj.gauge): from_bed = "f"
+				elif bnValid("b", from_needle+i, gauge=obj.gauge): from_bed = "b"
+				else: continue
+				#
+				if bnValid("b", to_needle+i, gauge=obj.gauge): to_bed = "b"
+				elif bnValid("f", to_needle+i, gauge=obj.gauge): to_bed = "f"
+				else:
+					raise NotImplementedError("TODO: find valid needle to xfer to")
+			else:
+				if bnValid(bed, from_needle+i, gauge=obj.gauge): from_bed = bed
+				else: continue
+				#
+				if bnValid(bed, to_needle+i, gauge=obj.gauge): to_bed = bed
+				else:
+					raise NotImplementedError("TODO: find valid needle to xfer to")
+			
+			obj.rackedXfer((from_bed, from_needle+i), (to_bed, to_needle+i), reset_rack=False)
+	else:
+		obj.k.comment(f"decrease {from_needle-to_needle} on right") #debug
+		#
+		for i in range(from_needle-to_needle):
+			if bed is None:
+				if bnValid("f", from_needle-i, gauge=obj.gauge): from_bed = "f"
+				elif bnValid("b", from_needle-i, gauge=obj.gauge): from_bed = "b"
+				else: continue
+				#
+				if bnValid("b", to_needle-i, gauge=obj.gauge): to_bed = "b"
+				elif bnValid("f", to_needle-i, gauge=obj.gauge): to_bed = "f"
+				else:
+					raise NotImplementedError("TODO: find valid needle to xfer to")
+			else:
+				if bnValid(bed, from_needle-i, gauge=obj.gauge): from_bed = bed
+				else: continue
+				#
+				if bnValid(bed, to_needle-i, gauge=obj.gauge): to_bed = bed
+				else:
+					raise NotImplementedError("TODO: find valid needle to xfer to")
+			
+			obj.rackedXfer((from_bed, from_needle-i), (to_bed, to_needle-i), reset_rack=False)
+	obj.k.rack(0)
+
+
+def decEdge_old(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], int]): #TODO: add check for if it is a valid place to transfer to
 	from_bed, from_needle = from_bn
 	to_bed, to_needle = to_bn
 	if to_bed is None: to_bed = from_bed
@@ -26,7 +74,92 @@ def decEdge(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], int]): #T
 	obj.k.rack(0)
 
 
-def decSchoolBus(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], int]):
+def decSchoolBus(obj, from_needle: int, to_needle: int, bed: Optional[str]=None):
+	if bed is None:
+		if bnValid("f", from_needle, obj.gauge): bed = "f"
+		elif bnValid("b", from_needle, obj.gauge): bed = "b"
+		else: raise ValueError(f"from_needle: '{from_needle}' not valid on either bed")
+	# from_bed, from_needle = from_bn
+	# to_bed, to_needle = to_bn
+	# if to_bed is None: to_bed = from_bed
+	# assert to_bed == from_bed, "school-bus decrease to opposite bed not supported yet"
+	#
+	if from_needle > to_needle: #right side
+		ct = from_needle-to_needle
+		obj.k.comment(f"decrease {ct} on right (school bus)") #debug
+		if bed.startswith("f"):
+			xto_bed = "bs"
+		else:
+			xto_bed = "fs"
+		#
+		min_n = obj.getMinNeedle(bed[0])
+		if from_needle-ct+1 > min_n: # valid school bus operation
+			w = from_needle-min_n+1
+			#
+			r = max(obj.gauge, int(ct-math.fmod(ct, obj.gauge)))
+			if r > obj.settings.max_rack: #TODO: #check
+				ct_2 = ct*ct
+				r = ct_2/(w-ct)
+				r = max(obj.gauge, int(r-math.fmod(r, obj.gauge))) #TODO: #check
+				assert r <= obj.settings.max_rack
+
+			sects = ct #TODO: remove this since it is redundant
+			size = math.floor(w/ct)
+			# sects = ct-1
+			# size = math.floor(w/(ct+1))
+			start_n = from_needle
+
+			for i in range(sects):
+				# for n in range(start_n-(sects-i)*size, start_n-i*r+1):
+				for n in range(start_n-(sects-1-i)*size, start_n-i*r+1):
+					if bnValid(bed, n, obj.gauge): obj.rackedXfer((bed, n), (xto_bed, n-r), reset_rack=False)
+				#
+				# for n in range((start_n-(sects-i)*size)-r, (start_n-i*r+1)-r):
+				for n in range((start_n-(sects-1-i)*size)-r, (start_n-i*r+1)-r):
+						if bnValid(bed, n, obj.gauge): obj.rackedXfer((xto_bed, n), (bed, n), reset_rack=False)
+			#
+			obj.k.rack(0)
+		else:
+			raise RuntimeError(f"not enough working needles to decrease by {ct} using the school-bus method.")
+	else: #left side
+		ct = to_needle-from_needle
+		obj.k.comment(f"decrease {ct} on left (school bus)") #debug
+		if bed.startswith("f"):
+			xto_bed = "bs"
+		else:
+			xto_bed = "fs"
+		#
+		# if to_bed is None: to_bed = from_bed
+		# assert to_bed == from_bed, "school-bus decrease to opposite bed not supported yet"
+		#
+		max_n = obj.getMaxNeedle(bed[0])
+		if from_needle-ct+1 < max_n: # valid school bus operation
+			w = max_n-from_needle+1
+			#
+			r = max(obj.gauge, int(ct-math.fmod(ct, obj.gauge))) #TODO: #check
+			if r > obj.settings.max_rack: #TODO: #check
+				ct_2 = ct*ct
+				r = ct_2/(w-ct)
+				r = max(obj.gauge, int(r-math.fmod(r, obj.gauge))) #TODO: #check
+				assert r <= obj.settings.max_rack
+
+			sects = ct #TODO: remove this since it is redundant
+			size = math.floor(w/ct)
+			start_n = from_needle
+
+			for i in range(sects):
+				for n in range(start_n+i*r, start_n+(sects-1-i)*size+1): #TODO: #check
+					if bnValid(bed, n, obj.gauge): obj.rackedXfer((bed, n), (xto_bed, n+r), reset_rack=False)
+				#
+				for n in range((start_n+i*r)+r, (start_n+(sects-1-i)*size+1)+r): #TODO: #check
+						if bnValid(bed, n, obj.gauge): obj.rackedXfer((xto_bed, n), (bed, n), reset_rack=False)
+			#
+			obj.k.rack(0)
+		else:
+			raise RuntimeError(f"not enough working needles to decrease by {ct} using the school-bus method.")
+
+
+def decSchoolBus_old(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], int]):
 	from_bed, from_needle = from_bn
 	to_bed, to_needle = to_bn
 	if to_bed is None: to_bed = from_bed
@@ -107,7 +240,7 @@ def decSchoolBus(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], int]
 			raise RuntimeError(f"not enough working needles to decrease by {ct} using the school-bus method.")
 	
 
-def decSchoolBus_old(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], int]):
+def decSchoolBus_old_old(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], int]):
 	from_bed, from_needle = from_bn
 	to_bed, to_needle = to_bn
 	if to_bed is None: to_bed = from_bed
@@ -191,9 +324,22 @@ def decSchoolBus_old(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], 
 			obj.k.rack(0)
 		else:
 			raise RuntimeError(f"not enough working needles to decrease by {ct} using the school-bus method.")
-	
 
-def decBindoff(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], int]): #, c: Union[str, Tuple[str, List[str]]]): #TODO: have option for if double bed or not (aka use sliders instead if still want to keep needles on other bed)
+
+def decBindoff(obj, from_needle: int, to_needle: int, bed: Optional[str]=None): #, c: Union[str, Tuple[str, List[str]]]): #TODO: have option for if double bed or not (aka use sliders instead if still want to keep needles on other bed)
+	if bed is None:
+		if bnValid("f", from_needle, obj.gauge): bed = "f"
+		elif bnValid("b", from_needle, obj.gauge): bed = "b"
+		else: raise ValueError(f"from_needle: '{from_needle}' not valid on either bed")
+	# from_bed, from_needle = from_bn
+	# to_bed, to_needle = to_bn
+	#
+	sheetBindoff(obj.k, from_needle, to_needle, obj.active_carrier, bed, obj.gauge, add_tag=False)
+	# # sheetBindoff(obj.k, from_needle, to_needle, c, from_bed, obj.gauge, add_tag=False)
+	# if to_bed is not None and from_bed != to_bed: obj.rackedXfer((from_bed, to_needle), to_bn)
+
+
+def decBindoff_old(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], int]): #, c: Union[str, Tuple[str, List[str]]]): #TODO: have option for if double bed or not (aka use sliders instead if still want to keep needles on other bed)
 	from_bed, from_needle = from_bn
 	to_bed, to_needle = to_bn
 	#

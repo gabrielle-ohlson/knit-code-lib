@@ -1001,15 +1001,16 @@ class KnitObject:
 				else: self.k.outhook(c)
 		self.k.write(path.join(path.dirname(path.dirname( path.abspath(__file__))), f"knitout_files/{out_fn}.k"))
 	
-	@multimethod
-	def decrease(self, method: Union[DecreaseMethod, int], from_bn: Tuple[str, int], to_bn: Tuple[str, int]):
+	# @multimethod
+	# def decrease(self, method: Union[DecreaseMethod, int], from_bn: Tuple[str, int], to_bn: Tuple[str, int]):
+	def decrease(self, method: Union[DecreaseMethod, int], from_needle: int, to_needle: int, bed: Optional[str]=None):
 		method = DecreaseMethod.parse(method)
 		#
 		if method == DecreaseMethod.BINDOFF:
 			min_dist = None
 
 			for c, carrier in self.k.carrier_map.items():
-				dist = abs(from_bn[1]-carrier.needle)
+				dist = abs(from_needle[1]-carrier.needle)
 				if min_dist is None or dist < min_dist:
 					self.active_carrier = c
 					min_dist = dist
@@ -1017,16 +1018,31 @@ class KnitObject:
 			assert min_dist is not None, "no active carriers to use for decBindoff"
 		#
 		assert method != DecreaseMethod.DEFAULT, "TODO: deal with this"
-		DEC_FUNCS[method](self, from_bn, to_bn)
+		DEC_FUNCS[method](self, from_needle, to_needle, bed)
 
+	"""
 	@decrease.register
 	def decrease(self, method: Union[DecreaseMethod, int], from_bn: str, to_bn: str):
 		self.decrease(method, getBedNeedle(from_bn), getBedNeedle(to_bn))
-	
+	"""
+
 	@multimethod
 	def decreaseLeft(self, method: Union[DecreaseMethod, int], bed: Optional[str], count: int):
-		method = DecreaseMethod.parse(method) #check
+		method = DecreaseMethod.parse(method)
 		#
+		#
+		min_n = self.getMinNeedle(bed)
+		if math.isinf(min_n): raise RuntimeError("No more needle to decrease")
+		else: assert min_n+count <= self.getMaxNeedle(bed), f"Not enough needles to decrease by {count}" #TODO: #check
+		#
+		if method == DecreaseMethod.DEFAULT:
+			if min_n-count > self.getMaxNeedle(bed): method = DecreaseMethod.BINDOFF #check
+			elif count <= self.gauge: method = DecreaseMethod.EDGE
+			else: method = DecreaseMethod.SCHOOL_BUS
+		#
+		self.decrease(method, min_n, min_n+count, bed)
+
+		"""
 		min_n = None #for now
 		bed2 = None #for now
 		if bed is None: #double bed
@@ -1063,6 +1079,7 @@ class KnitObject:
 				if not bnValid(bed2, min_n+count, self.gauge, mod=self.mod[bed2]): raise NotImplementedError("TODO: decrease count until valid needle")
 		#
 		self.decrease(method, (bed, min_n), (bed2, min_n+count))
+	"""
 
 	@decreaseLeft.register
 	def decreaseLeft(self, bed: Optional[str], count: int):
@@ -1070,8 +1087,20 @@ class KnitObject:
 
 	@multimethod
 	def decreaseRight(self, method: Union[DecreaseMethod, int], bed: Optional[str], count: int): #TODO: add default method stuff
-		method = DecreaseMethod.parse(method) #check
+		method = DecreaseMethod.parse(method)
 		#
+		max_n = self.getMaxNeedle(bed)
+		if math.isinf(max_n): raise RuntimeError("No more needle to decrease")
+		else: assert max_n-count >= self.getMinNeedle(bed), f"Not enough needles to decrease by {count}" #TODO: #check
+		#
+		if method == DecreaseMethod.DEFAULT:
+			if max_n-count < self.getMinNeedle(): method = DecreaseMethod.BINDOFF #check
+			elif count <= self.gauge: method = DecreaseMethod.EDGE
+			else: method = DecreaseMethod.SCHOOL_BUS
+		#
+		self.decrease(method, max_n, max_n-count, bed)
+
+		"""
 		max_n = None #for now
 		bed2 = None #for now
 		#
@@ -1109,7 +1138,8 @@ class KnitObject:
 				if not bnValid(bed2, max_n-count, self.gauge, mod=self.mod[bed2]): raise NotImplementedError("TODO: decrease count until valid needle")
 		#
 		self.decrease(method, (bed, max_n), (bed2, max_n-count))
-
+	"""
+	
 	@decreaseRight.register
 	def decreaseRight(self, bed: Optional[str], count: int):
 		self.decreaseRight(DecreaseMethod.DEFAULT, bed, count)
