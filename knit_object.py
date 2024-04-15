@@ -7,6 +7,7 @@ from typing import Union, Optional, Dict, Tuple, List, Callable
 from enum import Enum
 from os import path
 from copy import deepcopy
+import math
 
 """
 TODO:
@@ -520,7 +521,7 @@ class KnitObject:
 				
 				for n in n_range1:
 					self.k.drop(f"b{n}")
-					
+
 	@bindoff.register
 	def bindoff(self, method: Union[BindoffMethod, int], bed: Optional[str], *cs: str, **kwargs) -> None:
 		self.bindoff(method, bed, None, *cs, **kwargs)
@@ -1002,7 +1003,19 @@ class KnitObject:
 	
 	@multimethod
 	def decrease(self, method: Union[DecreaseMethod, int], from_bn: Tuple[str, int], to_bn: Tuple[str, int]):
-		method = DecreaseMethod.parse(method) #check
+		method = DecreaseMethod.parse(method)
+		#
+		if method == DecreaseMethod.BINDOFF:
+			min_dist = None
+
+			for c, carrier in self.k.carrier_map.items():
+				dist = abs(from_bn[1]-carrier.needle)
+				if min_dist is None or dist < min_dist:
+					self.active_carrier = c
+					min_dist = dist
+			#
+			assert min_dist is not None, "no active carriers to use for decBindoff"
+		#
 		assert method != DecreaseMethod.DEFAULT, "TODO: deal with this"
 		DEC_FUNCS[method](self, from_bn, to_bn)
 
@@ -1018,7 +1031,7 @@ class KnitObject:
 		bed2 = None #for now
 		if bed is None: #double bed
 			min_n = self.getMinNeedle()
-			# max_n = self.getMaxNeedle()
+			if math.isinf(min_n): raise RuntimeError("No more needle to decrease")
 			#
 			if method == DecreaseMethod.DEFAULT:
 				if min_n-count > self.getMaxNeedle(): method = DecreaseMethod.BINDOFF #check
@@ -1037,7 +1050,7 @@ class KnitObject:
 				else: raise NotImplementedError("TODO: decrease count until valid needle")
 		else:
 			min_n = self.getMinNeedle(bed[0])
-			# max_n = self.getMaxNeedle(bed[0])
+			if math.isinf(min_n): raise RuntimeError("No more needle to decrease")
 			#
 			if method == DecreaseMethod.DEFAULT:
 				if min_n-count > self.getMaxNeedle(bed[0]): method = DecreaseMethod.BINDOFF #check
@@ -1064,7 +1077,7 @@ class KnitObject:
 		#
 		if bed is None: #double bed
 			max_n = self.getMaxNeedle()
-			# min_n = self.getMinNeedle()
+			if math.isinf(max_n): raise RuntimeError("No more needle to decrease")
 			#
 			if method == DecreaseMethod.DEFAULT:
 				if max_n-count < self.getMinNeedle(): method = DecreaseMethod.BINDOFF #check
@@ -1083,7 +1096,7 @@ class KnitObject:
 				else: raise NotImplementedError("TODO: decrease count until valid needle")
 		else:
 			max_n = self.getMaxNeedle(bed[0])
-			# min_n = self.getMinNeedle(bed[0])
+			if math.isinf(max_n): raise RuntimeError("No more needle to decrease")
 			#
 			if method == DecreaseMethod.DEFAULT:
 				if max_n-count < self.getMinNeedle(bed[0]): method = DecreaseMethod.BINDOFF #check
@@ -1105,6 +1118,18 @@ class KnitObject:
 	def increase(self, method: Union[IncreaseMethod, int], from_bn: Tuple[str, int], to_bn: Tuple[str, int]):
 		#TODO: make sure valid gauge for to_bn
 		method = IncreaseMethod.parse(method) #check
+		#
+		if method == IncreaseMethod.CASTON or method == IncreaseMethod.SPLIT:
+			min_dist = None
+
+			for c, carrier in self.k.carrier_map.items():
+				dist = abs(from_bn[1]-carrier.needle)
+				if min_dist is None or dist < min_dist:
+					self.active_carrier = c
+					min_dist = dist
+			#
+			assert min_dist is not None, f"no active carriers to use for increase (using method: {method})"
+		#
 		assert method != IncreaseMethod.DEFAULT, "TODO: deal with this"
 		#
 		if method != IncreaseMethod.CASTON and method != IncreaseMethod.SPLIT:
@@ -1126,6 +1151,8 @@ class KnitObject:
 		#
 		if bed is None: #double bed
 			min_n = self.getMinNeedle()
+			if math.isinf(min_n): raise RuntimeError("No more needle to increase")
+			#
 			x2n = min_n-count
 			#
 			if method == IncreaseMethod.DEFAULT:
@@ -1146,8 +1173,9 @@ class KnitObject:
 				else: raise NotImplementedError("TODO: decrease count until valid needle")
 		else:
 			min_n = self.getMinNeedle(bed[0])
+			if math.isinf(min_n): raise RuntimeError("No more needle to increase")
+			#
 			x2n = min_n-count
-			# max_n = self.getMaxNeedle(bed[0])
 			#
 			if method == IncreaseMethod.DEFAULT:
 				if min_n+count > self.getMaxNeedle(bed[0]): method = IncreaseMethod.CASTON
@@ -1174,8 +1202,9 @@ class KnitObject:
 		#
 		if bed is None: #double bed
 			max_n = self.getMaxNeedle()
+			if math.isinf(max_n): raise RuntimeError("No more needle to increase")
+			#
 			x2n = max_n+count
-			# min_n = self.getMinNeedle()
 			#
 			if method == IncreaseMethod.DEFAULT:
 				if max_n-count < self.getMinNeedle(): method = IncreaseMethod.CASTON #TODO: #check
@@ -1194,8 +1223,9 @@ class KnitObject:
 				else: raise NotImplementedError("TODO: decrease count until valid needle")
 		else:
 			max_n = self.getMaxNeedle(bed[0])
+			if math.isinf(max_n): raise RuntimeError("No more needle to increase")
+			#
 			x2n = max_n+count
-			# min_n = self.getMinNeedle(bed[0])
 			#
 			if method == IncreaseMethod.DEFAULT:
 				if max_n-count < self.getMinNeedle(bed[0]): method = IncreaseMethod.CASTON #TODO: #check

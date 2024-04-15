@@ -193,11 +193,12 @@ def decSchoolBus_old(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], 
 			raise RuntimeError(f"not enough working needles to decrease by {ct} using the school-bus method.")
 	
 
-def decBindoff(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], int]): #TODO: have option for if double bed or not (aka use sliders instead if still want to keep needles on other bed)
+def decBindoff(obj, from_bn: Tuple[str, int], to_bn: Tuple[Optional[str], int]): #, c: Union[str, Tuple[str, List[str]]]): #TODO: have option for if double bed or not (aka use sliders instead if still want to keep needles on other bed)
 	from_bed, from_needle = from_bn
 	to_bed, to_needle = to_bn
 	#
-	sheetBindoff(obj.k, from_needle, to_needle, from_bed, obj.gauge, add_tag=False)
+	sheetBindoff(obj.k, from_needle, to_needle, obj.active_carrier, from_bed, obj.gauge, add_tag=False)
+	# sheetBindoff(obj.k, from_needle, to_needle, c, from_bed, obj.gauge, add_tag=False)
 	if to_bed is not None and from_bed != to_bed: obj.rackedXfer((from_bed, to_needle), to_bn)
 
 

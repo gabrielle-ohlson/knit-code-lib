@@ -221,9 +221,13 @@ class BedNeedleList(list):
 		return BedNeedleList(*res)
 	
 	def min(self, bed: Optional[str]=None) -> BedNeedle:
-		assert len(self) != 0
-		return self.sorted(bed, reverse=False)[0]
+		assert len(self) != 0, "no active bns"
+		sorted_bns = self.sorted(bed, reverse=False)
+		assert len(sorted_bns) != 0, f"no active bns on bed {bed}"
+		return sorted_bns[0]
 	
 	def max(self, bed: Optional[str]=None) -> BedNeedle:
-		assert len(self) != 0
-		return self.sorted(bed, reverse=False)[-1]
+		assert len(self) != 0, "no active bns"
+		sorted_bns = self.sorted(bed, reverse=False)
+		assert len(sorted_bns) != 0, f"no active bns on bed {bed}"
+		return sorted_bns[-1]
