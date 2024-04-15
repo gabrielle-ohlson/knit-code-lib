@@ -183,7 +183,8 @@ class AlreadyActiveCarrierWarning(UserWarning): #*#* #TODO: add this in
 			else: self.message = fmt(self.message, Ansi.yellow)
 
 	def __str__(self):
-		return repr(self.message)
+		return self.message
+		# return repr(self.message)
 	
 	@classmethod
 	def check(self, k, warnings, carrier_map, c, op="use", line_number=None) -> bool:
@@ -206,7 +207,7 @@ class InactiveCarrierWarning(UserWarning):
 			else: self.message = fmt(self.message, Ansi.yellow)
 
 	def __str__(self):
-		return repr(self.message)
+		return self.message
 	
 	@classmethod
 	def check(self, k, warnings, carrier_map, c, op="use", line_number=None) -> bool:
@@ -230,7 +231,7 @@ class UnalignedNeedlesWarning(UserWarning):
 			else: self.message = fmt(self.message, Ansi.yellow)
 
 	def __str__(self):
-		return repr(self.message)
+		return self.message
 	
 	@classmethod
 	def check(self, k, warnings, rack_value, bed, needle, bed2, needle2, line_number=None) -> bool:
@@ -260,7 +261,7 @@ class FloatWarning(UserWarning):
 			else: self.message = fmt(self.message, Ansi.yellow)
 
 	def __str__(self):
-		return repr(self.message)
+		return self.message
 	
 	@classmethod
 	def check(self, k, warnings, carrier_map, c, needle, line_number=None) -> bool:
@@ -289,7 +290,7 @@ class StackedLoopWarning(UserWarning):
 			else: self.message = fmt(self.message, Ansi.yellow)
 
 	def __str__(self):
-		return repr(self.message)
+		return self.message
 	
 	@classmethod
 	def check(self, k, warnings, bn, bed, needle, MAX_STACK_CT=None, line_number=None) -> bool:
@@ -317,7 +318,7 @@ class HeldLoopWarning(UserWarning):
 			else: self.message = fmt(self.message, Ansi.yellow)
 
 	def __str__(self):
-		return repr(self.message)
+		return self.message
 	
 	@classmethod
 	def check(self, k, warnings, row_ct, bn, bed, needle, line_number=None) -> bool:
@@ -344,7 +345,7 @@ class UnstableLoopWarning(UserWarning):
 			else: self.message = fmt(self.message, Ansi.yellow)
 
 	def __str__(self):
-		return repr(self.message)
+		return self.message
 	
 	@classmethod
 	def check(self, k, warnings, bns, bed, needle, line_number=None) -> bool:
@@ -363,7 +364,7 @@ class EmptyXferWarning(UserWarning):
 			else: self.message = fmt(self.message, Ansi.yellow)
 
 	def __str__(self):
-		return repr(self.message)
+		return self.message
 	
 	@classmethod
 	def check(self, k, warnings, bn, bed, needle, line_number=None) -> bool:
