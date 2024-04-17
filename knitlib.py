@@ -1561,7 +1561,7 @@ def closedTubeBindoff(k, start_n: int, end_n: int, c: Union[str,Tuple[str]], gau
 	return last_bn #in case we want to move it since it should be empty etc.
 
 
-def openTubeBindoff(k, start_n: int, end_n: int, c: Union[str,Tuple[str]], gauge: int=2, bed_mods: Dict[str,int]=None, use_sliders: bool=False, add_tag: bool=True, outhook: bool=False, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, xfer_stitch_number: Optional[int]=None, machine="swgn2"):
+def openTubeBindoff(k, start_n: int, end_n: int, c: Union[str,Tuple[str]], gauge: int=2, bed_mods: Dict[str,int]=None, use_sliders: bool=False, stretchy=False, add_tag: bool=True, outhook: bool=False, speed_number: Optional[int]=None, stitch_number: Optional[int]=None, xfer_stitch_number: Optional[int]=None, machine="swgn2"):
 	# https://github.com/textiles-lab/knitout-examples/blob/master/J-30.js
 	cs = c2cs(c) # ensure tuple type
 
@@ -1589,7 +1589,7 @@ def openTubeBindoff(k, start_n: int, end_n: int, c: Union[str,Tuple[str]], gauge
 		last_n_f = right_n-((right_n-bed_mods["f"])%gauge) #shift over so ending on needle that we'll knit
 		last_n_b = left_n+(-(left_n-bed_mods["b"])%gauge) #shift over so starting on needle that we'll knit
 		
-		shifts = [gauge, -gauge]
+		shifts = [1, -1]
 	else: # carrier is parked on the right side (start neg)
 		d = "-"
 		left_n, right_n = end_n, start_n
@@ -1599,12 +1599,14 @@ def openTubeBindoff(k, start_n: int, end_n: int, c: Union[str,Tuple[str]], gauge
 		last_n_f = left_n+(-(left_n-bed_mods["f"])%gauge) #shift over so starting on needle that we'll knit
 		last_n_b = right_n-((right_n-bed_mods["b"])%gauge) #shift over so ending on needle that we'll knit
 		
-		shifts = [-gauge, gauge]
+		shifts = [-1, 1]
 
 	needle_ranges = {
 		"+": range(left_n, right_n+1),
 		"-": range(right_n, left_n-1, -1)
 	}
+
+	to_drop = []
 
 	# front:
 	if use_sliders: b2 = "bs"
@@ -1624,12 +1626,30 @@ def openTubeBindoff(k, start_n: int, end_n: int, c: Union[str,Tuple[str]], gauge
 			if n % gauge == bed_mods["f"]:
 				if stitch_number is not None: k.stitchNumber(stitch_number)
 				k.knit(d, f"f{n}", *cs)
-				k.miss(d, f"f{n+shifts[0]}", *cs)
+				#
+				if stretchy:
+					if (n+shifts[0]) % gauge != bed_mods["f"]:
+						k.tuck(d, f"f{n+shifts[0]}", *cs) # extra loop to help hold things up  #new #check
+						to_drop.append(f"f{n+shifts[0]}")
+					elif (n+shifts[0]) % gauge != bed_mods["b"]:
+						k.tuck(d, f"b{n+shifts[0]}", *cs) # extra loop to help hold things up  #new #check
+						to_drop.append(f"b{n+shifts[0]}")
+				else: k.miss(d, f"f{n+shifts[0]*gauge}", *cs)
+				#
 				if xfer_stitch_number is not None: k.stitchNumber(xfer_stitch_number)
 				k.xfer(f"f{n}", f"{b2}{n}")
-				k.rack(shifts[0])
-				k.xfer(f"{b2}{n}", f"f{n+shifts[0]}")
+				k.rack(shifts[0]*gauge)
+				k.xfer(f"{b2}{n}", f"f{n+shifts[0]*gauge}")
 				k.rack(0)
+				#
+				if not stretchy and len(to_drop): k.drop(to_drop.pop())
+
+	if stretchy: #new #check
+		k.rack(0.25)
+		for bn in list(sorted(set(to_drop))): #TODO: change sorting so front comes first
+			k.drop(bn)
+		k.rack(0)
+		to_drop = []
 
 	# back:
 	d = toggleDirection(d)
@@ -1638,7 +1658,14 @@ def openTubeBindoff(k, start_n: int, end_n: int, c: Union[str,Tuple[str]], gauge
 	else: b2 = "f"
 
 	for n in needle_ranges[d]:
-		if n == last_n_b: #knit a tag:
+		if n == last_n_b: 
+			if stretchy: #new #check
+				k.rack(0.25)
+				for bn in list(sorted(set(to_drop))): #TODO: change sorting so front comes first
+					k.drop(bn)
+				k.rack(0)
+				to_drop = []
+			#knit a tag:	
 			if add_tag:
 				if stitch_number is not None: k.stitchNumber(stitch_number)
 				bindoffTag(k, d, "b", n, cs)
@@ -1652,12 +1679,30 @@ def openTubeBindoff(k, start_n: int, end_n: int, c: Union[str,Tuple[str]], gauge
 			if n % gauge == bed_mods["b"]:
 				if stitch_number is not None: k.stitchNumber(stitch_number)
 				k.knit(d, f"b{n}", *cs)
-				k.miss(d, f"b{n+shifts[1]}", *cs)
+				#
+				if stretchy:
+					if (n+shifts[1]) % gauge != bed_mods["b"]:
+						k.tuck(d, f"b{n+shifts[1]}", *cs) # extra loop to help hold things up
+						to_drop.append(f"b{n+shifts[1]}")
+					elif (n+shifts[1]) % gauge != bed_mods["f"]:
+						k.tuck(d, f"f{n+shifts[1]}", *cs) # extra loop to help hold things up
+						to_drop.append(f"f{n+shifts[1]}")
+				else: k.miss(d, f"b{n+shifts[1]*gauge}", *cs)
+				#
 				if xfer_stitch_number is not None: k.stitchNumber(xfer_stitch_number)
 				k.xfer(f"b{n}", f"{b2}{n}")
-				k.rack(shifts[0]) #still want the same rack, since we've switched beds
-				k.xfer(f"{b2}{n}", f"b{n+shifts[1]}")
+				k.rack(shifts[0]*gauge) #still want the same rack, since we've switched beds
+				k.xfer(f"{b2}{n}", f"b{n+shifts[1]*gauge}")
 				k.rack(0)
+				#
+				if not stretchy and len(to_drop): k.drop(to_drop.pop())
+
+	if stretchy and len(to_drop): #sanity check #new #check
+		k.rack(0.25)
+		for bn in list(sorted(set(to_drop))): #TODO: change sorting so front comes first
+			k.drop(bn)
+		k.rack(0)
+		to_drop = []
 
 	if stitch_number is not None: k.stitchNumber(stitch_number) #reset
 	k.comment("end open tube bindoff")
