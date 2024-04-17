@@ -415,6 +415,8 @@ class Writer(knitout.Writer):
             self.q.put( (HeldLoopWarning.check, self.line_number, (self, warnings, self.row_ct, self.bns.get(bn), bn.bed, bn.needle, self.line_number)) ) #* #copy #?
         #
         self.q.put((None, None, None)) #indicates we're done
+        # wait for thread to finish:
+        self.thread.join()
         #
         version = ';!knitout-2\n'
         content = version + '\n'.join(self.headers) + '\n' + '\n'.join(self.operations)
@@ -424,5 +426,5 @@ class Writer(knitout.Writer):
             print('wrote file ' + filename)
         except IOError as error:
             print('Could not write to file ' + filename)
-        #
-        self.thread.join()
+        # #
+        # self.thread.join()

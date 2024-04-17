@@ -187,7 +187,7 @@ class KnitObject:
 		#
 		self.active_carrier = None #TODO #*
 		self.draw_carrier = None
-		self.waste_carrier = None
+		self.waste_carrier = None #TODO: convert to tuple in assignment (c2cs)
 		self.avoid_bns = {"f": [], "b": []} #, "fs": [], "bs": []}
 		self.SPLIT_ON_EMPTY = True
 		self.twist_bns = list()
@@ -240,7 +240,7 @@ class KnitObject:
 		except AssertionError:
 			return float("-inf")
 	
-	def wasteSection(self, bed: Optional[str], needle_range: Tuple[int, int], waste_c: Optional[str], draw_c: Optional[str], other_cs: Union[List[str], Tuple[str]]):
+	def wasteSection(self, bed: Optional[str], needle_range: Union[Tuple[int,int], range], waste_c: Optional[str], draw_c: Optional[str], other_cs: Union[List[str], Tuple[str]]):
 		if waste_c is not None: self.waste_carrier = waste_c
 		if draw_c is not None: self.draw_carrier = draw_c
 
@@ -262,8 +262,8 @@ class KnitObject:
 
 		# assert self.waste_carrier is not None and self.draw_carrier is not None
 
-		if needle_range[0] > needle_range[1]: left_n, right_n = needle_range[::-1]
-		else: left_n, right_n = needle_range
+		if needle_range[0] > needle_range[-1]: left_n, right_n = needle_range[-1], needle_range[0] # needle_range[::-1]
+		else: left_n, right_n = needle_range[0], needle_range[-1] # needle_range
 
 		initial = not len(self.k.carrier_map.keys())
 
@@ -272,7 +272,7 @@ class KnitObject:
 		wasteSection(self.k, left_n, right_n, caston_bed=bed, waste_c=self.waste_carrier, draw_c=self.draw_carrier, in_cs=in_cs, gauge=self.gauge, initial=initial, draw_middle=(not initial), machine=self.settings.machine) #end_on_right=[self.draw_carrier], initial=True, draw_middle=False, machine=self.settings.machine)
 
 
-	def caston(self, method: Union[CastonMethod, int], bed: Optional[str], needle_range: Tuple[int, int], *cs: str, **kwargs) -> None:
+	def caston(self, method: Union[CastonMethod, int], bed: Optional[str], needle_range: Union[Tuple[int,int], range], *cs: str, **kwargs) -> None:
 		if self.settings.caston_stitch_number is not None:
 			if self.settings.stitch_number is not None: reset_stitch_number = self.settings.stitch_number
 			else: reset_stitch_number = self.k.stitch_number
@@ -321,25 +321,25 @@ class KnitObject:
 		#
 		if method == CastonMethod.ALT_TUCK_CLOSED:
 			if bed != "f" and bed != "b":
-				altTuckClosedCaston(self.k, needle_range[0], needle_range[1], c=cs, gauge=self.gauge, tuck_pattern=init_caston, stitch_number=self.settings.caston_stitch_number)
+				altTuckClosedCaston(self.k, needle_range[0], needle_range[-1], c=cs, gauge=self.gauge, tuck_pattern=init_caston, stitch_number=self.settings.caston_stitch_number)
 				#
 				if reset_stitch_number is not None: self.k.stitchNumber(reset_stitch_number) #check
 			else:
-				altTuckCaston(self.k, needle_range[0], needle_range[1], c=cs, bed=bed, gauge=self.gauge, tuck_pattern=init_caston, stitch_number=self.settings.caston_stitch_number, knit_after=knit_after, knit_stitch_number=reset_stitch_number)
+				altTuckCaston(self.k, needle_range[0], needle_range[-1], c=cs, bed=bed, gauge=self.gauge, tuck_pattern=init_caston, stitch_number=self.settings.caston_stitch_number, knit_after=knit_after, knit_stitch_number=reset_stitch_number)
 				#
 				if not init_caston and reset_stitch_number is not None: self.k.stitchNumber(reset_stitch_number) #check
 		elif method == CastonMethod.ALT_TUCK_OPEN:
 			assert bed != "f" and bed != "b", "`CastonMethod.ALT_TUCK_OPEN` only valid for double bed knitting."
-			altTuckOpenTubeCaston(self.k, needle_range[0], needle_range[1], c=cs, gauge=self.gauge, tuck_pattern=init_caston, stitch_number=self.settings.caston_stitch_number, knit_after=knit_after, knit_stitch_number=reset_stitch_number)
+			altTuckOpenTubeCaston(self.k, needle_range[0], needle_range[-1], c=cs, gauge=self.gauge, tuck_pattern=init_caston, stitch_number=self.settings.caston_stitch_number, knit_after=knit_after, knit_stitch_number=reset_stitch_number)
 			#
 			if not init_caston and reset_stitch_number is not None: self.k.stitchNumber(reset_stitch_number) #check
 		elif method == CastonMethod.ZIGZAG:
-			zigzagCaston(self.k, needle_range[0], needle_range[1], c=cs, gauge=self.gauge, tuck_pattern=init_caston, stitch_number=self.settings.caston_stitch_number)
+			zigzagCaston(self.k, needle_range[0], needle_range[-1], c=cs, gauge=self.gauge, tuck_pattern=init_caston, stitch_number=self.settings.caston_stitch_number)
 			#
 			if reset_stitch_number is not None: self.k.stitchNumber(reset_stitch_number) #check
 			#
-			if needle_range[1] > needle_range[0]: xfer_range = range(needle_range[0], needle_range[1]+1)
-			else: xfer_range = range(needle_range[0], needle_range[1]-1, -1)
+			if needle_range[-1] > needle_range[0]: xfer_range = range(needle_range[0], needle_range[-1]+1)
+			else: xfer_range = range(needle_range[0], needle_range[-1]-1, -1)
 			if bed == "f":
 				for n in xfer_range:
 					self.rackedXfer("f", gauged("f", n//self.gauge, self.gauge), "b", gauged("b", n//self.gauge, self.gauge), reset_rack=False)
@@ -354,7 +354,7 @@ class KnitObject:
 	
 
 	@multimethod
-	def knitPass(self, pattern: Union[StitchPattern, int, Callable], bed: Optional[str], needle_range: Optional[Tuple[int,int]], *cs: str, **kwargs) -> None: #TODO: make sure still works with *cs before pattern
+	def knitPass(self, pattern: Union[StitchPattern, int, Callable], bed: Optional[str], needle_range: Optional[Union[Tuple[int,int], range]], *cs: str, **kwargs) -> None: #TODO: make sure still works with *cs before pattern
 		if self.settings.stitch_number is not None and self.k.stitch_number != self.settings.stitch_number: self.k.stitchNumber(self.settings.stitch_number) #check
 
 		do_releasehook = False
@@ -373,7 +373,7 @@ class KnitObject:
 				init_cs = True
 				assert len(not_in_cs) == len(cs), f"Plaited pattern pass with only some carriers already in not supported yet"
 		#
-		if needle_range[1] > needle_range[0]: d = "+"
+		if needle_range[-1] > needle_range[0]: d = "+"
 		else: d = "-"
 
 		func_args = deepcopy(self.pat_args) # pat_args
@@ -475,11 +475,11 @@ class KnitObject:
 		self.knitPass(pattern, bed, None, *cs, **kwargs)
 
 	@knitPass.register
-	def knitPass(self, bed: Optional[str], needle_range: Optional[Tuple[int,int]], *cs: str, **kwargs) -> None: #TODO: make sure still works with *cs before pattern
+	def knitPass(self, bed: Optional[str], needle_range: Optional[Union[Tuple[int,int], range]], *cs: str, **kwargs) -> None: #TODO: make sure still works with *cs before pattern
 		self.knitPass(StitchPattern.JERSEY, bed, needle_range, *cs, **kwargs)
 	
 	@multimethod
-	def bindoff(self, method: Union[BindoffMethod, int], bed: Optional[str], needle_range: Optional[Tuple[int, int]], *cs: str, **kwargs) -> None:
+	def bindoff(self, method: Union[BindoffMethod, int], bed: Optional[str], needle_range: Optional[Union[Tuple[int,int], range]], *cs: str, **kwargs) -> None:
 		if "outhook" in kwargs: outhook = kwargs["outhook"]
 		else: outhook = False
 		#
@@ -488,11 +488,11 @@ class KnitObject:
 		if needle_range is None: needle_range = self.getNeedleRange(bed, *cs)
 		#
 		if method == BindoffMethod.CLOSED:
-			if bed == "f" or bed == "b": sheetBindoff(self.k, needle_range[0], needle_range[1], cs, bed, self.gauge, outhook=outhook)
-			else: closedTubeBindoff(self.k, needle_range[0], needle_range[1], cs, self.gauge, outhook=outhook, machine=self.settings.machine)
+			if bed == "f" or bed == "b": sheetBindoff(self.k, needle_range[0], needle_range[-1], cs, bed, self.gauge, outhook=outhook)
+			else: closedTubeBindoff(self.k, needle_range[0], needle_range[-1], cs, self.gauge, outhook=outhook, machine=self.settings.machine)
 		elif method == BindoffMethod.OPEN:
 			assert bed != "f" and bed != "b", "`BindoffMethod.OPEN` only valid for double bed knitting."
-			openTubeBindoff(self.k, needle_range[0], needle_range[1], cs, self.gauge, outhook=outhook, machine=self.settings.machine)
+			openTubeBindoff(self.k, needle_range[0], needle_range[-1], cs, self.gauge, outhook=outhook, machine=self.settings.machine)
 		elif method == BindoffMethod.DROP:
 			if bed == "b": front_needle_ranges = []
 			else: front_needle_ranges = sorted(self.getNeedleRange("f", *cs))
@@ -512,8 +512,8 @@ class KnitObject:
 
 		if "roll_out" in kwargs:
 			self.rollerAdvance(1000) #TODO: #check if good value
-			n_range1 = getNeedleRanges(needle_range[1], needle_range[0], return_direction=False)
-			n_range2 = getNeedleRanges(needle_range[0], needle_range[1], return_direction=True)
+			n_range1 = getNeedleRanges(needle_range[-1], needle_range[0], return_direction=False)
+			n_range2 = getNeedleRanges(needle_range[0], needle_range[-1], return_direction=True)
 			
 			for i in range(4): #TODO: #check if good value
 				for n in n_range1:
@@ -680,10 +680,10 @@ class KnitObject:
 		#
 		return (None, None)
 
-	def funcRanges(self, needle_range: Tuple[int, int], bed: Union[str, None]=None) -> Tuple[List[Tuple[int, int]], List[Union[None, str, List[str]]]]:
+	def funcRanges(self, needle_range: Union[Tuple[int,int], range], bed: Union[str, None]=None) -> Tuple[List[Tuple[int, int]], List[Union[None, str, List[str]]]]:
 		res = []
 		#
-		if needle_range[1] > needle_range[0]:
+		if needle_range[-1] > needle_range[0]:
 			d = "+"
 			shift = 1
 		else:
@@ -691,7 +691,7 @@ class KnitObject:
 			shift = -1
 		#
 		n0 = needle_range[0]
-		for n in range(needle_range[0], needle_range[1]+shift, shift):
+		for n in range(needle_range[0], needle_range[-1]+shift, shift):
 			# done = False
 			twisted_stitches = []
 			split_stitches = []
@@ -722,7 +722,7 @@ class KnitObject:
 					#
 					split_stitches.append(f"b{n}")
 
-			if n == needle_range[1] and not len(twisted_stitches) and not len(split_stitches): res.append(FuncRange(RangeOp.PATTERN, n0, n))
+			if n == needle_range[-1] and not len(twisted_stitches) and not len(split_stitches): res.append(FuncRange(RangeOp.PATTERN, n0, n))
 			else:
 				if len(twisted_stitches): res.append(FuncRange(RangeOp.TWIST, *twisted_stitches))
 				if len(split_stitches): res.append(FuncRange(RangeOp.SPLIT, *split_stitches))
@@ -856,7 +856,8 @@ class KnitObject:
 		# 		# 	twisted_stitches.append(None)
 		#
 		if not len(res):
-			res.append(RangeOp.PATTERN, *needle_range)
+			res.append(RangeOp.PATTERN, needle_range[0], needle_range[-1])
+			# res.append(RangeOp.PATTERN, *needle_range)
 		#
 		return res
 		# if not len(n_ranges):
@@ -865,12 +866,12 @@ class KnitObject:
 		# #
 		# return n_ranges, twisted_stitches
 	
-	def twistNeedleRanges(self, needle_range: Tuple[int, int], bed: Union[str, None]=None) -> Tuple[List[Tuple[int, int]], List[Union[None, str, List[str]]]]:
+	def twistNeedleRanges(self, needle_range: Union[Tuple[int,int], range], bed: Union[str, None]=None) -> Tuple[List[Tuple[int, int]], List[Union[None, str, List[str]]]]:
 		n_ranges = []
 		twisted_stitches = []
-		if needle_range[1] > needle_range[0]:
+		if needle_range[-1] > needle_range[0]:
 			n0 = needle_range[0]
-			for n in range(needle_range[0], needle_range[1]+1):
+			for n in range(needle_range[0], needle_range[-1]+1):
 				done = False
 				if bed != "b" and f"f{n}" in self.twist_bns:
 					twisted_stitches.append(f"f{n}")
@@ -892,7 +893,7 @@ class KnitObject:
 					twisted_stitches.append(None)
 		else:
 			n0 = needle_range[0]
-			for n in range(needle_range[0], needle_range[1]-1, -1):
+			for n in range(needle_range[0], needle_range[-1]-1, -1):
 				done = False
 				if bed != "b" and f"f{n}" in self.twist_bns:
 					twisted_stitches.append(f"f{n}")
@@ -909,12 +910,12 @@ class KnitObject:
 						n_ranges.append((n0, n+1))
 						n0 = n-1
 				#
-				if not done and n == needle_range[1]:
+				if not done and n == needle_range[-1]:
 					n_ranges.append((n0, n))
 					twisted_stitches.append(None)
 		#
 		if not len(n_ranges):
-			n_ranges.append(needle_range)
+			n_ranges.append((needle_range[0], needle_range[-1]))
 			twisted_stitches.append(None)
 		#
 		return n_ranges, twisted_stitches

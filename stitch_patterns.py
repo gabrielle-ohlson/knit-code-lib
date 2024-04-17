@@ -1,6 +1,8 @@
 from typing import Union, Optional, Tuple, List, Dict
+import warnings #new
 
 from .helpers import c2cs, modsHalveGauge, gauged, bnValid, toggleDirection, bnEdges, tuckPattern, knitPass
+
 
 pattern_names = ["jersey", "interlock", "rib", "seed", "garter", "tuckGarter", "tuckStitch", "altKnitTuck"]
 
@@ -54,7 +56,7 @@ def jersey(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], L
 
 	cs = c2cs(c) # ensure tuple type
 
-	k.comment("begin jersey")
+	k.comment(f"begin {bed +'-bed ' if bed is not None else ''}jersey")
 
 	if speed_number is not None: k.speedNumber(speed_number)
 	if stitch_number is not None: k.stitchNumber(stitch_number)
@@ -70,7 +72,7 @@ def jersey(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], L
 
 	if bn_locs is not None and len(bn_locs.get(bed2, [])):
 		for n in range(start_n, end_n+step, step):
-			if bnValid(bed, n, gauge, mod=mod[bed]) and n in bn_locs[bed2] and n not in avoid_bns[bed] and n not in avoid_bns[bed2]:
+			if bnValid(bed, n, gauge, mod=mod[bed]) and n in bn_locs[bed2] and n not in avoid_bns[bed] and n not in avoid_bns.get(bed2, []):
 				k.xfer(f"{bed2}{n}", f"{bed}{n}")
 
 	if inhook:
@@ -96,10 +98,10 @@ def jersey(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], L
 
 	if xfer_bns_back and bn_locs is not None and len(bn_locs.get(bed2, [])):
 		for n in range(start_n, end_n+step, step):
-			if bnValid(bed, n, gauge, mod=mod[bed]) and n in bn_locs[bed2] and n not in avoid_bns[bed] and n not in avoid_bns[bed2]:
+			if bnValid(bed, n, gauge, mod=mod[bed]) and n in bn_locs[bed2] and n not in avoid_bns[bed] and n not in avoid_bns.get(bed2, []):
 				k.xfer(f"{bed}{n}", f"{bed2}{n}")
 
-	k.comment("end jersey")
+	k.comment(f"end {bed +'-bed ' if bed is not None else ''}jersey")
 
 	# return next direction:
 	if passes % 2 == 0: return d1
@@ -150,6 +152,8 @@ def interlock(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str]
 	'''
 	assert sequence == "01" or sequence == "10", f"Invalid sequence argument, '{sequence}' (must be '01' or '10')."
 
+	if gauge == 1 and xfer_bns_setup: warnings.warn("Currently, the program doesn't do anything to set up xfers if `gauge == 1`.  `xfer_bns_setup == True` is thus ignored.")
+
 	if releasehook:
 		if passes < 2:
 			if not tuck_pattern:
@@ -161,7 +165,7 @@ def interlock(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str]
 
 	cs = c2cs(c) # ensure tuple type
 
-	k.comment("begin interlock")
+	k.comment(f"begin {bed +'-bed ' if bed is not None else ''}interlock")
 
 	if speed_number is not None: k.speedNumber(speed_number)
 	if stitch_number is not None: k.stitchNumber(stitch_number)
@@ -192,7 +196,7 @@ def interlock(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str]
 		if bed == "f": bed1, bed2 = "f", "b"
 		else: bed1, bed2 = "b", "f"
 
-		if bn_locs is None or (not len(bn_locs.get("f", [])) and not len(bn_locs.get("b", []))): _bn_locs = {bed1: [n for n in range(left_n, right_n+1) if bnValid(bed1, n, gauge) and n not in avoid_bns[bed1]]}
+		if bn_locs is None or (not len(bn_locs.get("f", [])) and not len(bn_locs.get("b", []))): _bn_locs = {bed1: [n for n in range(left_n, right_n+1) if bnValid(bed1, n, gauge) and n not in avoid_bns.get(bed1, [])], bed2: []}
 		else: _bn_locs = bn_locs.copy() #internal version, so not modifying arg
 
 	secure_needles = {"f": [], "b": []}
@@ -216,63 +220,56 @@ def interlock(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str]
 		else: k.inhook(*cs)
 		if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=cs)
 
-	if bn_locs is None: print("TODO: add caston") #debug
-
-	if xfer_bns_setup and gauge != 1: #TODO: #check
-		# transfer to get loops in place:
-		if xfer_speed_number is not None: k.speedNumber(xfer_speed_number)
-		if xfer_stitch_number is not None: k.stitchNumber(xfer_stitch_number)
-		
-		for n in range(left_n, right_n+1):
-			if n in avoid_bns.get("f", []) or n in avoid_bns.get("b", []) or n in secure_needles[bed1]: continue
-			elif n % (gauge*2) == mods2[1] and n in _bn_locs[bed1]: k.xfer(f"{bed1}{n}", f"{bed2}{n}")
-		
-		# reset settings
-		if speed_number is not None: k.speedNumber(speed_number)
-		if stitch_number is not None: k.stitchNumber(stitch_number)
-
+	if bn_locs is None: warnings.warn("TODO: add caston") #debug
 
 	if gauge != 1: #new #check (TODO: have option of single vs double bed #?)
-		# mods4 = [modsHalveGauge(gauge*2, mods2[0]), modsHalveGauge(gauge*2, mods2[1])] #remove
-		if bed is None: mods4 = [modsHalveGauge(gauge, mods2[0]), modsHalveGauge(gauge, mods2[1])]
-		else: mods4 = [mods2, mods2[::-1]]
+		if bed is None: #check
+			m = gauge*2
+			mods4 = [modsHalveGauge(gauge, mods2[0]), modsHalveGauge(gauge, mods2[1])] 
+		else:
+			m = gauge*4
+			mods4 = [modsHalveGauge(gauge*2, mods2[0]), modsHalveGauge(gauge*2, mods2[1])]
 
-		""" #remove
-		# transfer to get loops in place:
-		if xfer_speed_number is not None: k.speedNumber(xfer_speed_number)
-		if xfer_stitch_number is not None: k.stitchNumber(xfer_stitch_number)
+		if xfer_bns_setup:
+			if xfer_speed_number is not None: k.speedNumber(xfer_speed_number)
+			if xfer_stitch_number is not None: k.stitchNumber(xfer_stitch_number)
 
-		for n in range(left_n, right_n+1):
-			if n in avoid_bns.get("f", []) or n in avoid_bns.get("b", []) or n in secure_needles[bed1]: continue
-			elif n % (gauge*2) == mods2[1] and n in _bn_locs[bed1]: k.xfer(f"{bed1}{n}", f"{bed2}{n}")
-		
-		# reset settings
-		if speed_number is not None: k.speedNumber(speed_number)
-		if stitch_number is not None: k.stitchNumber(stitch_number)
-		"""
+			if bed is None:
+				for n in range(left_n, right_n+1):
+					if n in avoid_bns.get("f", []) or n in avoid_bns.get("b", []) or n in secure_needles.get(bed1, []) or n in secure_needles.get(bed2, []): continue
+					elif n in _bn_locs.get(bed1, []) and n % (gauge*2) == mods2[1]: k.xfer(f"{bed1}{n}", f"{bed2}{n}") # `n % (gauge*2) == mods2[1]` is the same as saying `(n % (gauge*4) == mods4[0][1] or n % (gauge*4) == mods4[1][1])` #TODO: #check 
+					elif n in _bn_locs.get(bed2, []) and n % (gauge*2) == mods2[0]: k.xfer(f"{bed2}{n}", f"{bed1}{n}") # `n % (gauge*2) == mods2[0]` is the same as saying `(n % (gauge*4) == mods4[0][0] or n % (gauge*4) == mods4[1][0])` #TODO: #check 
+			else:
+				for n in range(left_n, right_n+1):
+					if n in avoid_bns.get("f", []) or n in avoid_bns.get("b", []) or n in secure_needles.get(bed1, []) or not bnValid(bed1, n, gauge): continue
+					elif n in _bn_locs.get(bed1, []) and n % (gauge*2) == mods2[1]: k.xfer(f"{bed1}{n}", f"{bed2}{n}") # `n % (gauge*2) == mods2[1]` is the same as saying `(n % (gauge*4) == mods4[0][1] or n % (gauge*4) == mods4[1][1])` #TODO: #check
+			
+			# reset settings
+			if speed_number is not None: k.speedNumber(speed_number)
+			if stitch_number is not None: k.stitchNumber(stitch_number)
 
 		def passSequence1(d):
 			for n in n_ranges[d]:
-				if n % (gauge*2) == mods4[0][seq1_idx] and n not in avoid_bns[bed1]: k.knit(d, f"{bed1}{n}", *cs)
-				elif n % (gauge*2) == mods4[1][seq1_idx] and n not in avoid_bns[bed2]: k.knit(d, f"{bed2}{n}", *cs)
+				if n % m == mods4[0][seq1_idx] and n not in avoid_bns.get(bed1, []): k.knit(d, f"{bed1}{n}", *cs)
+				elif n % m == mods4[1][seq1_idx] and n not in avoid_bns.get(bed2, []): k.knit(d, f"{bed2}{n}", *cs)
 				elif n == n_ranges[d][-1]: k.miss(d, f"{bed1}{n}", *cs)
 
 		def passSequence2(d):
 			for n in n_ranges[d]:
-				if n % (gauge*2) == mods4[0][seq2_idx] and n not in avoid_bns[bed1]: k.knit(d, f"{bed1}{n}", *cs)
-				elif n % (gauge*2) == mods4[1][seq2_idx] and n not in avoid_bns[bed2]: k.knit(d, f"{bed2}{n}", *cs)
+				if n % m == mods4[0][seq2_idx] and n not in avoid_bns.get(bed1, []): k.knit(d, f"{bed1}{n}", *cs)
+				elif n % m == mods4[1][seq2_idx] and n not in avoid_bns.get(bed2, []): k.knit(d, f"{bed2}{n}", *cs)
 				elif n == n_ranges[d][-1]: k.miss(d, f"{bed1}{n}", *cs)
 	else:
 		def passSequence1(d):
 			for n in n_ranges[d]:
-				if n % (gauge*2) == mods2[seq1_idx] and n not in avoid_bns[bed1]: k.knit(d, f"{bed1}{n}", *cs)
-				elif n % (gauge*2) == mods2[seq2_idx] and n not in avoid_bns[bed2]: k.knit(d, f"{bed2}{n}", *cs)
+				if n % (gauge*2) == mods2[seq1_idx] and n not in avoid_bns.get(bed1, []): k.knit(d, f"{bed1}{n}", *cs)
+				elif n % (gauge*2) == mods2[seq2_idx] and n not in avoid_bns.get(bed2, []): k.knit(d, f"{bed2}{n}", *cs)
 				elif n == n_ranges[d][-1]: k.miss(d, f"{bed1}{n}", *cs)
 		
 		def passSequence2(d):
 			for n in n_ranges[d]:
-				if n % (gauge*2) == mods2[seq2_idx] and n not in avoid_bns[bed1]: k.knit(d, f"{bed1}{n}", *cs)
-				elif n % (gauge*2) == mods2[seq1_idx] and n not in avoid_bns[bed2]: k.knit(d, f"{bed2}{n}", *cs)
+				if n % (gauge*2) == mods2[seq2_idx] and n not in avoid_bns.get(bed1, []): k.knit(d, f"{bed1}{n}", *cs)
+				elif n % (gauge*2) == mods2[seq1_idx] and n not in avoid_bns.get(bed2, []): k.knit(d, f"{bed2}{n}", *cs)
 				elif n == n_ranges[d][-1]: k.miss(d, f"{bed1}{n}", *cs)
 
 	#--- the knitting ---
@@ -286,39 +283,31 @@ def interlock(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str]
 
 
 	# return the loops back
-	if xfer_bns_back:
-		if bed is not None:
-			if xfer_speed_number is not None: k.speedNumber(xfer_speed_number)
-			if xfer_stitch_number is not None: k.stitchNumber(xfer_stitch_number)
-
-			if gauge == 1: #TODO: #check
-				for n in range(left_n, right_n+1):
-					if avoid_bns.get("f", []) or n in avoid_bns.get("b", []) or n in secure_needles[bed1] or not bnValid(bed1, n, gauge): continue
-					elif n not in _bn_locs[bed2]: k.xfer(f"{bed2}{n}", f"{bed1}{n}")
-			else:
-				for n in range(left_n, right_n+1):
-					if avoid_bns.get("f", []) or n in avoid_bns.get("b", []) or n in secure_needles[bed1] or not bnValid(bed1, n, gauge): continue
-					elif n % (gauge*2) == mods2[1] and n in _bn_locs[bed1]: k.xfer(f"{bed2}{n}", f"{bed1}{n}") #TODO: #check
-					# elif n % (gauge*2) == mods2[1]: k.xfer(f"{bed2}{n}", f"{bed1}{n}")
-			
-			# reset settings
-			if speed_number is not None: k.speedNumber(speed_number)
-			if stitch_number is not None: k.stitchNumber(stitch_number)
-		elif bn_locs is not None and (len(bn_locs.get("f", [])) or len(bn_locs.get("b", []))):
-			if xfer_speed_number is not None: k.speedNumber(xfer_speed_number)
-			if xfer_stitch_number is not None: k.stitchNumber(xfer_stitch_number)
-
+	if xfer_bns_back: #new #v
+		if xfer_speed_number is not None: k.speedNumber(xfer_speed_number)
+		if xfer_stitch_number is not None: k.stitchNumber(xfer_stitch_number)
+		
+		if gauge == 1: #TODO: #check
 			for n in range(left_n, right_n+1):
-				if avoid_bns.get("f", []) or n in avoid_bns.get("b", []) or n in secure_needles[bed1] or not bnValid(bed1, n, gauge): continue
-				elif n not in bn_locs.get("f", []) and n in bn_locs.get("b", []): k.xfer(f"f{n}", f"b{n}")
-				elif n not in bn_locs.get("b", []) and n in bn_locs.get("f", []): k.xfer(f"b{n}", f"f{n}")
-				elif n not in bn_locs.get("f", []) and n not in bn_locs.get("b", []): raise ValueError("TODO: handle this situation")
+				if avoid_bns.get("f", []) or n in avoid_bns.get("b", []) or n in secure_needles.get(bed1, []) or not bnValid(bed1, n, gauge): continue
+				elif n not in _bn_locs.get(bed1, []): k.xfer(f"{bed1}{n}", f"{bed2}{n}") #TODO: #check
+				elif n not in _bn_locs.get(bed2, []): k.xfer(f"{bed2}{n}", f"{bed1}{n}")
+		else:
+			if bed is None:
+				for n in range(left_n, right_n+1): #TODO: check for bed is None
+					if n in avoid_bns.get("f", []) or n in avoid_bns.get("b", []) or n in secure_needles.get(bed1, []) or n in secure_needles.get(bed2, []): continue
+					elif n in _bn_locs.get(bed1, []) and n % (gauge*2) == mods2[1]: k.xfer(f"{bed2}{n}", f"{bed1}{n}") # `n % (gauge*2) == mods2[1]` is the same as saying `(n % (gauge*4) == mods4[0][1] or n % (gauge*4) == mods4[1][1])` #TODO: #check 
+					elif n in _bn_locs.get(bed2, []) and n % (gauge*2) == mods2[0]: k.xfer(f"{bed1}{n}", f"{bed2}{n}") # `n % (gauge*2) == mods2[0]` is the same as saying `(n % (gauge*4) == mods4[0][0] or n % (gauge*4) == mods4[1][0])` #TODO: #check 
+			else: #if bed is not None:
+				for n in range(left_n, right_n+1):
+					if n in avoid_bns.get("f", []) or n in avoid_bns.get("b", []) or n in secure_needles.get(bed1, []) or not bnValid(bed1, n, gauge): continue
+					elif n in _bn_locs.get(bed1, []) and n % (gauge*2) == mods2[1]: k.xfer(f"{bed2}{n}", f"{bed1}{n}") # `n % (gauge*2) == mods2[1]` is the same as saying `(n % (gauge*4) == mods4[0][1] or n % (gauge*4) == mods4[1][1])` #TODO: #check
 			
-			# reset settings
-			if speed_number is not None: k.speedNumber(speed_number)
-			if stitch_number is not None: k.stitchNumber(stitch_number)
+		# reset settings
+		if speed_number is not None: k.speedNumber(speed_number)
+		if stitch_number is not None: k.stitchNumber(stitch_number)
 
-	k.comment("end interlock")
+	k.comment(f"end {bed +'-bed ' if bed is not None else ''}interlock")
 
 	# return next direction:
 	if passes % 2 == 0: return d1
@@ -373,7 +362,7 @@ def rib(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List
 
 	cs = c2cs(c) # ensure tuple type
 
-	k.comment(f"begin rib ({sequence})")
+	k.comment(f"begin {bed +'-bed ' if bed is not None else ''}rib ({sequence})")
 
 	if speed_number is not None: k.speedNumber(speed_number)
 	if stitch_number is not None: k.stitchNumber(stitch_number)
@@ -481,7 +470,7 @@ def rib(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], List
 		if speed_number is not None: k.speedNumber(speed_number)
 		if stitch_number is not None: k.stitchNumber(stitch_number)
 
-	k.comment("end rib")
+	k.comment(f"end {bed +'-bed ' if bed is not None else ''}rib ({sequence})")
 
 	# return next direction:
 	if passes % 2 == 0: return d1
@@ -535,7 +524,7 @@ def seed(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], Lis
 
 	cs = c2cs(c) # ensure tuple type
 
-	k.comment(f"begin seed ({sequence})")
+	k.comment(f"begin {bed +'-bed ' if bed is not None else ''}seed ({sequence})")
 
 	if speed_number is not None: k.speedNumber(speed_number)
 	if stitch_number is not None: k.stitchNumber(stitch_number)
@@ -668,7 +657,7 @@ def seed(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str], Lis
 			if machine.lower() != "kniterate": k.releasehook(*cs)
 			if tuck_pattern: tuckPattern(k, first_n=start_n, direction=d1, c=None) # drop it
 
-	k.comment(f"end seed ({sequence})")
+	k.comment(f"end {bed +'-bed ' if bed is not None else ''}seed ({sequence})")
 
 	# return next direction
 	if bnValid(bed, n, gauge) % 2 == 0: #TODO: #check
@@ -1040,7 +1029,7 @@ def tuckStitch(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str
 
 	cs = c2cs(c) # ensure tuple type
 
-	k.comment(f"begin tuck stitch ({sequence})")
+	k.comment(f"begin {bed +'-bed ' if bed is not None else ''}tuck stitch ({sequence})")
 
 	if speed_number is not None: k.speedNumber(speed_number)
 	if stitch_number is not None: k.stitchNumber(stitch_number)
@@ -1064,7 +1053,7 @@ def tuckStitch(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str
 
 	if bn_locs is not None and len(bn_locs.get(bed2, [])):
 		for n in n_ranges[d2]:
-			if bnValid(bed, n, gauge) and n in bn_locs[bed2] and n not in avoid_bns[bed] and n not in avoid_bns[bed2]:
+			if bnValid(bed, n, gauge) and n in bn_locs[bed2] and n not in avoid_bns[bed] and n not in avoid_bns.get(bed2, []):
 				k.xfer(f"{bed2}{n}", f"{bed}{n}")
 
 	if inhook:
@@ -1096,10 +1085,10 @@ def tuckStitch(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[str
 	
 	if xfer_bns_back and bn_locs is not None and len(bn_locs.get(bed2, [])):
 		for n in n_ranges[toggleDirection(d)]:
-			if bnValid(bed, n, gauge) and n in bn_locs[bed2] and n not in avoid_bns[bed] and n not in avoid_bns[bed2]:
+			if bnValid(bed, n, gauge) and n in bn_locs[bed2] and n not in avoid_bns[bed] and n not in avoid_bns.get(bed2, []):
 				k.xfer(f"{bed}{n}", f"{bed2}{n}")
 
-	k.comment("end tuck stitch")
+	k.comment(f"end {bed +'-bed ' if bed is not None else ''}tuck stitch ({sequence})")
 
 	# return next direction:
 	if passes % 2 == 0: return d1
@@ -1155,7 +1144,7 @@ def altKnitTuck(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[st
 
 	cs = c2cs(c) # ensure tuple type
 
-	k.comment(f"begin alt knit/tuck ({sequence})")
+	k.comment(f"begin {bed +'-bed ' if bed is not None else ''}alt knit/tuck ({sequence})")
 
 	if speed_number is not None: k.speedNumber(speed_number)
 	if stitch_number is not None: k.stitchNumber(stitch_number)
@@ -1173,7 +1162,7 @@ def altKnitTuck(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[st
 
 	if bn_locs is not None and len(bn_locs.get(bed2, [])):
 		for n in range(start_n, end_n+step, step):
-			if bnValid(bed, n, gauge) and n in bn_locs[bed2] and n not in avoid_bns[bed] and n not in avoid_bns[bed2]:
+			if bnValid(bed, n, gauge) and n in bn_locs[bed2] and n not in avoid_bns[bed] and n not in avoid_bns.get(bed2, []):
 				k.xfer(f"{bed2}{n}", f"{bed}{n}")
 
 	if inhook:
@@ -1208,10 +1197,10 @@ def altKnitTuck(k, start_n: int, end_n: int, passes: int, c: Union[str, Tuple[st
 
 	if xfer_bns_back and bn_locs is not None and len(bn_locs.get(bed2, [])):
 		for n in range(start_n, end_n+step, step):
-			if bnValid(bed, n, gauge) and n in bn_locs[bed2] and n not in avoid_bns[bed] and n not in avoid_bns[bed2]:
+			if bnValid(bed, n, gauge) and n in bn_locs[bed2] and n not in avoid_bns[bed] and n not in avoid_bns.get(bed2, []):
 				k.xfer(f"{bed}{n}", f"{bed2}{n}")
 
-	k.comment(f"end alt knit/tuck ({sequence})")
+	k.comment(f"end {bed +'-bed ' if bed is not None else ''}alt knit/tuck ({sequence})")
 
 	# return next direction:
 	if passes % 2 == 0: return d1
